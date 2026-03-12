@@ -88,6 +88,13 @@ export class RetrievalService {
       .slice(0, limit);
   }
 
+  private safeSnippet(value: unknown, length: number) {
+    if (typeof value !== 'string') {
+      return '';
+    }
+    return value.slice(0, length);
+  }
+
   private async searchConstitution(
     terms: SearchTerms,
     limit: number,
@@ -112,7 +119,7 @@ export class RetrievalService {
       id: item._id.toString(),
       sourceType: 'constitution',
       title: `الدستور العراقي - المادة ${item.articleNumber}`,
-      snippet: item.text.slice(0, 220),
+      snippet: this.safeSnippet(item.text, 220),
       score: 0.75 - index * 0.02 + semanticHint / 10,
       citation: `الدستور العراقي المادة ${item.articleNumber}`,
       metadata: { articleNumber: item.articleNumber, chapter: item.chapter },
@@ -141,7 +148,7 @@ export class RetrievalService {
       id: item._id.toString(),
       sourceType: 'law',
       title: `${item.lawId?.title ?? 'قانون'} - المادة ${item.articleNumber}`,
-      snippet: item.text.slice(0, 220),
+      snippet: this.safeSnippet(item.text, 220),
       score: 0.72 - index * 0.02 + semanticHint / 12,
       citation: `القانون ${item.lawId?.lawNumber ?? '-'} المادة ${item.articleNumber}`,
       metadata: {
@@ -189,7 +196,7 @@ export class RetrievalService {
       id: item._id.toString(),
       sourceType: 'decision',
       title: `${item.courtName} - القرار ${item.decisionNumber}`,
-      snippet: (item.summary ?? item.fullText ?? '').slice(0, 240),
+      snippet: this.safeSnippet(item.summary ?? item.fullText, 240),
       score: 0.7 - index * 0.018 + semanticHint / 13,
       citation: `قرار ${item.decisionNumber} (${item.courtName})`,
       metadata: {

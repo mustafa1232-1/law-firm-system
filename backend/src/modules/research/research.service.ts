@@ -111,7 +111,7 @@ export class ResearchService {
         type: 'constitution',
         id: item._id.toString(),
         title: `الدستور العراقي - المادة ${item.articleNumber}`,
-        snippet: item.text.slice(0, 220),
+        snippet: this.safeSnippet(item.text, 220),
         source: 'constitution_articles',
         date: item.updatedAt,
         relevanceReason: 'تطابق مع كلمات/مصطلحات دستورية مرتبطة بالسؤال',
@@ -122,7 +122,7 @@ export class ResearchService {
         type: 'law',
         id: item._id.toString(),
         title: `${item.lawId?.title ?? 'قانون'} - المادة ${item.articleNumber}`,
-        snippet: item.text.slice(0, 220),
+        snippet: this.safeSnippet(item.text, 220),
         source: 'law_articles',
         date: item.updatedAt,
         relevanceReason: 'تطابق مع المادة القانونية ذات الصلة',
@@ -133,7 +133,7 @@ export class ResearchService {
         type: 'decision',
         id: item._id.toString(),
         title: `${item.courtName} - القرار ${item.decisionNumber}`,
-        snippet: (item.summary ?? item.fullText ?? '').slice(0, 220),
+        snippet: this.safeSnippet(item.summary ?? item.fullText, 220),
         source: 'judicial_decisions',
         date: item.decisionDate,
         relevanceReason: 'تطابق مع نمط تسبيب قضائي مشابه',
@@ -187,5 +187,12 @@ export class ResearchService {
       .find({ folderId: new Types.ObjectId(folderId) })
       .sort({ createdAt: -1 })
       .lean();
+  }
+
+  private safeSnippet(value: unknown, length: number) {
+    if (typeof value !== 'string') {
+      return '';
+    }
+    return value.slice(0, length);
   }
 }
