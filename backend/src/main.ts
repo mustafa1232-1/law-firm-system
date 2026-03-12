@@ -28,7 +28,7 @@ async function bootstrap() {
   app.use(compression());
   app.use(cookieParser());
 
-  app.setGlobalPrefix(process.env.API_PREFIX ?? 'api/v1');
+  app.setGlobalPrefix(process.env.API_PREFIX ?? 'api');
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
 
   app.useGlobalPipes(

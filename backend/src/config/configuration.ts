@@ -6,7 +6,7 @@ export default () => ({
     port: Number(process.env.PORT ?? 4000),
   },
   api: {
-    prefix: process.env.API_PREFIX ?? 'api/v1',
+    prefix: process.env.API_PREFIX ?? 'api',
   },
   mongodb: {
     uri: process.env.MONGODB_URI ?? 'mongodb://localhost:27017/lexiq_iraq',
@@ -33,6 +33,6 @@ export default () => ({
     openaiApiKey: process.env.OPENAI_API_KEY ?? '',
     disclaimer:
       process.env.LEGAL_DISCLAIMER ??
-      'مخرجات الذكاء الاصطناعي هي اقتراحات أولية للمراجعة القانونية ولا تُعد استشارة نهائية.',
+      'مخرجات الذكاء الاصطناعي هي اقتراحات أولية للمراجعة القانونية وليست استشارة نهائية.',
   },
 });
