@@ -1,0 +1,33 @@
+import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { CurrentUser } from 'src/common/decorators/current-user.decorator';
+import { PaginationQueryDto } from 'src/common/dto/pagination-query.dto';
+import { BillingService } from './billing.service';
+import { CreateInvoiceDto, CreatePaymentDto } from './dto/billing.dto';
+
+@ApiTags('billing')
+@ApiBearerAuth()
+@Controller('billing')
+export class BillingController {
+  constructor(private readonly billingService: BillingService) {}
+
+  @Post('invoices')
+  createInvoice(@Body() dto: CreateInvoiceDto, @CurrentUser() user: any) {
+    return this.billingService.createInvoice(dto, user?.sub);
+  }
+
+  @Get('invoices')
+  listInvoices(@Query() query: PaginationQueryDto) {
+    return this.billingService.listInvoices(query);
+  }
+
+  @Post('payments')
+  createPayment(@Body() dto: CreatePaymentDto, @CurrentUser() user: any) {
+    return this.billingService.createPayment(dto, user?.sub);
+  }
+
+  @Get('payments')
+  listPayments(@Query() query: PaginationQueryDto) {
+    return this.billingService.listPayments(query);
+  }
+}
