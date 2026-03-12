@@ -1,9 +1,12 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../auth/auth_controller.dart';
 import '../config/app_config.dart';
 
 final dioProvider = Provider<Dio>((ref) {
   final config = ref.watch(appConfigProvider);
+  final authController = ref.read(authControllerProvider.notifier);
 
   final dio = Dio(
     BaseOptions(
@@ -17,7 +20,47 @@ final dioProvider = Provider<Dio>((ref) {
 
   dio.interceptors.add(
     InterceptorsWrapper(
-      onError: (error, handler) {
+      onRequest: (options, handler) {
+        if (!_isAuthEndpoint(options.path)) {
+          final token = authController.accessToken;
+          if (token != null && token.isNotEmpty) {
+            options.headers['Authorization'] = 'Bearer $token';
+          }
+        }
+        handler.next(options);
+      },
+      onError: (error, handler) async {
+        final statusCode = error.response?.statusCode;
+        final requestOptions = error.requestOptions;
+        final alreadyRetried = requestOptions.extra['__retried'] == true;
+
+        if (statusCode == 401 &&
+            !_isAuthEndpoint(requestOptions.path) &&
+            !alreadyRetried) {
+          final refreshedToken = await authController.refreshAccessToken();
+          if (refreshedToken != null && refreshedToken.isNotEmpty) {
+            final retried = requestOptions.copyWith(
+              headers: <String, dynamic>{
+                ...requestOptions.headers,
+                'Authorization': 'Bearer $refreshedToken',
+              },
+              extra: <String, dynamic>{
+                ...requestOptions.extra,
+                '__retried': true,
+              },
+            );
+
+            try {
+              final response = await dio.fetch<dynamic>(retried);
+              return handler.resolve(response);
+            } on DioException catch (retryError) {
+              return handler.next(retryError);
+            } catch (_) {
+              // Fall through to original error.
+            }
+          }
+        }
+
         handler.next(error);
       },
     ),
@@ -25,3 +68,10 @@ final dioProvider = Provider<Dio>((ref) {
 
   return dio;
 });
+
+bool _isAuthEndpoint(String path) {
+  return path.contains('/auth/login') ||
+      path.contains('/auth/register') ||
+      path.contains('/auth/refresh') ||
+      path.contains('/auth/logout');
+}

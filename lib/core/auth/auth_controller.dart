@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,9 +9,11 @@ import 'auth_models.dart';
 
 const _sessionStorageKey = 'lexiq_auth_session_v1';
 
-final authControllerProvider = StateNotifierProvider<AuthController, AuthState>((ref) {
-  return AuthController(ref);
-});
+final authControllerProvider = StateNotifierProvider<AuthController, AuthState>(
+  (ref) {
+    return AuthController(ref);
+  },
+);
 
 final accessTokenProvider = Provider<String?>((ref) {
   return ref.watch(authControllerProvider).session?.accessToken;
@@ -32,6 +34,7 @@ class AuthController extends StateNotifier<AuthState> {
   }
 
   final Ref _ref;
+  Future<String?>? _refreshInFlight;
 
   Future<void> _restoreSession() async {
     try {
@@ -56,29 +59,29 @@ class AuthController extends StateNotifier<AuthState> {
         return;
       }
 
-      state = state.copyWith(
-        isBootstrapping: false,
-        session: session,
-        clearError: true,
-      );
+      state = state.copyWith(session: session, clearError: true);
+
+      if (_isAccessTokenExpired(session.accessToken)) {
+        final refreshedToken = await refreshAccessToken();
+        if (refreshedToken == null) {
+          await _clearSessionLocal();
+          return;
+        }
+      }
+
+      state = state.copyWith(isBootstrapping: false, clearError: true);
     } catch (_) {
       state = state.copyWith(isBootstrapping: false, clearSession: true);
     }
   }
 
-  Future<bool> login({
-    required String email,
-    required String password,
-  }) async {
+  Future<bool> login({required String email, required String password}) async {
     state = state.copyWith(isSubmitting: true, clearError: true);
     try {
       final dio = _ref.read(dioProvider);
       final response = await dio.post(
         '/auth/login',
-        data: {
-          'email': email.trim(),
-          'password': password,
-        },
+        data: {'email': email.trim(), 'password': password},
       );
 
       final session = AuthSession.fromJson(
@@ -165,7 +168,9 @@ class AuthController extends StateNotifier<AuthState> {
         '/firms/register-company',
         data: {
           'name': firmName.trim(),
-          'category': firmCategory.trim().isEmpty ? 'أخرى' : firmCategory.trim(),
+          'category': firmCategory.trim().isEmpty
+              ? 'أخرى'
+              : firmCategory.trim(),
           'employeeCount': employeeCount <= 0 ? 1 : employeeCount,
           'adminFullName': fullName.trim(),
           'adminEmail': email.trim(),
@@ -217,9 +222,7 @@ class AuthController extends StateNotifier<AuthState> {
     } catch (_) {
       // Ignore remote logout errors and clear local session.
     } finally {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(_sessionStorageKey);
-      state = state.copyWith(clearSession: true, clearError: true);
+      await _clearSessionLocal();
     }
   }
 
@@ -233,6 +236,92 @@ class AuthController extends StateNotifier<AuthState> {
   Future<void> _saveSession(AuthSession session) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_sessionStorageKey, jsonEncode(session.toJson()));
+  }
+
+  String? get accessToken {
+    final token = state.session?.accessToken;
+    if (token == null || token.isEmpty) {
+      return null;
+    }
+    return token;
+  }
+
+  Future<String?> refreshAccessToken() async {
+    final existing = state.session;
+    if (existing == null) {
+      return null;
+    }
+
+    if (_refreshInFlight != null) {
+      return _refreshInFlight;
+    }
+
+    final future = _refreshAccessTokenInternal(existing);
+    _refreshInFlight = future;
+
+    try {
+      return await future;
+    } finally {
+      _refreshInFlight = null;
+    }
+  }
+
+  Future<String?> _refreshAccessTokenInternal(AuthSession existing) async {
+    try {
+      final dio = _ref.read(dioProvider);
+      final response = await dio.post(
+        '/auth/refresh',
+        data: {'refreshToken': existing.refreshToken},
+      );
+
+      final refreshed = AuthSession.fromJson(
+        (response.data as Map).cast<String, dynamic>(),
+      );
+
+      await _saveSession(refreshed);
+      state = state.copyWith(
+        session: refreshed,
+        isBootstrapping: false,
+        clearError: true,
+      );
+      return refreshed.accessToken;
+    } catch (_) {
+      await _clearSessionLocal();
+      return null;
+    }
+  }
+
+  Future<void> _clearSessionLocal() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_sessionStorageKey);
+    state = state.copyWith(
+      isBootstrapping: false,
+      clearSession: true,
+      clearError: true,
+    );
+  }
+
+  bool _isAccessTokenExpired(String token) {
+    try {
+      final parts = token.split('.');
+      if (parts.length != 3) {
+        return false;
+      }
+
+      final payloadRaw = utf8.decode(
+        base64Url.decode(base64Url.normalize(parts[1])),
+      );
+      final payload = jsonDecode(payloadRaw) as Map<String, dynamic>;
+      final exp = payload['exp'];
+      if (exp is! num) {
+        return false;
+      }
+
+      final expiry = DateTime.fromMillisecondsSinceEpoch(exp.toInt() * 1000);
+      return expiry.isBefore(DateTime.now().add(const Duration(seconds: 30)));
+    } catch (_) {
+      return false;
+    }
   }
 }
 
