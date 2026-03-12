@@ -1,8 +1,9 @@
-import { ConfigService } from '@nestjs/config';
+﻿import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import { Injectable } from '@nestjs/common';
-import { Model, Types } from 'mongoose';
+import { Model } from 'mongoose';
 import { normalizeArabic } from 'src/common/utils/arabic-normalization.util';
+import { toObjectIdOrUndefined } from 'src/common/utils/object-id.util';
 import { AuditService } from '../../audit/audit.service';
 import { AiAnalysis, AiAnalysisDocument } from '../schemas/ai-analysis.schema';
 import {
@@ -78,7 +79,7 @@ export class AiOrchestratorService {
     };
 
     const analysis = await this.analysisModel.create({
-      caseId: dto.caseId ? new Types.ObjectId(dto.caseId) : undefined,
+      caseId: toObjectIdOrUndefined(dto.caseId),
       analysisType: 'case-analysis',
       inputText: dto.description,
       output,
@@ -128,7 +129,7 @@ export class AiOrchestratorService {
 
     const answer = {
       summary: hasSources
-        ? 'تم العثور على مصادر قانونية مرتبطة بالسؤال ضمن الدستور والقوانين والقرارات.'
+        ? 'تم العثور على مصادر قانونية مرتبطة بالسؤال ضمن الدستور والقوانين والقرارات المتاحة.'
         : 'لم يتم العثور على مصادر كافية ضمن البيانات المفهرسة لهذا السؤال.',
       groundedAnswer:
         'هذه الإجابة أولية ومبنية على المصادر القانونية المتاحة داخل النظام مع الاستشهادات.',
@@ -144,7 +145,7 @@ export class AiOrchestratorService {
     };
 
     const analysis = await this.analysisModel.create({
-      caseId: dto.caseId ? new Types.ObjectId(dto.caseId) : undefined,
+      caseId: toObjectIdOrUndefined(dto.caseId),
       analysisType: 'legal-research',
       inputText: dto.query,
       output: answer,
@@ -186,7 +187,7 @@ export class AiOrchestratorService {
     });
 
     const created = await this.argumentModel.create({
-      caseId: dto.caseId ? new Types.ObjectId(dto.caseId) : undefined,
+      caseId: toObjectIdOrUndefined(dto.caseId),
       title: 'هيكل دفوع أولي بالذكاء الاصطناعي',
       argumentType: 'primary',
       content: JSON.stringify(built),
@@ -223,7 +224,7 @@ export class AiOrchestratorService {
     });
 
     const memo = await this.memoModel.create({
-      caseId: dto.caseId ? new Types.ObjectId(dto.caseId) : undefined,
+      caseId: toObjectIdOrUndefined(dto.caseId),
       title: `مسودة مذكرة: ${dto.topic}`,
       body,
       citations: authorities.map((a) => ({ citation: a.citation, id: a.id })),
@@ -248,9 +249,9 @@ export class AiOrchestratorService {
 
   private inferCaseType(text: string) {
     const normalized = normalizeArabic(text);
-    if (this.hasAny(normalized, ['جنائي', 'جريمه', 'متهم', 'عقوبه'])) return 'جنائية';
-    if (this.hasAny(normalized, ['تجاري', 'شركه', 'افلاس', 'كمبياله'])) return 'تجارية';
-    if (this.hasAny(normalized, ['احوال', 'طلاق', 'نفقه', 'زواج'])) return 'أحوال شخصية';
+    if (this.hasAny(normalized, ['جنائي', 'جريمة', 'متهم', 'عقوبة'])) return 'جنائية';
+    if (this.hasAny(normalized, ['تجاري', 'شركة', 'افلاس', 'كمبيالة'])) return 'تجارية';
+    if (this.hasAny(normalized, ['احوال', 'طلاق', 'نفقة', 'زواج'])) return 'أحوال شخصية';
     if (this.hasAny(normalized, ['دستوري', 'دستور'])) return 'دستورية';
     if (this.hasAny(normalized, ['تنفيذ'])) return 'تنفيذ';
     if (this.hasAny(normalized, ['عمل', 'عمال'])) return 'عمالية';

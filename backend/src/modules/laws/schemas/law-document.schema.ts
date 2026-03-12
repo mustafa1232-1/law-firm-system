@@ -5,6 +5,12 @@ export type LawDocumentEntityDocument = HydratedDocument<LawDocumentEntity>;
 
 @Schema({ timestamps: true, versionKey: false, collection: 'law_documents' })
 export class LawDocumentEntity {
+  @Prop({ required: false })
+  sourceName?: string;
+
+  @Prop({ required: false })
+  sourceUrl?: string;
+
   @Prop({ required: true })
   title: string;
 

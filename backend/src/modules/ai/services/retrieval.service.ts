@@ -1,7 +1,11 @@
-import { Injectable } from '@nestjs/common';
+﻿import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { normalizeArabic } from 'src/common/utils/arabic-normalization.util';
+import {
+  buildSearchTerms,
+  buildTokenRegexConditions,
+  SearchTerms,
+} from 'src/common/utils/search-query.util';
 import {
   ConstitutionArticle,
   ConstitutionArticleDocument,
@@ -45,25 +49,29 @@ export class RetrievalService {
     court?: string;
   }): Promise<RetrievalResult[]> {
     const limit = input.limit ?? 10;
-    const normalized = normalizeArabic(input.query);
-    const embedding = await this.embeddingsService.embed(input.query);
-    const embeddingHint = embedding.reduce((acc, v) => acc + v, 0) / embedding.length;
+    const terms = buildSearchTerms(input.query);
+
+    if (!terms.rawQuery) {
+      return [];
+    }
+
+    const embedding = await this.embeddingsService.embed(terms.rawQuery);
+    const embeddingHint = embedding.reduce((acc, value) => acc + value, 0) / embedding.length;
 
     const tasks: Promise<RetrievalResult[]>[] = [];
 
     if (input.searchConstitution !== false) {
-      tasks.push(this.searchConstitution(input.query, normalized, limit, embeddingHint));
+      tasks.push(this.searchConstitution(terms, limit, embeddingHint));
     }
 
     if (input.searchLaws !== false) {
-      tasks.push(this.searchLaws(input.query, normalized, limit, embeddingHint));
+      tasks.push(this.searchLaws(terms, limit, embeddingHint));
     }
 
     if (input.searchDecisions !== false) {
       tasks.push(
         this.searchDecisions(
-          input.query,
-          normalized,
+          terms,
           limit,
           embeddingHint,
           input.legalDomain,
@@ -81,55 +89,60 @@ export class RetrievalService {
   }
 
   private async searchConstitution(
-    query: string,
-    normalized: string,
+    terms: SearchTerms,
     limit: number,
     semanticHint: number,
   ): Promise<RetrievalResult[]> {
     const items = await this.constitutionModel
       .find({
         $or: [
-          { $text: { $search: query } },
-          { normalizedText: { $regex: normalized, $options: 'i' } },
+          { articleNumber: { $regex: terms.escapedRawQuery, $options: 'i' } },
+          { title: { $regex: terms.escapedRawQuery, $options: 'i' } },
+          { text: { $regex: terms.escapedRawQuery, $options: 'i' } },
+          { normalizedText: { $regex: terms.escapedNormalizedQuery, $options: 'i' } },
+          ...buildTokenRegexConditions('title', terms.rawTokens),
+          ...buildTokenRegexConditions('text', terms.rawTokens),
+          ...buildTokenRegexConditions('normalizedText', terms.normalizedTokens),
         ],
       })
       .limit(limit)
       .lean();
 
-    return items.map((item, idx) => ({
+    return items.map((item, index) => ({
       id: item._id.toString(),
       sourceType: 'constitution',
       title: `الدستور العراقي - المادة ${item.articleNumber}`,
       snippet: item.text.slice(0, 220),
-      score: 0.75 - idx * 0.02 + semanticHint / 10,
+      score: 0.75 - index * 0.02 + semanticHint / 10,
       citation: `الدستور العراقي المادة ${item.articleNumber}`,
       metadata: { articleNumber: item.articleNumber, chapter: item.chapter },
     }));
   }
 
   private async searchLaws(
-    query: string,
-    normalized: string,
+    terms: SearchTerms,
     limit: number,
     semanticHint: number,
   ): Promise<RetrievalResult[]> {
     const items = await this.lawArticleModel
       .find({
         $or: [
-          { $text: { $search: query } },
-          { normalizedText: { $regex: normalized, $options: 'i' } },
+          { normalizedText: { $regex: terms.escapedNormalizedQuery, $options: 'i' } },
+          { text: { $regex: terms.escapedRawQuery, $options: 'i' } },
+          ...buildTokenRegexConditions('normalizedText', terms.normalizedTokens),
+          ...buildTokenRegexConditions('text', terms.rawTokens),
         ],
       })
       .limit(limit)
       .populate('lawId', 'title lawNumber year legalDomain')
       .lean();
 
-    return items.map((item: any, idx) => ({
+    return items.map((item: any, index) => ({
       id: item._id.toString(),
       sourceType: 'law',
       title: `${item.lawId?.title ?? 'قانون'} - المادة ${item.articleNumber}`,
       snippet: item.text.slice(0, 220),
-      score: 0.72 - idx * 0.02 + semanticHint / 12,
+      score: 0.72 - index * 0.02 + semanticHint / 12,
       citation: `القانون ${item.lawId?.lawNumber ?? '-'} المادة ${item.articleNumber}`,
       metadata: {
         articleNumber: item.articleNumber,
@@ -140,8 +153,7 @@ export class RetrievalService {
   }
 
   private async searchDecisions(
-    query: string,
-    normalized: string,
+    terms: SearchTerms,
     limit: number,
     semanticHint: number,
     legalDomain?: string,
@@ -149,15 +161,22 @@ export class RetrievalService {
   ): Promise<RetrievalResult[]> {
     const filter: any = {
       $or: [
-        { $text: { $search: query } },
-        { normalizedText: { $regex: normalized, $options: 'i' } },
+        { normalizedText: { $regex: terms.escapedNormalizedQuery, $options: 'i' } },
+        { summary: { $regex: terms.escapedRawQuery, $options: 'i' } },
+        { fullText: { $regex: terms.escapedRawQuery, $options: 'i' } },
+        ...buildTokenRegexConditions('normalizedText', terms.normalizedTokens),
+        ...buildTokenRegexConditions('summary', terms.rawTokens),
+        ...buildTokenRegexConditions('fullText', terms.rawTokens),
       ],
     };
+
     if (legalDomain) {
       filter.legalDomain = legalDomain;
     }
+
     if (court) {
-      filter.courtName = { $regex: court, $options: 'i' };
+      const courtTerms = buildSearchTerms(court);
+      filter.courtName = { $regex: courtTerms.escapedRawQuery, $options: 'i' };
     }
 
     const items = await this.decisionModel
@@ -166,12 +185,12 @@ export class RetrievalService {
       .limit(limit)
       .lean();
 
-    return items.map((item, idx) => ({
+    return items.map((item, index) => ({
       id: item._id.toString(),
       sourceType: 'decision',
       title: `${item.courtName} - القرار ${item.decisionNumber}`,
       snippet: (item.summary ?? item.fullText ?? '').slice(0, 240),
-      score: 0.7 - idx * 0.018 + semanticHint / 13,
+      score: 0.7 - index * 0.018 + semanticHint / 13,
       citation: `قرار ${item.decisionNumber} (${item.courtName})`,
       metadata: {
         decisionNumber: item.decisionNumber,

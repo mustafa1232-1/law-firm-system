@@ -1,8 +1,12 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+﻿import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { PaginationQueryDto } from 'src/common/dto/pagination-query.dto';
 import { normalizeArabic } from 'src/common/utils/arabic-normalization.util';
+import {
+  buildSearchTerms,
+  buildTokenRegexConditions,
+} from 'src/common/utils/search-query.util';
 import { AuditService } from '../audit/audit.service';
 import { IngestService } from '../ingest/ingest.service';
 import { CreateDecisionDto } from './dto/create-decision.dto';
@@ -48,19 +52,31 @@ export class DecisionsService {
   }
 
   async search(q: string, query: PaginationQueryDto, filters: Record<string, string>) {
-    const normalized = normalizeArabic(q ?? '');
+    const terms = buildSearchTerms(q);
+    const rawQuery = terms.rawQuery;
     const { page, limit } = query;
+
+    if (!rawQuery) {
+      return { items: [], page, limit, total: 0 };
+    }
+
     const skip = (page - 1) * limit;
 
     const filter: any = {
       $or: [
-        { $text: { $search: q } },
-        { normalizedText: { $regex: normalized, $options: 'i' } },
+        { normalizedText: { $regex: terms.escapedNormalizedQuery, $options: 'i' } },
+        { summary: { $regex: terms.escapedRawQuery, $options: 'i' } },
+        { fullText: { $regex: terms.escapedRawQuery, $options: 'i' } },
+        { decisionNumber: { $regex: terms.escapedRawQuery, $options: 'i' } },
+        ...buildTokenRegexConditions('normalizedText', terms.normalizedTokens),
+        ...buildTokenRegexConditions('summary', terms.rawTokens),
+        ...buildTokenRegexConditions('fullText', terms.rawTokens),
       ],
     };
 
     if (filters.court) {
-      filter.courtName = { $regex: filters.court, $options: 'i' };
+      const courtTerms = buildSearchTerms(filters.court);
+      filter.courtName = { $regex: courtTerms.escapedRawQuery, $options: 'i' };
     }
     if (filters.caseType) {
       filter.caseType = filters.caseType;
@@ -82,8 +98,7 @@ export class DecisionsService {
     return {
       items: items.map((item) => ({
         ...item,
-        relevanceReason:
-          'تطابق في الكلمات المفتاحية ونطاق المحكمة والموضوع القانوني',
+        relevanceReason: 'تطابق في الكلمات المفتاحية ونطاق المحكمة والموضوع القانوني',
       })),
       page,
       limit,

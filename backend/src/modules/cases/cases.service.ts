@@ -1,7 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+﻿import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { normalizeArabic } from 'src/common/utils/arabic-normalization.util';
+import { toObjectIdOrUndefined } from 'src/common/utils/object-id.util';
+import { escapeRegex } from 'src/common/utils/regex.util';
 import { PaginationQueryDto } from 'src/common/dto/pagination-query.dto';
 import { AuditService } from '../audit/audit.service';
 import { AiService } from '../ai/ai.service';
@@ -23,8 +25,10 @@ export class CasesService {
   async create(dto: CreateCaseDto, actorId?: string) {
     const created = await this.caseModel.create({
       ...dto,
-      clientId: dto.clientId ? new Types.ObjectId(dto.clientId) : undefined,
-      lawyerIds: (dto.lawyerIds ?? []).map((id) => new Types.ObjectId(id)),
+      clientId: toObjectIdOrUndefined(dto.clientId),
+      lawyerIds: (dto.lawyerIds ?? [])
+        .map((id) => toObjectIdOrUndefined(id))
+        .filter((id): id is Types.ObjectId => Boolean(id)),
       hearingDates: (dto.hearingDates ?? []).map((d) => new Date(d)),
     });
 
@@ -50,11 +54,16 @@ export class CasesService {
   async findAll(query: PaginationQueryDto, q?: string) {
     const { page, limit } = query;
     const skip = (page - 1) * limit;
-    const filter = q
+
+    const rawQuery = (q ?? '').trim();
+    const safeQuery = escapeRegex(rawQuery);
+
+    const filter = rawQuery
       ? {
           $or: [
-            { $text: { $search: q } },
-            { caseNumber: { $regex: q, $options: 'i' } },
+            { caseNumber: { $regex: safeQuery, $options: 'i' } },
+            { title: { $regex: safeQuery, $options: 'i' } },
+            { court: { $regex: safeQuery, $options: 'i' } },
           ],
         }
       : {};
@@ -95,8 +104,10 @@ export class CasesService {
   async update(id: string, dto: UpdateCaseDto, actorId?: string) {
     const payload: Record<string, unknown> = {
       ...dto,
-      clientId: dto.clientId ? new Types.ObjectId(dto.clientId) : undefined,
-      lawyerIds: dto.lawyerIds?.map((lawyerId) => new Types.ObjectId(lawyerId)),
+      clientId: toObjectIdOrUndefined(dto.clientId),
+      lawyerIds: dto.lawyerIds
+        ?.map((lawyerId) => toObjectIdOrUndefined(lawyerId))
+        .filter((item): item is Types.ObjectId => Boolean(item)),
       hearingDates: dto.hearingDates?.map((d) => new Date(d)),
     };
 

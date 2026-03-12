@@ -9,10 +9,12 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
+import { Public } from 'src/common/decorators/public.decorator';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { SystemRole } from 'src/common/constants/system.constants';
 import { PaginationQueryDto } from 'src/common/dto/pagination-query.dto';
 import { CreateFirmDto } from './dto/create-firm.dto';
+import { RegisterCompanyDto } from './dto/register-company.dto';
 import { UpdateFirmSettingsDto } from './dto/update-firm-settings.dto';
 import { UpdateFirmDto } from './dto/update-firm.dto';
 import { FirmsService } from './firms.service';
@@ -27,6 +29,12 @@ export class FirmsController {
   @Roles(SystemRole.SUPER_ADMIN)
   create(@Body() dto: CreateFirmDto, @CurrentUser() user: any) {
     return this.firmsService.create(dto, user?.sub);
+  }
+
+  @Post('register-company')
+  @Public()
+  registerCompany(@Body() dto: RegisterCompanyDto) {
+    return this.firmsService.registerCompany(dto);
   }
 
   @Get()

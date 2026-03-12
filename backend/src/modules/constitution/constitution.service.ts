@@ -1,8 +1,12 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+﻿import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { PaginationQueryDto } from 'src/common/dto/pagination-query.dto';
 import { normalizeArabic } from 'src/common/utils/arabic-normalization.util';
+import {
+  buildSearchTerms,
+  buildTokenRegexConditions,
+} from 'src/common/utils/search-query.util';
 import { AuditService } from '../audit/audit.service';
 import { CreateConstitutionArticleDto } from './dto/create-constitution-article.dto';
 import { UpdateConstitutionArticleDto } from './dto/update-constitution-article.dto';
@@ -47,15 +51,32 @@ export class ConstitutionService {
   }
 
   async search(q: string, query: PaginationQueryDto) {
-    const normalized = normalizeArabic(q ?? '');
+    const terms = buildSearchTerms(q);
+    const rawQuery = terms.rawQuery;
     const { page, limit } = query;
+
+    if (!rawQuery) {
+      return {
+        items: [],
+        total: 0,
+        page,
+        limit,
+        query: rawQuery,
+        note: 'يرجى إدخال عبارة بحث صالحة.',
+      };
+    }
+
     const skip = (page - 1) * limit;
 
     const filter = {
       $or: [
-        { articleNumber: { $regex: q, $options: 'i' } },
-        { $text: { $search: q } },
-        { normalizedText: { $regex: normalized, $options: 'i' } },
+        { articleNumber: { $regex: terms.escapedRawQuery, $options: 'i' } },
+        { title: { $regex: terms.escapedRawQuery, $options: 'i' } },
+        { text: { $regex: terms.escapedRawQuery, $options: 'i' } },
+        { normalizedText: { $regex: terms.escapedNormalizedQuery, $options: 'i' } },
+        ...buildTokenRegexConditions('title', terms.rawTokens),
+        ...buildTokenRegexConditions('text', terms.rawTokens),
+        ...buildTokenRegexConditions('normalizedText', terms.normalizedTokens),
       ],
     };
 
@@ -69,9 +90,8 @@ export class ConstitutionService {
       total,
       page,
       limit,
-      query: q,
-      note:
-        'نتائج البحث أولية وتعتمد على النصوص المفهرسة داخل قاعدة بيانات النظام.',
+      query: rawQuery,
+      note: 'نتائج البحث أولية وتعتمد على النصوص المفهرسة داخل قاعدة بيانات النظام.',
     };
   }
 
@@ -107,33 +127,73 @@ export class ConstitutionService {
   async ensureSeed() {
     const exists = await this.articleModel.countDocuments();
     if (exists > 0) {
-      return { seeded: false, reason: 'already-exists' };
+      return { seeded: false, reason: 'already-exists', count: exists };
     }
 
     const seed = [
+      {
+        articleNumber: '1',
+        chapter: 'الباب الأول',
+        section: 'المبادئ الأساسية',
+        title: 'شكل الدولة',
+        text: 'جمهورية العراق دولة اتحادية واحدة مستقلة ذات سيادة كاملة، نظام الحكم فيها جمهوري نيابي ديمقراطي اتحادي.',
+        keywords: ['الدولة', 'اتحادية', 'سيادة'],
+      },
       {
         articleNumber: '2',
         chapter: 'الباب الأول',
         section: 'المبادئ الأساسية',
         title: 'دين الدولة',
-        text: 'الإسلام دين الدولة الرسمي وهو مصدر أساس للتشريع.',
+        text: 'الإسلام دين الدولة الرسمي، وهو مصدرٌ أساس للتشريع.',
         keywords: ['الإسلام', 'التشريع'],
+      },
+      {
+        articleNumber: '14',
+        chapter: 'الباب الثاني',
+        section: 'الحقوق والحريات',
+        title: 'المساواة',
+        text: 'العراقيون متساوون أمام القانون دون تمييز.',
+        keywords: ['المساواة', 'عدم التمييز'],
+      },
+      {
+        articleNumber: '15',
+        chapter: 'الباب الثاني',
+        section: 'الحقوق والحريات',
+        title: 'الحق في الحياة والحرية',
+        text: 'لكل فرد الحق في الحياة والأمن والحرية، ولا يجوز الحرمان من هذه الحقوق إلا وفقاً للقانون.',
+        keywords: ['الحق في الحياة', 'الحرية'],
       },
       {
         articleNumber: '19',
         chapter: 'الباب الثاني',
         section: 'الحقوق والحريات',
-        title: 'حق التقاضي',
-        text: 'التقاضي حق مصون ومكفول للجميع.',
-        keywords: ['التقاضي', 'الضمانات', 'حق التقاضي'],
+        title: 'الضمانات القضائية',
+        text: 'التقاضي حق مصون ومكفول للجميع، ويُحظر تحصين أي عمل أو قرار إداري من الطعن.',
+        keywords: ['التقاضي', 'ضمانات المحاكمة'],
       },
       {
         articleNumber: '23',
         chapter: 'الباب الثاني',
         section: 'الحقوق والحريات',
-        title: 'حماية الملكية',
-        text: 'الملكية الخاصة مصونة ويحق للمالك الانتفاع بها ضمن حدود القانون.',
-        keywords: ['الملكية', 'الحقوق'],
+        title: 'الملكية الخاصة',
+        text: 'الملكية الخاصة مصونة، ويحق للمالك الانتفاع بها واستغلالها والتصرف بها ضمن حدود القانون.',
+        keywords: ['الملكية', 'الحقوق المالية'],
+      },
+      {
+        articleNumber: '47',
+        chapter: 'الباب الثالث',
+        section: 'السلطات الاتحادية',
+        title: 'الفصل بين السلطات',
+        text: 'تتكون السلطات الاتحادية من السلطات التشريعية والتنفيذية والقضائية، وتمارس اختصاصاتها على أساس مبدأ الفصل بين السلطات.',
+        keywords: ['الفصل بين السلطات'],
+      },
+      {
+        articleNumber: '88',
+        chapter: 'الباب الثالث',
+        section: 'السلطة القضائية',
+        title: 'استقلال القضاء',
+        text: 'القضاة مستقلون لا سلطان عليهم في قضائهم لغير القانون، ولا يجوز لأي سلطة التدخل في القضاء أو في شؤون العدالة.',
+        keywords: ['استقلال القضاء'],
       },
     ];
 

@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -44,9 +44,15 @@ class AuthController extends StateNotifier<AuthState> {
 
       final json = jsonDecode(raw) as Map<String, dynamic>;
       final session = AuthSession.fromJson(json);
-      if (session.accessToken.isEmpty || session.refreshToken.isEmpty || session.user.id.isEmpty) {
+      if (session.accessToken.isEmpty ||
+          session.refreshToken.isEmpty ||
+          session.user.id.isEmpty) {
         await prefs.remove(_sessionStorageKey);
-        state = state.copyWith(isBootstrapping: false, clearSession: true, clearError: true);
+        state = state.copyWith(
+          isBootstrapping: false,
+          clearSession: true,
+          clearError: true,
+        );
         return;
       }
 
@@ -75,7 +81,10 @@ class AuthController extends StateNotifier<AuthState> {
         },
       );
 
-      final session = AuthSession.fromJson((response.data as Map).cast<String, dynamic>());
+      final session = AuthSession.fromJson(
+        (response.data as Map).cast<String, dynamic>(),
+      );
+
       await _saveSession(session);
       state = state.copyWith(
         isSubmitting: false,
@@ -115,7 +124,10 @@ class AuthController extends StateNotifier<AuthState> {
         },
       );
 
-      final session = AuthSession.fromJson((response.data as Map).cast<String, dynamic>());
+      final session = AuthSession.fromJson(
+        (response.data as Map).cast<String, dynamic>(),
+      );
+
       await _saveSession(session);
       state = state.copyWith(
         isSubmitting: false,
@@ -138,6 +150,55 @@ class AuthController extends StateNotifier<AuthState> {
     }
   }
 
+  Future<bool> registerCompany({
+    required String fullName,
+    required String email,
+    required String password,
+    required String firmName,
+    required String firmCategory,
+    required int employeeCount,
+  }) async {
+    state = state.copyWith(isSubmitting: true, clearError: true);
+    try {
+      final dio = _ref.read(dioProvider);
+      await dio.post(
+        '/firms/register-company',
+        data: {
+          'name': firmName.trim(),
+          'category': firmCategory.trim().isEmpty ? 'أخرى' : firmCategory.trim(),
+          'employeeCount': employeeCount <= 0 ? 1 : employeeCount,
+          'adminFullName': fullName.trim(),
+          'adminEmail': email.trim(),
+          'adminPassword': password,
+        },
+      );
+
+      final loginSuccess = await login(email: email, password: password);
+      if (loginSuccess) {
+        return true;
+      }
+
+      state = state.copyWith(
+        isSubmitting: false,
+        errorMessage:
+            'تم إنشاء الشركة لكن فشل تسجيل الدخول التلقائي. حاول تسجيل الدخول يدويًا.',
+      );
+      return false;
+    } on DioException catch (error) {
+      state = state.copyWith(
+        isSubmitting: false,
+        errorMessage: _extractApiError(error),
+      );
+      return false;
+    } catch (_) {
+      state = state.copyWith(
+        isSubmitting: false,
+        errorMessage: 'تعذر إنشاء حساب الشركة الآن.',
+      );
+      return false;
+    }
+  }
+
   Future<void> logout() async {
     final session = state.session;
     if (session == null) {
@@ -146,7 +207,13 @@ class AuthController extends StateNotifier<AuthState> {
 
     try {
       final dio = _ref.read(dioProvider);
-      await dio.post('/auth/logout', data: {'refreshToken': session.refreshToken}, options: Options(headers: {'Authorization': 'Bearer ${session.accessToken}'}));
+      await dio.post(
+        '/auth/logout',
+        data: {'refreshToken': session.refreshToken},
+        options: Options(
+          headers: {'Authorization': 'Bearer ${session.accessToken}'},
+        ),
+      );
     } catch (_) {
       // Ignore remote logout errors and clear local session.
     } finally {

@@ -1,7 +1,11 @@
-import { Injectable } from '@nestjs/common';
+﻿import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { normalizeArabic } from 'src/common/utils/arabic-normalization.util';
+import {
+  buildSearchTerms,
+  buildTokenRegexConditions,
+} from 'src/common/utils/search-query.util';
+import { toObjectIdOrUndefined } from 'src/common/utils/object-id.util';
 import {
   ConstitutionArticle,
   ConstitutionArticleDocument,
@@ -34,7 +38,16 @@ export class ResearchService {
   ) {}
 
   async search(dto: SearchResearchDto) {
-    const normalized = normalizeArabic(dto.q);
+    const terms = buildSearchTerms(dto.q);
+    const rawQuery = terms.rawQuery;
+    if (!rawQuery) {
+      return {
+        query: rawQuery,
+        total: 0,
+        items: [],
+        note: 'يرجى إدخال عبارة بحث.',
+      };
+    }
 
     const [constitution, laws, decisions] = await Promise.all([
       dto.type && dto.type !== 'constitution'
@@ -42,8 +55,13 @@ export class ResearchService {
         : this.constitutionModel
             .find({
               $or: [
-                { $text: { $search: dto.q } },
-                { normalizedText: { $regex: normalized, $options: 'i' } },
+                { articleNumber: { $regex: terms.escapedRawQuery, $options: 'i' } },
+                { title: { $regex: terms.escapedRawQuery, $options: 'i' } },
+                { text: { $regex: terms.escapedRawQuery, $options: 'i' } },
+                { normalizedText: { $regex: terms.escapedNormalizedQuery, $options: 'i' } },
+                ...buildTokenRegexConditions('title', terms.rawTokens),
+                ...buildTokenRegexConditions('text', terms.rawTokens),
+                ...buildTokenRegexConditions('normalizedText', terms.normalizedTokens),
               ],
             })
             .limit(8)
@@ -53,8 +71,10 @@ export class ResearchService {
         : this.lawArticleModel
             .find({
               $or: [
-                { $text: { $search: dto.q } },
-                { normalizedText: { $regex: normalized, $options: 'i' } },
+                { normalizedText: { $regex: terms.escapedNormalizedQuery, $options: 'i' } },
+                { text: { $regex: terms.escapedRawQuery, $options: 'i' } },
+                ...buildTokenRegexConditions('normalizedText', terms.normalizedTokens),
+                ...buildTokenRegexConditions('text', terms.rawTokens),
               ],
             })
             .limit(8)
@@ -65,10 +85,21 @@ export class ResearchService {
         : this.decisionModel
             .find({
               $or: [
-                { $text: { $search: dto.q } },
-                { normalizedText: { $regex: normalized, $options: 'i' } },
+                { normalizedText: { $regex: terms.escapedNormalizedQuery, $options: 'i' } },
+                { summary: { $regex: terms.escapedRawQuery, $options: 'i' } },
+                { fullText: { $regex: terms.escapedRawQuery, $options: 'i' } },
+                ...buildTokenRegexConditions('normalizedText', terms.normalizedTokens),
+                ...buildTokenRegexConditions('summary', terms.rawTokens),
+                ...buildTokenRegexConditions('fullText', terms.rawTokens),
               ],
-              ...(dto.court ? { courtName: { $regex: dto.court, $options: 'i' } } : {}),
+              ...(dto.court
+                ? {
+                    courtName: {
+                      $regex: buildSearchTerms(dto.court).escapedRawQuery,
+                      $options: 'i',
+                    },
+                  }
+                : {}),
               ...(dto.legalDomain ? { legalDomain: dto.legalDomain } : {}),
             })
             .limit(8)
@@ -112,7 +143,7 @@ export class ResearchService {
     ];
 
     return {
-      query: dto.q,
+      query: rawQuery,
       total: resultItems.length,
       items: resultItems,
       note: 'النتائج أولية ويجب مراجعتها مهنيًا قبل اعتمادها في المرافعات.',
@@ -122,13 +153,14 @@ export class ResearchService {
   async createFolder(dto: CreateResearchFolderDto, userId?: string) {
     const folder = await this.folderModel.create({
       ...dto,
-      userId: userId ? new Types.ObjectId(userId) : undefined,
+      userId: toObjectIdOrUndefined(userId),
     });
     return folder;
   }
 
   listFolders(userId?: string) {
-    const filter = userId ? { userId: new Types.ObjectId(userId) } : {};
+    const userObjectId = toObjectIdOrUndefined(userId);
+    const filter = userObjectId ? { userId: userObjectId } : {};
     return this.folderModel.find(filter).sort({ createdAt: -1 }).lean();
   }
 
@@ -136,7 +168,7 @@ export class ResearchService {
     const saved = await this.savedAuthorityModel.create({
       ...dto,
       folderId: new Types.ObjectId(folderId),
-      caseId: dto.caseId ? new Types.ObjectId(dto.caseId) : undefined,
+      caseId: toObjectIdOrUndefined(dto.caseId),
     });
 
     await this.auditService.record({

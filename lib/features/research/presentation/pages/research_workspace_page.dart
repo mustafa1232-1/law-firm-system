@@ -1,4 +1,4 @@
-import 'package:dio/dio.dart';
+﻿import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -32,7 +32,7 @@ class _ResearchWorkspacePageState extends ConsumerState<ResearchWorkspacePage> {
     final query = _queryController.text.trim();
     if (query.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('اكتب عبارة البحث أولاً.')),
+        SnackBar(content: Text(context.tr('Please enter search query first.'))),
       );
       return;
     }
@@ -49,14 +49,16 @@ class _ResearchWorkspacePageState extends ConsumerState<ResearchWorkspacePage> {
         queryParameters: {'q': query},
         options: Options(headers: authHeaders(ref)),
       );
+
       final data = (response.data as Map).cast<String, dynamic>();
       final items = ((data['items'] as List?) ?? const [])
-          .map((e) => (e as Map).cast<String, dynamic>())
+          .map((entry) => (entry as Map).cast<String, dynamic>())
           .toList();
 
       if (!mounted) {
         return;
       }
+
       setState(() => _results = items);
     } catch (error) {
       if (!mounted) {
@@ -75,7 +77,8 @@ class _ResearchWorkspacePageState extends ConsumerState<ResearchWorkspacePage> {
     if (id == null) {
       return;
     }
-    final existingIndex = _pinned.indexWhere((p) => p['id']?.toString() == id);
+
+    final existingIndex = _pinned.indexWhere((entry) => entry['id']?.toString() == id);
     setState(() {
       if (existingIndex >= 0) {
         _pinned.removeAt(existingIndex);
@@ -90,18 +93,19 @@ class _ResearchWorkspacePageState extends ConsumerState<ResearchWorkspacePage> {
     if (id == null) {
       return false;
     }
-    return _pinned.any((p) => p['id']?.toString() == id);
+
+    return _pinned.any((entry) => entry['id']?.toString() == id);
   }
 
   void _openCompareDialog() {
     showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Compare Mode'),
+        title: Text(context.tr('Compare Mode')),
         content: SizedBox(
           width: 700,
           child: _pinned.isEmpty
-              ? const Text('قم بتثبيت مادتين أو قرارين على الأقل للمقارنة.')
+              ? Text(context.tr('Pin at least two authorities to compare.'))
               : ListView.builder(
                   shrinkWrap: true,
                   itemCount: _pinned.length,
@@ -117,7 +121,7 @@ class _ResearchWorkspacePageState extends ConsumerState<ResearchWorkspacePage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('إغلاق'),
+            child: Text(context.tr('Close')),
           ),
         ],
       ),
@@ -152,7 +156,7 @@ class _ResearchWorkspacePageState extends ConsumerState<ResearchWorkspacePage> {
               ElevatedButton.icon(
                 onPressed: _loading ? null : _search,
                 icon: const Icon(Icons.search_rounded),
-                label: _loading ? const Text('...') : const Text('بحث'),
+                label: _loading ? const Text('...') : Text(context.tr('Search')),
               ),
             ],
           ),
@@ -173,7 +177,7 @@ class _ResearchWorkspacePageState extends ConsumerState<ResearchWorkspacePage> {
                       const SizedBox(height: 8),
                       if (_error != null) Text(_error!),
                       if (_error == null && _results.isEmpty && !_loading)
-                        const Text('لا توجد نتائج بعد. ابدأ بكتابة سؤال أو مصطلح قانوني.')
+                        Text(context.tr('No results yet. Start by typing a legal question or term.'))
                       else
                         ..._results.map((item) {
                           final pinned = _isPinned(item);
@@ -212,7 +216,7 @@ class _ResearchWorkspacePageState extends ConsumerState<ResearchWorkspacePage> {
                           ),
                           const SizedBox(height: 8),
                           if (_pinned.isEmpty)
-                            const Text('لا توجد مراجع مثبتة.')
+                            Text(context.tr('No pinned citations yet.'))
                           else
                             ..._pinned.map(
                               (item) => _pin(

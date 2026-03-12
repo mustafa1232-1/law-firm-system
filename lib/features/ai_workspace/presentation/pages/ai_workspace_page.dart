@@ -1,4 +1,4 @@
-import 'package:dio/dio.dart';
+﻿import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -42,7 +42,7 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
     final query = _queryController.text.trim();
     if (query.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('يرجى إدخال وصف القضية أو السؤال القانوني.')),
+        SnackBar(content: Text(context.tr('Please enter case facts or a legal question.'))),
       );
       return;
     }
@@ -70,6 +70,7 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
       if (!mounted) {
         return;
       }
+
       setState(() => _result = (response.data as Map).cast<String, dynamic>());
     } catch (error) {
       if (!mounted) {
@@ -87,7 +88,7 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
     final query = _queryController.text.trim();
     if (query.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('أدخل موضوعًا قبل تحويله إلى مذكرة.')),
+        SnackBar(content: Text(context.tr('Enter content before converting to memo.'))),
       );
       return;
     }
@@ -104,21 +105,23 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
         },
         options: Options(headers: authHeaders(ref)),
       );
+
       final memo = (response.data as Map).cast<String, dynamic>();
       if (!mounted) {
         return;
       }
+
       showDialog<void>(
         context: context,
         builder: (context) => AlertDialog(
-          title: Text((memo['title'] ?? 'Draft Memo').toString()),
+          title: Text((memo['title'] ?? context.tr('Draft Memo')).toString()),
           content: SingleChildScrollView(
             child: Text((memo['body'] ?? '').toString()),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('إغلاق'),
+              child: Text(context.tr('Close')),
             ),
           ],
         ),
@@ -127,7 +130,9 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(parseApiError(error))));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(parseApiError(error))),
+      );
     } finally {
       if (mounted) {
         setState(() => _loading = false);
@@ -135,13 +140,33 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
     }
   }
 
+  void _saveAnalysisLocally() {
+    if (_result == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.tr('Run analysis first to save results.'))),
+      );
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(context.tr('Analysis has been saved in this session.'))),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final suggestedAuthorities = ((_result?['suggestedAuthorities'] as List?) ?? const [])
-        .map((e) => (e as Map).cast<String, dynamic>())
+        .map((entry) => (entry as Map).cast<String, dynamic>())
         .toList();
-    final extractedIssues = ((_result?['extractedIssues'] as List?) ?? const []).map((e) => e.toString()).toList();
-    final proposedQuestions = ((_result?['proposedQuestions'] as List?) ?? const []).map((e) => e.toString()).toList();
+
+    final extractedIssues = ((_result?['extractedIssues'] as List?) ?? const [])
+        .map((entry) => entry.toString())
+        .toList();
+
+    final proposedQuestions = ((_result?['proposedQuestions'] as List?) ?? const [])
+        .map((entry) => entry.toString())
+        .toList();
+
     final confidence = (_result?['confidence'] as num?)?.toDouble() ?? 0;
 
     return SingleChildScrollView(
@@ -170,14 +195,14 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
                     Expanded(
                       child: TextField(
                         controller: _caseIdController,
-                        decoration: const InputDecoration(labelText: 'Attached case ID'),
+                        decoration: InputDecoration(labelText: context.tr('Attached case ID')),
                       ),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: TextField(
                         controller: _documentIdsController,
-                        decoration: const InputDecoration(labelText: 'Attached document IDs'),
+                        decoration: InputDecoration(labelText: context.tr('Attached document IDs')),
                       ),
                     ),
                   ],
@@ -214,13 +239,7 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
                   children: [
                     Expanded(
                       child: OutlinedButton.icon(
-                        onPressed: _loading
-                            ? null
-                            : () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('تم حفظ التحليل في الجلسة الحالية.')),
-                                );
-                              },
+                        onPressed: _loading ? null : _saveAnalysisLocally,
                         icon: const Icon(Icons.save_alt_rounded),
                         label: Text(context.tr('Save Analysis')),
                       ),
@@ -236,7 +255,7 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
                                 child: CircularProgressIndicator(strokeWidth: 2),
                               )
                             : const Icon(Icons.auto_awesome_rounded),
-                        label: const Text('Run Analysis'),
+                        label: Text(context.tr('Run Analysis')),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -277,7 +296,9 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
                           context.tr(
                             'AI output is preliminary and must be reviewed by a licensed lawyer.',
                           ),
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(color: LexiqColors.brassGold),
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: LexiqColors.brassGold,
+                              ),
                         ),
                       ],
                     ],
@@ -314,7 +335,7 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
                           ),
                           const SizedBox(height: 8),
                           if (suggestedAuthorities.isEmpty)
-                            const Text('لا توجد مراجع مقترحة بعد.')
+                            Text(context.tr('No suggested authorities yet.'))
                           else
                             ...suggestedAuthorities.map((item) {
                               final citation = (item['citation'] ?? '-').toString();
@@ -329,17 +350,23 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('Extracted Issues', style: TextStyle(fontWeight: FontWeight.w700)),
+                          Text(
+                            context.tr('Extracted Issues'),
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
                           const SizedBox(height: 8),
                           if (extractedIssues.isEmpty)
-                            const Text('لا توجد نقاط مستخرجة بعد.')
+                            Text(context.tr('No extracted issues yet.'))
                           else
                             ...extractedIssues.map((issue) => Text('• $issue')),
                           const SizedBox(height: 12),
-                          const Text('Proposed Questions', style: TextStyle(fontWeight: FontWeight.w700)),
+                          Text(
+                            context.tr('Proposed Questions'),
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
                           const SizedBox(height: 8),
                           if (proposedQuestions.isEmpty)
-                            const Text('لا توجد أسئلة مقترحة بعد.')
+                            Text(context.tr('No proposed questions yet.'))
                           else
                             ...proposedQuestions.map((question) => Text('• $question')),
                         ],

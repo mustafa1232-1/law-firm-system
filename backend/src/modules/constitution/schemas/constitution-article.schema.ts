@@ -9,6 +9,15 @@ export type ConstitutionArticleDocument = HydratedDocument<ConstitutionArticle>;
   collection: 'constitution_articles',
 })
 export class ConstitutionArticle {
+  @Prop({ required: false })
+  sourceName?: string;
+
+  @Prop({ required: false })
+  sourceUrl?: string;
+
+  @Prop({ required: false })
+  sourceType?: string;
+
   @Prop({ required: true })
   articleNumber: string;
 

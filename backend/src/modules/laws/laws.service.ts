@@ -1,8 +1,12 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+﻿import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { PaginationQueryDto } from 'src/common/dto/pagination-query.dto';
 import { normalizeArabic } from 'src/common/utils/arabic-normalization.util';
+import {
+  buildSearchTerms,
+  buildTokenRegexConditions,
+} from 'src/common/utils/search-query.util';
 import { AuditService } from '../audit/audit.service';
 import { CreateLawArticleDto } from './dto/create-law-article.dto';
 import { CreateLawDto } from './dto/create-law.dto';
@@ -71,21 +75,41 @@ export class LawsService {
   }
 
   async search(q: string, query: PaginationQueryDto) {
-    const normalized = normalizeArabic(q ?? '');
+    const terms = buildSearchTerms(q);
+    const rawQuery = terms.rawQuery;
     const { page, limit } = query;
+
+    if (!rawQuery) {
+      return {
+        query: rawQuery,
+        laws: [],
+        articles: [],
+        note: 'يرجى إدخال عبارة بحث.',
+      };
+    }
+
     const skip = (page - 1) * limit;
 
     const [laws, articles] = await Promise.all([
       this.lawModel
-        .find({ $or: [{ $text: { $search: q } }, { title: { $regex: q, $options: 'i' } }] })
+        .find({
+          $or: [
+            { title: { $regex: terms.escapedRawQuery, $options: 'i' } },
+            { category: { $regex: terms.escapedRawQuery, $options: 'i' } },
+            ...buildTokenRegexConditions('title', terms.rawTokens),
+            ...buildTokenRegexConditions('category', terms.rawTokens),
+          ],
+        })
         .skip(skip)
         .limit(limit)
         .lean(),
       this.articleModel
         .find({
           $or: [
-            { $text: { $search: q } },
-            { normalizedText: { $regex: normalized, $options: 'i' } },
+            { normalizedText: { $regex: terms.escapedNormalizedQuery, $options: 'i' } },
+            { text: { $regex: terms.escapedRawQuery, $options: 'i' } },
+            ...buildTokenRegexConditions('normalizedText', terms.normalizedTokens),
+            ...buildTokenRegexConditions('text', terms.rawTokens),
           ],
         })
         .skip(skip)
@@ -94,7 +118,7 @@ export class LawsService {
     ]);
 
     return {
-      query: q,
+      query: rawQuery,
       laws,
       articles,
       note: 'نتائج البحث تعتمد على الفهرسة النصية وقد تحتاج مراجعة قانونية إضافية.',

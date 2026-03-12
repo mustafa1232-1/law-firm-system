@@ -1,8 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+﻿import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { PaginationQueryDto } from 'src/common/dto/pagination-query.dto';
 import { normalizeArabic } from 'src/common/utils/arabic-normalization.util';
+import { toObjectIdOrUndefined } from 'src/common/utils/object-id.util';
+import { escapeRegex } from 'src/common/utils/regex.util';
 import { AuditService } from '../audit/audit.service';
 import { StorageService } from '../storage/storage.service';
 import { AnalyzeDocumentDto } from './dto/analyze-document.dto';
@@ -30,7 +32,7 @@ export class DocumentsService {
 
     const document = await this.documentModel.create({
       ...dto,
-      caseId: dto.caseId ? new Types.ObjectId(dto.caseId) : undefined,
+      caseId: toObjectIdOrUndefined(dto.caseId),
       storagePath,
     });
 
@@ -52,7 +54,18 @@ export class DocumentsService {
   async findAll(query: PaginationQueryDto, search?: string) {
     const { page, limit } = query;
     const skip = (page - 1) * limit;
-    const filter = search ? { $text: { $search: search } } : {};
+
+    const rawSearch = (search ?? '').trim();
+    const safeSearch = escapeRegex(rawSearch);
+    const filter = rawSearch
+      ? {
+          $or: [
+            { title: { $regex: safeSearch, $options: 'i' } },
+            { originalName: { $regex: safeSearch, $options: 'i' } },
+            { extractedText: { $regex: safeSearch, $options: 'i' } },
+          ],
+        }
+      : {};
 
     const [items, total] = await Promise.all([
       this.documentModel
@@ -111,7 +124,7 @@ export class DocumentsService {
 
     const dates = (doc.extractedText ?? '').match(/\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}/g) ?? [];
 
-    const legalReferenceRegex = new RegExp('\\u0627\\u0644\\u0645\\u0627\\u062f\\u0647\\s+\\d+', 'g');
+    const legalReferenceRegex = new RegExp('\\u0627\\u0644\\u0645\\u0627\\u062F\\u0629\\s+\\d+', 'g');
     const legalRefs = normalized.match(legalReferenceRegex) ?? [];
 
     doc.extractedEntities = {
@@ -121,7 +134,7 @@ export class DocumentsService {
       note: dto.customPrompt ?? null,
     };
     doc.referencedLawArticles = legalRefs.map((r) =>
-      r.replace('\u0627\u0644\u0645\u0627\u062f\u0647', '').trim(),
+      r.replace('\u0627\u0644\u0645\u0627\u062F\u0629', '').trim(),
     );
     await doc.save();
 
@@ -136,8 +149,7 @@ export class DocumentsService {
       documentId: id,
       summary: (doc.extractedText ?? '').slice(0, 800),
       extractedEntities: doc.extractedEntities,
-      disclaimer:
-        'تحليل المستند آلي وأولي، ويجب مراجعته قانونيًا قبل الاعتماد المهني.',
+      disclaimer: 'تحليل المستند آلي وأولي، ويجب مراجعته قانونيًا قبل الاعتماد المهني.',
     };
   }
 

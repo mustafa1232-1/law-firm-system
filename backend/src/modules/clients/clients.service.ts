@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { PaginationQueryDto } from 'src/common/dto/pagination-query.dto';
+import { escapeRegex } from 'src/common/utils/regex.util';
 import { AuditService } from '../audit/audit.service';
 import { CreateClientDto } from './dto/create-client.dto';
 import { UpdateClientDto } from './dto/update-client.dto';
@@ -30,7 +31,18 @@ export class ClientsService {
   async findAll(query: PaginationQueryDto, search?: string) {
     const { page, limit } = query;
     const skip = (page - 1) * limit;
-    const filter = search ? { $text: { $search: search } } : {};
+    const rawSearch = (search ?? '').trim();
+    const safeSearch = escapeRegex(rawSearch);
+    const filter = rawSearch
+      ? {
+          $or: [
+            { fullName: { $regex: safeSearch, $options: 'i' } },
+            { companyName: { $regex: safeSearch, $options: 'i' } },
+            { phone: { $regex: safeSearch, $options: 'i' } },
+            { email: { $regex: safeSearch, $options: 'i' } },
+          ],
+        }
+      : {};
 
     const [items, total] = await Promise.all([
       this.clientModel

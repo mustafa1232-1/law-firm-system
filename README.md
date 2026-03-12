@@ -49,6 +49,7 @@ Implemented modules:
 ## Core backend endpoints
 
 - `POST /api/v1/auth/register`
+- `POST /api/v1/firms/register-company`
 - `POST /api/v1/auth/login`
 - `GET /api/v1/auth/me`
 - `GET /api/v1/cases`
@@ -99,6 +100,7 @@ flutter run -d chrome \
 ```bash
 # Backend
 cd backend && npm run build
+cd backend && npm run seed:public-data
 
 # Frontend
 flutter analyze
@@ -132,6 +134,13 @@ Optional:
 - `REDIS_URL`
 - storage vars (`STORAGE_*`)
 - `OPENAI_API_KEY`
+
+Seed curated legal references after setting `MONGODB_URI`:
+
+```bash
+cd backend
+SEED_REPLACE=true npm run seed:public-data
+```
 
 ### Deploy with Railway CLI
 
