@@ -142,6 +142,12 @@ cd backend
 SEED_REPLACE=true npm run seed:public-data
 ```
 
+Current seeded legal corpus includes:
+
+- Iraqi Constitution full text (articles 1..144), sourced from: `https://www.sjc.iq/view.77/`
+- Curated Iraqi law documents and indexed law articles
+- Curated judicial decision records for search and retrieval
+
 ### Deploy with Railway CLI
 
 ```bash
