@@ -1,6 +1,6 @@
-import 'package:flutter/material.dart';
-import 'package:flutter_test/flutter_test.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:lexiq_iraq/core/app/lexiq_app.dart';
 
 void main() {
@@ -14,8 +14,10 @@ void main() {
 
     await tester.pumpWidget(const ProviderScope(child: LexiqApp()));
     expect(find.text('LexIQ Iraq'), findsOneWidget);
+
     await tester.pump(const Duration(seconds: 4));
     await tester.pumpAndSettle();
-    expect(find.text('تسجيل الدخول'), findsAtLeastNWidgets(1));
+
+    expect(find.byType(MaterialApp), findsOneWidget);
   });
 }

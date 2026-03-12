@@ -1,10 +1,42 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+
 import '../../../../core/localization/app_translations.dart';
 import '../../../../shared/widgets/glass_panel.dart';
 
-class ForgotPasswordPage extends StatelessWidget {
+class ForgotPasswordPage extends StatefulWidget {
   const ForgotPasswordPage({super.key});
+
+  @override
+  State<ForgotPasswordPage> createState() => _ForgotPasswordPageState();
+}
+
+class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
+  final _emailController = TextEditingController();
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    super.dispose();
+  }
+
+  void _sendResetLink() {
+    final email = _emailController.text.trim();
+    if (email.isEmpty || !email.contains('@')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('يرجى إدخال بريد إلكتروني صحيح.')),
+      );
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'ميزة استعادة كلمة المرور ستتصل بخدمة البريد في المرحلة القادمة. تم استلام الطلب لـ $email',
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -26,12 +58,15 @@ class ForgotPasswordPage extends StatelessWidget {
                   const SizedBox(height: 8),
                   Text(context.tr('We will send a reset link to your email address.')),
                   const SizedBox(height: 14),
-                  TextField(decoration: InputDecoration(labelText: context.tr('Email'))),
+                  TextField(
+                    controller: _emailController,
+                    decoration: InputDecoration(labelText: context.tr('Email')),
+                  ),
                   const SizedBox(height: 16),
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: () => context.go('/auth/login'),
+                      onPressed: _sendResetLink,
                       child: Text(context.tr('Send Link')),
                     ),
                   ),

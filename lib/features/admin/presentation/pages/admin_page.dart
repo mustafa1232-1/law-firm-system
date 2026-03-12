@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../core/localization/app_translations.dart';
+import '../../../../shared/widgets/action_feedback.dart';
 import '../../../../shared/widgets/feature_placeholder_page.dart';
 
 class AdminPage extends StatelessWidget {
@@ -16,7 +17,7 @@ class AdminPage extends StatelessWidget {
         'Policy and firm configuration',
       ],
       trailing: ElevatedButton.icon(
-        onPressed: () {},
+        onPressed: () => showFeatureInProgress(context, 'إدارة الصلاحيات RBAC'),
         icon: const Icon(Icons.security_rounded),
         label: Text(context.tr('RBAC')),
       ),

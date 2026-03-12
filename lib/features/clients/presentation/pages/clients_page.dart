@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../core/localization/app_translations.dart';
+import '../../../../shared/widgets/action_feedback.dart';
 import '../../../../shared/widgets/feature_placeholder_page.dart';
 
 class ClientsPage extends StatelessWidget {
@@ -16,7 +17,7 @@ class ClientsPage extends StatelessWidget {
         'Fast filtering and search',
       ],
       trailing: ElevatedButton.icon(
-        onPressed: () {},
+        onPressed: () => showFeatureInProgress(context, 'إضافة عميل'),
         icon: const Icon(Icons.person_add_alt_1_rounded),
         label: Text(context.tr('New Client')),
       ),

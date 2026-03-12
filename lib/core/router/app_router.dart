@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lexiq_iraq/core/auth/auth_controller.dart';
 import 'package:lexiq_iraq/features/admin/presentation/pages/admin_page.dart';
 import 'package:lexiq_iraq/features/ai_workspace/presentation/pages/ai_workspace_page.dart';
 import 'package:lexiq_iraq/features/auth/presentation/pages/forgot_password_page.dart';
@@ -25,6 +26,8 @@ import 'package:lexiq_iraq/features/tasks/presentation/pages/tasks_page.dart';
 import 'package:lexiq_iraq/shared/layout/lexiq_shell.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
+  final authState = ref.watch(authControllerProvider);
+
   return GoRouter(
     initialLocation: '/splash',
     routes: [
@@ -81,9 +84,27 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
     ],
     redirect: (context, state) {
-      if (state.uri.path == '/') {
+      final path = state.uri.path;
+      final isAuthRoute = path.startsWith('/auth');
+      final isSplash = path == '/splash';
+      final isProtectedRoute = !isAuthRoute && !isSplash;
+
+      if (authState.isBootstrapping) {
+        return isSplash ? null : '/splash';
+      }
+
+      if (!authState.isAuthenticated && isProtectedRoute) {
+        return '/auth/login';
+      }
+
+      if (authState.isAuthenticated && (isAuthRoute || isSplash || path == '/')) {
         return '/dashboard';
       }
+
+      if (!authState.isAuthenticated && path == '/') {
+        return '/auth/login';
+      }
+
       return null;
     },
   );

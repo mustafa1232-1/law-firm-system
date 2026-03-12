@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../core/localization/app_translations.dart';
+import '../../../../shared/widgets/action_feedback.dart';
 import '../../../../shared/widgets/feature_placeholder_page.dart';
 
 class HearingsCalendarPage extends StatelessWidget {
@@ -16,7 +17,7 @@ class HearingsCalendarPage extends StatelessWidget {
         'Outcome and next action tracking',
       ],
       trailing: ElevatedButton.icon(
-        onPressed: () {},
+        onPressed: () => showFeatureInProgress(context, 'إنشاء جلسة'),
         icon: const Icon(Icons.add_alert_rounded),
         label: Text(context.tr('New Hearing')),
       ),

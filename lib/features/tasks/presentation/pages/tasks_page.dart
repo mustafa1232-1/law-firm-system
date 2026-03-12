@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../core/localization/app_translations.dart';
+import '../../../../shared/widgets/action_feedback.dart';
 import '../../../../shared/widgets/feature_placeholder_page.dart';
 
 class TasksPage extends StatelessWidget {
@@ -16,7 +17,7 @@ class TasksPage extends StatelessWidget {
         'Comments and reminder timeline',
       ],
       trailing: ElevatedButton.icon(
-        onPressed: () {},
+        onPressed: () => showFeatureInProgress(context, 'إضافة مهمة'),
         icon: const Icon(Icons.playlist_add_check_rounded),
         label: Text(context.tr('New Task')),
       ),

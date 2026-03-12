@@ -1,10 +1,128 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../../core/localization/app_translations.dart';
+import '../../../../core/network/api_helpers.dart';
+import '../../../../core/network/dio_client.dart';
 import '../../../../shared/widgets/glass_panel.dart';
 import '../../../../shared/widgets/section_header.dart';
 
-class ResearchWorkspacePage extends StatelessWidget {
+class ResearchWorkspacePage extends ConsumerStatefulWidget {
   const ResearchWorkspacePage({super.key});
+
+  @override
+  ConsumerState<ResearchWorkspacePage> createState() => _ResearchWorkspacePageState();
+}
+
+class _ResearchWorkspacePageState extends ConsumerState<ResearchWorkspacePage> {
+  final _queryController = TextEditingController();
+  bool _loading = false;
+  String? _error;
+  List<Map<String, dynamic>> _results = const [];
+  final List<Map<String, dynamic>> _pinned = [];
+
+  @override
+  void dispose() {
+    _queryController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _search() async {
+    final query = _queryController.text.trim();
+    if (query.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('اكتب عبارة البحث أولاً.')),
+      );
+      return;
+    }
+
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    try {
+      final dio = ref.read(dioProvider);
+      final response = await dio.get(
+        '/research/search',
+        queryParameters: {'q': query},
+        options: Options(headers: authHeaders(ref)),
+      );
+      final data = (response.data as Map).cast<String, dynamic>();
+      final items = ((data['items'] as List?) ?? const [])
+          .map((e) => (e as Map).cast<String, dynamic>())
+          .toList();
+
+      if (!mounted) {
+        return;
+      }
+      setState(() => _results = items);
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _error = parseApiError(error));
+    } finally {
+      if (mounted) {
+        setState(() => _loading = false);
+      }
+    }
+  }
+
+  void _togglePin(Map<String, dynamic> item) {
+    final id = item['id']?.toString();
+    if (id == null) {
+      return;
+    }
+    final existingIndex = _pinned.indexWhere((p) => p['id']?.toString() == id);
+    setState(() {
+      if (existingIndex >= 0) {
+        _pinned.removeAt(existingIndex);
+      } else {
+        _pinned.add(item);
+      }
+    });
+  }
+
+  bool _isPinned(Map<String, dynamic> item) {
+    final id = item['id']?.toString();
+    if (id == null) {
+      return false;
+    }
+    return _pinned.any((p) => p['id']?.toString() == id);
+  }
+
+  void _openCompareDialog() {
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Compare Mode'),
+        content: SizedBox(
+          width: 700,
+          child: _pinned.isEmpty
+              ? const Text('قم بتثبيت مادتين أو قرارين على الأقل للمقارنة.')
+              : ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: _pinned.length,
+                  itemBuilder: (context, index) {
+                    final item = _pinned[index];
+                    return ListTile(
+                      title: Text((item['title'] ?? '-').toString()),
+                      subtitle: Text((item['snippet'] ?? '').toString()),
+                    );
+                  },
+                ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('إغلاق'),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -22,6 +140,8 @@ class ResearchWorkspacePage extends StatelessWidget {
             children: [
               Expanded(
                 child: TextField(
+                  controller: _queryController,
+                  onSubmitted: (_) => _search(),
                   decoration: InputDecoration(
                     hintText: context.tr('Search laws, constitution, and decisions'),
                     prefixIcon: const Icon(Icons.search_rounded),
@@ -30,9 +150,9 @@ class ResearchWorkspacePage extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               ElevatedButton.icon(
-                onPressed: () {},
-                icon: const Icon(Icons.filter_alt_rounded),
-                label: Text(context.tr('Filters')),
+                onPressed: _loading ? null : _search,
+                icon: const Icon(Icons.search_rounded),
+                label: _loading ? const Text('...') : const Text('بحث'),
               ),
             ],
           ),
@@ -51,22 +171,28 @@ class ResearchWorkspacePage extends StatelessWidget {
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                       const SizedBox(height: 8),
-                      ...List.generate(8, (index) {
-                        return ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: const Icon(Icons.description_rounded),
-                          title: Text(
-                            context.tr('Legal result {index}', {'index': '${index + 1}'}),
-                          ),
-                          subtitle: Text(
-                            context.tr('Snippet + relevance reason + linked authorities'),
-                          ),
-                          trailing: IconButton(
-                            icon: const Icon(Icons.push_pin_outlined),
-                            onPressed: () {},
-                          ),
-                        );
-                      }),
+                      if (_error != null) Text(_error!),
+                      if (_error == null && _results.isEmpty && !_loading)
+                        const Text('لا توجد نتائج بعد. ابدأ بكتابة سؤال أو مصطلح قانوني.')
+                      else
+                        ..._results.map((item) {
+                          final pinned = _isPinned(item);
+                          return ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(
+                              Icons.description_rounded,
+                              color: pinned ? Colors.amber : null,
+                            ),
+                            title: Text((item['title'] ?? '-').toString()),
+                            subtitle: Text(
+                              '${(item['snippet'] ?? '').toString()}\n${(item['relevanceReason'] ?? '').toString()}',
+                            ),
+                            trailing: IconButton(
+                              icon: Icon(pinned ? Icons.push_pin : Icons.push_pin_outlined),
+                              onPressed: () => _togglePin(item),
+                            ),
+                          );
+                        }),
                     ],
                   ),
                 ),
@@ -85,9 +211,15 @@ class ResearchWorkspacePage extends StatelessWidget {
                             style: Theme.of(context).textTheme.titleMedium,
                           ),
                           const SizedBox(height: 8),
-                          _pin(context, 'Constitution Article 19'),
-                          _pin(context, 'Law 40 / Article 12'),
-                          _pin(context, 'Decision D-2231'),
+                          if (_pinned.isEmpty)
+                            const Text('لا توجد مراجع مثبتة.')
+                          else
+                            ..._pinned.map(
+                              (item) => _pin(
+                                context,
+                                (item['title'] ?? '-').toString(),
+                              ),
+                            ),
                         ],
                       ),
                     ),
@@ -104,7 +236,7 @@ class ResearchWorkspacePage extends StatelessWidget {
                           Text(context.tr('Split panel for law + decision + notes')),
                           const SizedBox(height: 10),
                           OutlinedButton.icon(
-                            onPressed: () {},
+                            onPressed: _openCompareDialog,
                             icon: const Icon(Icons.compare_arrows_rounded),
                             label: Text(context.tr('Open Compare')),
                           ),
@@ -128,7 +260,7 @@ class ResearchWorkspacePage extends StatelessWidget {
         children: [
           const Icon(Icons.bookmark_rounded, size: 16),
           const SizedBox(width: 8),
-          Expanded(child: Text(context.tr(value))),
+          Expanded(child: Text(value)),
         ],
       ),
     );

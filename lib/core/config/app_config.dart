@@ -20,7 +20,7 @@ final appConfigProvider = Provider<AppConfig>((ref) {
   );
   const apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://localhost:4000/api/v1',
+    defaultValue: 'https://law-firm-system-law-firm2.up.railway.app/api/v1',
   );
 
   return const AppConfig(

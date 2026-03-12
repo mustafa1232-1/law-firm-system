@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../core/localization/app_translations.dart';
+import '../../../../shared/widgets/action_feedback.dart';
 import '../../../../shared/widgets/feature_placeholder_page.dart';
 
 class DecisionsExplorerPage extends StatelessWidget {
@@ -16,7 +17,7 @@ class DecisionsExplorerPage extends StatelessWidget {
         'Save to case and research folder',
       ],
       trailing: ElevatedButton.icon(
-        onPressed: () {},
+        onPressed: () => showFeatureInProgress(context, 'إدخال قرار قضائي'),
         icon: const Icon(Icons.cloud_upload_rounded),
         label: Text(context.tr('Ingest Decision')),
       ),

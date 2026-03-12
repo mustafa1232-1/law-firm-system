@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../core/localization/app_translations.dart';
+import '../../../../shared/widgets/action_feedback.dart';
 import '../../../../shared/widgets/feature_placeholder_page.dart';
 
 class LawsExplorerPage extends StatelessWidget {
@@ -16,7 +17,7 @@ class LawsExplorerPage extends StatelessWidget {
         'Cross-linking with constitution and decisions',
       ],
       trailing: ElevatedButton.icon(
-        onPressed: () {},
+        onPressed: () => showFeatureInProgress(context, 'تصفح القوانين'),
         icon: const Icon(Icons.library_books_rounded),
         label: Text(context.tr('Browse Laws')),
       ),

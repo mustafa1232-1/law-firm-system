@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/auth/auth_controller.dart';
 import '../../core/localization/app_translations.dart';
 import '../../theme/lexiq_colors.dart';
 import '../widgets/glass_panel.dart';
@@ -93,15 +95,16 @@ class _GridPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-class _TopBar extends StatelessWidget {
+class _TopBar extends ConsumerWidget {
   const _TopBar({required this.title, required this.currentLocation});
 
   final String title;
   final String currentLocation;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final isWide = MediaQuery.sizeOf(context).width >= 1080;
+    final session = ref.watch(authControllerProvider).session;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
@@ -124,9 +127,50 @@ class _TopBar extends StatelessWidget {
                 style: Theme.of(context).textTheme.titleLarge,
               ),
             ),
-            const Icon(Icons.search_rounded, color: LexiqColors.slateGray),
-            const SizedBox(width: 12),
-            const Icon(Icons.notifications_none_rounded, color: LexiqColors.slateGray),
+            IconButton(
+              onPressed: () => context.go('/research'),
+              icon: const Icon(Icons.search_rounded, color: LexiqColors.slateGray),
+              tooltip: context.tr('Research'),
+            ),
+            IconButton(
+              onPressed: () => context.go('/notifications'),
+              icon: const Icon(Icons.notifications_none_rounded, color: LexiqColors.slateGray),
+              tooltip: context.tr('Notifications'),
+            ),
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.account_circle_rounded, color: LexiqColors.slateGray),
+              onSelected: (value) async {
+                if (value == 'settings') {
+                  context.go('/settings');
+                  return;
+                }
+                if (value == 'logout') {
+                  await ref.read(authControllerProvider.notifier).logout();
+                  if (context.mounted) {
+                    context.go('/auth/login');
+                  }
+                }
+              },
+              itemBuilder: (context) => [
+                PopupMenuItem<String>(
+                  value: 'profile',
+                  enabled: false,
+                  child: Text(
+                    session?.user.email ?? 'User',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+                PopupMenuItem<String>(
+                  value: 'settings',
+                  child: Text(context.tr('Settings')),
+                ),
+                const PopupMenuDivider(),
+                const PopupMenuItem<String>(
+                  value: 'logout',
+                  child: Text('Logout'),
+                ),
+              ],
+            ),
           ],
         ),
       ),

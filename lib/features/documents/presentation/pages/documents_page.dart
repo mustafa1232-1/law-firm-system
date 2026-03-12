@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../core/localization/app_translations.dart';
+import '../../../../shared/widgets/action_feedback.dart';
 import '../../../../shared/widgets/feature_placeholder_page.dart';
 
 class DocumentsPage extends StatelessWidget {
@@ -16,7 +17,7 @@ class DocumentsPage extends StatelessWidget {
         'Case linkage and access permissions',
       ],
       trailing: ElevatedButton.icon(
-        onPressed: () {},
+        onPressed: () => showFeatureInProgress(context, 'رفع مستند'),
         icon: const Icon(Icons.upload_file_rounded),
         label: Text(context.tr('Upload Document')),
       ),

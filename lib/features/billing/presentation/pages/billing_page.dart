@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../core/localization/app_translations.dart';
+import '../../../../shared/widgets/action_feedback.dart';
 import '../../../../shared/widgets/feature_placeholder_page.dart';
 
 class BillingPage extends StatelessWidget {
@@ -16,7 +17,7 @@ class BillingPage extends StatelessWidget {
         'Printable billing exports',
       ],
       trailing: ElevatedButton.icon(
-        onPressed: () {},
+        onPressed: () => showFeatureInProgress(context, 'إنشاء فاتورة'),
         icon: const Icon(Icons.receipt_rounded),
         label: Text(context.tr('New Invoice')),
       ),
