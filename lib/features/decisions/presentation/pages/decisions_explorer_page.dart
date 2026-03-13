@@ -27,33 +27,33 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
   bool _syncing = false;
   String? _error;
 
-  String _selectedCaseType = 'Ø§Ù„ÙƒÙ„';
+  String _selectedCaseType = 'الكل';
   String _selectedCourtLevel = 'appellate';
 
   List<Map<String, dynamic>> _items = const [];
   List<Map<String, dynamic>> _summaryItems = const [];
 
   static const _caseTypes = <String>[
-    'Ø§Ù„ÙƒÙ„',
-    'Ù…Ø¯Ù†ÙŠ',
-    'Ø¬Ø²Ø§Ø¦ÙŠ',
-    'Ø£Ø­ÙˆØ§Ù„ Ø´Ø®ØµÙŠØ©',
-    'ØªØ¬Ø§Ø±ÙŠ',
-    'Ø¥Ø¯Ø§Ø±ÙŠ',
-    'Ø¹Ù…Ø§Ù„ÙŠ',
-    'Ø¹Ù‚Ø§Ø±ÙŠ',
-    'ØªÙ†ÙÙŠØ°',
-    'Ø¯Ø³ØªÙˆØ±ÙŠ',
-    'Ø¥Ø«Ø¨Ø§Øª',
-    'Ø¥Ø¬Ø±Ø§Ø¦ÙŠ',
-    'ÙˆÙ‚Ù',
-    'Ø£Ø®Ø±Ù‰',
+    'الكل',
+    'مدني',
+    'جزائي',
+    'أحوال شخصية',
+    'تجاري',
+    'إداري',
+    'عمالي',
+    'عقاري',
+    'تنفيذ',
+    'دستوري',
+    'إثبات',
+    'إجرائي',
+    'وقف',
+    'أخرى',
   ];
 
   static const _courtLevels = <({String value, String label})>[
-    (value: 'all', label: 'ÙƒÙ„ Ø§Ù„Ù…Ø³ØªÙˆÙŠØ§Øª'),
-    (value: 'appellate', label: 'Ø§Ø³ØªØ¦Ù†Ø§ÙÙŠ'),
-    (value: 'cassation', label: 'ØªÙ…ÙŠÙŠØ²ÙŠ'),
+    (value: 'all', label: 'كل المستويات'),
+    (value: 'appellate', label: 'استئنافي'),
+    (value: 'cassation', label: 'تمييزي'),
   ];
 
   @override
@@ -230,7 +230,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'ØªÙ…Øª Ø§Ù„Ù…Ø²Ø§Ù…Ù†Ø©: $collected Ù‚Ø±Ø§Ø± | $inserted Ø¬Ø¯ÙŠØ¯ | $updated Ù…Ø­Ø¯Ù‘Ø«',
+            'تمت المزامنة: $collected قرار | $inserted جديد | $updated محدّث',
           ),
         ),
       );
@@ -266,7 +266,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Ø¥Ø¶Ø§ÙØ© Ù‚Ø±Ø§Ø± Ø¬Ø¯ÙŠØ¯'),
+          title: const Text('إضافة قرار جديد'),
           content: SizedBox(
             width: 680,
             child: SingleChildScrollView(
@@ -288,7 +288,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
                     icon: const Icon(Icons.attach_file_rounded),
                     label: Text(
                       pickedFile == null
-                          ? 'Ø§Ø®ØªÙŠØ§Ø± Ù…Ù„Ù Ø§Ù„Ù‚Ø±Ø§Ø± (PDF/ØµÙˆØ±Ø©)'
+                          ? 'اختيار ملف القرار (PDF/صورة)'
                           : pickedFile!.name,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -297,23 +297,23 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
                   TextField(
                     controller: courtNameController,
                     decoration: const InputDecoration(
-                      labelText: 'Ø§Ø³Ù… Ø§Ù„Ù…Ø­ÙƒÙ…Ø©',
+                      labelText: 'اسم المحكمة',
                     ),
                   ),
                   const SizedBox(height: 10),
                   DropdownButtonFormField<String>(
                     initialValue: selectedCourtLevel,
                     decoration: const InputDecoration(
-                      labelText: 'Ù…Ø³ØªÙˆÙ‰ Ø§Ù„Ù…Ø­ÙƒÙ…Ø©',
+                      labelText: 'مستوى المحكمة',
                     ),
                     items: const [
                       DropdownMenuItem(
                         value: 'appellate',
-                        child: Text('Ø§Ø³ØªØ¦Ù†Ø§ÙÙŠ'),
+                        child: Text('استئنافي'),
                       ),
                       DropdownMenuItem(
                         value: 'cassation',
-                        child: Text('ØªÙ…ÙŠÙŠØ²ÙŠ'),
+                        child: Text('تمييزي'),
                       ),
                     ],
                     onChanged: (value) {
@@ -327,21 +327,21 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
                   TextField(
                     controller: decisionNumberController,
                     decoration: const InputDecoration(
-                      labelText: 'Ø±Ù‚Ù… Ø§Ù„Ù‚Ø±Ø§Ø±',
+                      labelText: 'رقم القرار',
                     ),
                   ),
                   const SizedBox(height: 10),
                   TextField(
                     controller: decisionDateController,
                     decoration: const InputDecoration(
-                      labelText: 'ØªØ§Ø±ÙŠØ® Ø§Ù„Ù‚Ø±Ø§Ø± (YYYY-MM-DD)',
+                      labelText: 'تاريخ القرار (YYYY-MM-DD)',
                     ),
                   ),
                   const SizedBox(height: 10),
                   TextField(
                     controller: caseTypeController,
                     decoration: const InputDecoration(
-                      labelText: 'Ù†ÙˆØ¹ Ø§Ù„Ù‚Ø¶ÙŠØ© (Ø§Ø®ØªÙŠØ§Ø±ÙŠ)',
+                      labelText: 'نوع القضية (اختياري)',
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -349,7 +349,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
                     controller: legalDomainController,
                     decoration: const InputDecoration(
                       labelText:
-                          'Ø§Ù„Ù…Ø¬Ø§Ù„ Ø§Ù„Ù‚Ø§Ù†ÙˆÙ†ÙŠ (Ø§Ø®ØªÙŠØ§Ø±ÙŠ)',
+                          'المجال القانوني (اختياري)',
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -357,7 +357,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
                     controller: summaryController,
                     maxLines: 3,
                     decoration: const InputDecoration(
-                      labelText: 'Ù…Ù„Ø®Øµ Ø§Ù„Ù‚Ø±Ø§Ø± (Ø§Ø®ØªÙŠØ§Ø±ÙŠ)',
+                      labelText: 'ملخص القرار (اختياري)',
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -365,7 +365,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
                     controller: fullTextController,
                     maxLines: 5,
                     decoration: const InputDecoration(
-                      labelText: 'Ø§Ù„Ù†Øµ Ø§Ù„ÙƒØ§Ù…Ù„ (Ø§Ø®ØªÙŠØ§Ø±ÙŠ)',
+                      labelText: 'النص الكامل (اختياري)',
                     ),
                   ),
                 ],
@@ -375,7 +375,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Ø¥ØºÙ„Ø§Ù‚'),
+              child: const Text('إغلاق'),
             ),
             ElevatedButton(
               onPressed: () async {
@@ -383,7 +383,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text(
-                        'ÙŠØ±Ø¬Ù‰ Ø§Ø®ØªÙŠØ§Ø± Ù…Ù„Ù Ø§Ù„Ù‚Ø±Ø§Ø±.',
+                        'يرجى اختيار ملف القرار.',
                       ),
                     ),
                   );
@@ -395,7 +395,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text(
-                        'Ø§Ø³Ù… Ø§Ù„Ù…Ø­ÙƒÙ…Ø© ÙˆØ±Ù‚Ù… Ø§Ù„Ù‚Ø±Ø§Ø± ÙˆØªØ§Ø±ÙŠØ® Ø§Ù„Ù‚Ø±Ø§Ø± Ù…Ø·Ù„ÙˆØ¨Ø©.',
+                        'اسم المحكمة ورقم القرار وتاريخ القرار مطلوبة.',
                       ),
                     ),
                   );
@@ -445,7 +445,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
                   ).showSnackBar(SnackBar(content: Text(parseApiError(error))));
                 }
               },
-              child: const Text('Ø­ÙØ¸'),
+              child: const Text('حفظ'),
             ),
           ],
         ),
@@ -467,7 +467,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
       }
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('ØªÙ…Øª Ø¥Ø¶Ø§ÙØ© Ø§Ù„Ù‚Ø±Ø§Ø± Ø¨Ù†Ø¬Ø§Ø­.'),
+          content: Text('تمت إضافة القرار بنجاح.'),
         ),
       );
     }
@@ -507,22 +507,22 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
                     children: [
                       Chip(
                         label: Text(
-                          'Ø§Ù„Ù†ÙˆØ¹: ${(decision['caseType'] ?? '-').toString()}',
+                          'النوع: ${(decision['caseType'] ?? '-').toString()}',
                         ),
                       ),
                       Chip(
                         label: Text(
-                          'Ø§Ù„Ù…Ø¬Ø§Ù„: ${(decision['legalDomain'] ?? '-').toString()}',
+                          'المجال: ${(decision['legalDomain'] ?? '-').toString()}',
                         ),
                       ),
                       Chip(
                         label: Text(
-                          'Ø§Ù„Ù…Ø³ØªÙˆÙ‰: ${(decision['courtLevel'] ?? '-').toString()}',
+                          'المستوى: ${(decision['courtLevel'] ?? '-').toString()}',
                         ),
                       ),
                       Chip(
                         label: Text(
-                          'Ø§Ù„ØªØ§Ø±ÙŠØ®: ${_dateOnly(decision['decisionDate'])}',
+                          'التاريخ: ${_dateOnly(decision['decisionDate'])}',
                         ),
                       ),
                     ],
@@ -548,7 +548,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
                       .trim()
                       .isNotEmpty) ...[
                     Text(
-                      'Ø§Ù„Ù†Øµ Ø§Ù„ÙƒØ§Ù…Ù„',
+                      'النص الكامل',
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                     const SizedBox(height: 6),
@@ -559,14 +559,14 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
                           ?.isNotEmpty ??
                       false) ...[
                     Text(
-                      'Ø§Ù„Ù…ÙˆØ§Ø¯ Ø§Ù„Ù‚Ø§Ù†ÙˆÙ†ÙŠØ© Ø°Ø§Øª Ø§Ù„ØµÙ„Ø©',
+                      'المواد القانونية ذات الصلة',
                       style: Theme.of(context).textTheme.titleSmall,
                     ),
                     const SizedBox(height: 4),
                     Text(
                       ((decision['legalArticleReferences'] as List?) ??
                               const [])
-                          .join('ØŒ '),
+                          .join('، '),
                     ),
                     const SizedBox(height: 10),
                   ],
@@ -574,24 +574,24 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
                           ?.isNotEmpty ??
                       false) ...[
                     Text(
-                      'Ø§Ù„Ù…ÙˆØ§Ø¯ Ø§Ù„Ø¯Ø³ØªÙˆØ±ÙŠØ© Ø°Ø§Øª Ø§Ù„ØµÙ„Ø©',
+                      'المواد الدستورية ذات الصلة',
                       style: Theme.of(context).textTheme.titleSmall,
                     ),
                     const SizedBox(height: 4),
                     Text(
                       ((decision['constitutionalReferences'] as List?) ??
                               const [])
-                          .join('ØŒ '),
+                          .join('، '),
                     ),
                     const SizedBox(height: 12),
                   ],
                   Text(
-                    'Ù‚Ø±Ø§Ø±Ø§Øª Ù…Ø´Ø§Ø¨Ù‡Ø©',
+                    'قرارات مشابهة',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 8),
                   if (similar.isEmpty)
-                    const Text('Ù„Ø§ ØªÙˆØ¬Ø¯ Ù‚Ø±Ø§Ø±Ø§Øª Ù…Ø´Ø§Ø¨Ù‡Ø©.')
+                    const Text('لا توجد قرارات مشابهة.')
                   else
                     ...similar.map(
                       (entry) => Padding(
@@ -608,7 +608,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Ø¥ØºÙ„Ø§Ù‚'),
+              child: const Text('إغلاق'),
             ),
           ],
         ),
@@ -630,7 +630,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
 
     for (final item in items) {
       final rawType = (item['caseType'] ?? '').toString().trim();
-      final type = rawType.isEmpty ? 'Ø£Ø®Ø±Ù‰' : rawType;
+      final type = rawType.isEmpty ? 'أخرى' : rawType;
       grouped.putIfAbsent(type, () => []).add(item);
     }
 
@@ -658,13 +658,13 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SectionHeader(
-              title: 'Ù…Ø³ØªÙƒØ´Ù Ø§Ù„Ù‚Ø±Ø§Ø±Ø§Øª Ø§Ù„Ù‚Ø¶Ø§Ø¦ÙŠØ©',
+              title: 'مستكشف القرارات القضائية',
               subtitle:
-                  'Ø¨Ø­Ø« Ø§Ù„Ù‚Ø±Ø§Ø±Ø§Øª ÙˆØªØµÙ†ÙŠÙÙ‡Ø§ ÙˆØ±Ø¨Ø·Ù‡Ø§ Ø¨Ø§Ù„Ù‚Ø¶Ø§ÙŠØ§ ÙˆØ§Ù„Ù…Ø±Ø¬Ø¹ÙŠØ§Øª',
+                  'بحث القرارات وتصنيفها وربطها بالقضايا والمرجعيات',
               trailing: OutlinedButton.icon(
                 onPressed: _loading ? null : _loadAll,
                 icon: const Icon(Icons.refresh_rounded),
-                label: const Text('ØªØ­Ø¯ÙŠØ«'),
+                label: const Text('تحديث'),
               ),
             ),
             const SizedBox(height: 12),
@@ -689,7 +689,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
             else if (_items.isEmpty)
               const GlassPanel(
                 child: Text(
-                  'Ù„Ø§ ØªÙˆØ¬Ø¯ Ù‚Ø±Ø§Ø±Ø§Øª Ù…Ø·Ø§Ø¨Ù‚Ø© Ù„Ù„ÙÙ„Ø§ØªØ± Ø§Ù„Ø­Ø§Ù„ÙŠØ©.',
+                  'لا توجد قرارات مطابقة للفلاتر الحالية.',
                 ),
               )
             else
@@ -698,7 +698,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Ø§Ù„Ù‚Ø±Ø§Ø±Ø§Øª Ø­Ø³Ø¨ Ù†ÙˆØ¹ Ø§Ù„Ù‚Ø¶ÙŠØ©',
+                      'القرارات حسب نوع القضية',
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                     const SizedBox(height: 10),
@@ -732,7 +732,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
             await _loadCaseTypeSummary();
           },
           decoration: const InputDecoration(
-            hintText: 'Ø¨Ø­Ø« Ø¨Ø§Ù„Ù†Øµ Ø£Ùˆ Ø±Ù‚Ù… Ø§Ù„Ù‚Ø±Ø§Ø±',
+            hintText: 'بحث بالنص أو رقم القرار',
             prefixIcon: Icon(Icons.search_rounded),
           ),
         ),
@@ -746,7 +746,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
             await _loadCaseTypeSummary();
           },
           decoration: const InputDecoration(
-            labelText: 'Ø§Ù„Ù…Ø­ÙƒÙ…Ø©',
+            labelText: 'المحكمة',
             prefixIcon: Icon(Icons.account_balance_rounded),
           ),
         ),
@@ -760,7 +760,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
             await _loadCaseTypeSummary();
           },
           decoration: const InputDecoration(
-            labelText: 'Ø§Ù„Ù…Ø¬Ø§Ù„ Ø§Ù„Ù‚Ø§Ù†ÙˆÙ†ÙŠ',
+            labelText: 'المجال القانوني',
             prefixIcon: Icon(Icons.category_outlined),
           ),
         ),
@@ -775,7 +775,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
             await _loadCaseTypeSummary();
           },
           decoration: const InputDecoration(
-            labelText: 'Ø§Ù„Ø³Ù†Ø©',
+            labelText: 'السنة',
             hintText: '2026',
             prefixIcon: Icon(Icons.calendar_today_rounded),
           ),
@@ -785,7 +785,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
         width: isCompact ? double.infinity : 220,
         child: DropdownButtonFormField<String>(
           initialValue: _selectedCaseType,
-          decoration: const InputDecoration(labelText: 'Ù†ÙˆØ¹ Ø§Ù„Ù‚Ø¶ÙŠØ©'),
+          decoration: const InputDecoration(labelText: 'نوع القضية'),
           items: _caseTypes
               .map(
                 (type) =>
@@ -805,7 +805,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
         child: DropdownButtonFormField<String>(
           initialValue: _selectedCourtLevel,
           decoration: const InputDecoration(
-            labelText: 'Ù…Ø³ØªÙˆÙ‰ Ø§Ù„Ù…Ø­ÙƒÙ…Ø©',
+            labelText: 'مستوى المحكمة',
           ),
           items: _courtLevels
               .map(
@@ -830,7 +830,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'ÙÙ„ØªØ±Ø© ÙˆØ§Ø³ØªØ¹Ø±Ø§Ø¶ Ø§Ù„Ù‚Ø±Ø§Ø±Ø§Øª',
+            'فلترة واستعراض القرارات',
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 10),
@@ -848,7 +848,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
                         await _loadCaseTypeSummary();
                       },
                 icon: const Icon(Icons.search_rounded),
-                label: const Text('Ø¨Ø­Ø«'),
+                label: const Text('بحث'),
               ),
               OutlinedButton.icon(
                 onPressed: _loading
@@ -865,7 +865,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
                         await _loadAll();
                       },
                 icon: const Icon(Icons.restart_alt_rounded),
-                label: const Text('Ø¥Ø¹Ø§Ø¯Ø© Ø¶Ø¨Ø·'),
+                label: const Text('إعادة ضبط'),
               ),
               ElevatedButton.icon(
                 onPressed: _showAddDecisionDialog,
@@ -882,7 +882,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
                       )
                     : const Icon(Icons.cloud_sync_rounded),
                 label: const Text(
-                  'Ø¬Ù„Ø¨ Ø§Ù„Ù‚Ø±Ø§Ø±Ø§Øª Ø§Ù„Ø§Ø³ØªØ¦Ù†Ø§ÙÙŠØ© Ù…Ù† Ø§Ù„Ù…ØµØ¯Ø± Ø§Ù„Ø¹Ø§Ù…',
+                  'جلب القرارات الاستئنافية من المصدر العام',
                 ),
               ),
             ],
@@ -900,13 +900,13 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
       runSpacing: 10,
       children: [
         _SummaryCard(
-          title: 'Ø§Ù„Ù†ØªØ§Ø¦Ø¬ Ø§Ù„Ø­Ø§Ù„ÙŠØ©',
+          title: 'النتائج الحالية',
           value: '$total',
           icon: Icons.gavel_rounded,
           color: LexiqColors.imperialBlue,
         ),
         ..._summaryItems.take(8).map((entry) {
-          final caseType = (entry['caseType'] ?? 'Ø£Ø®Ø±Ù‰').toString();
+          final caseType = (entry['caseType'] ?? 'أخرى').toString();
           final count = (entry['count'] ?? 0).toString();
           return _SummaryCard(
             title: caseType,
@@ -1053,11 +1053,11 @@ class _DecisionGroupPanel extends StatelessWidget {
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  Chip(label: Text('Ø§Ù„Ù…Ø³ØªÙˆÙ‰: $level')),
+                  Chip(label: Text('المستوى: $level')),
                   if ((item['legalDomain'] ?? '').toString().trim().isNotEmpty)
                     Chip(
                       label: Text(
-                        'Ø§Ù„Ù…Ø¬Ø§Ù„: ${(item['legalDomain'] ?? '').toString()}',
+                        'المجال: ${(item['legalDomain'] ?? '').toString()}',
                       ),
                     ),
                 ],
@@ -1070,7 +1070,7 @@ class _DecisionGroupPanel extends StatelessWidget {
                 child: ElevatedButton.icon(
                   onPressed: id.isEmpty ? null : () => onOpen(id),
                   icon: const Icon(Icons.open_in_new_rounded),
-                  label: const Text('ÙØªØ­ Ø§Ù„Ù‚Ø±Ø§Ø±'),
+                  label: const Text('فتح القرار'),
                 ),
               ),
             ],
