@@ -39,7 +39,7 @@ class _LawReaderPageState extends ConsumerState<LawReaderPage> {
   }
 
   Future<List<Map<String, dynamic>>> _fetchAllLawArticles(Dio dio) async {
-    const pageSize = 150;
+    const pageSize = 100;
     var page = 1;
     final items = <Map<String, dynamic>>[];
 
@@ -337,49 +337,48 @@ class _LawReaderPageState extends ConsumerState<LawReaderPage> {
           if (_articles.isEmpty)
             const Text('لا توجد مواد مفهرسة لهذا القانون.')
           else
-            SizedBox(
-              height: 680,
-              child: ListView.separated(
-                itemCount: _articles.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 6),
-                itemBuilder: (context, index) {
-                  final item = _articles[index];
-                  final isSelected =
-                      item['_id']?.toString() == _selectedArticle?['_id']?.toString();
-                  return InkWell(
-                    onTap: () => setState(() {
-                      _selectedArticle = item;
-                      _explanation = null;
-                    }),
-                    borderRadius: BorderRadius.circular(12),
-                    child: Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: isSelected
-                              ? LexiqColors.imperialBlue
-                              : LexiqColors.slateGray.withValues(alpha: 0.22),
-                        ),
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _articles.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 6),
+              itemBuilder: (context, index) {
+                final item = _articles[index];
+                final isSelected =
+                    item['_id']?.toString() == _selectedArticle?['_id']?.toString();
+                return InkWell(
+                  onTap: () => setState(() {
+                    _selectedArticle = item;
+                    _explanation = null;
+                  }),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
                         color: isSelected
-                            ? LexiqColors.imperialBlue.withValues(alpha: 0.12)
-                            : Colors.transparent,
+                            ? LexiqColors.imperialBlue
+                            : LexiqColors.slateGray.withValues(alpha: 0.22),
                       ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              'المادة ${(item['articleNumber'] ?? '-').toString()}',
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
-                          ),
-                          const Icon(Icons.chevron_left_rounded),
-                        ],
-                      ),
+                      color: isSelected
+                          ? LexiqColors.imperialBlue.withValues(alpha: 0.12)
+                          : Colors.transparent,
                     ),
-                  );
-                },
-              ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'المادة ${(item['articleNumber'] ?? '-').toString()}',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                        ),
+                        const Icon(Icons.chevron_left_rounded),
+                      ],
+                    ),
+                  ),
+                );
+              },
             ),
         ],
       ),

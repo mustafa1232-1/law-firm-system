@@ -41,17 +41,17 @@ class _HearingsCalendarPageState extends ConsumerState<HearingsCalendarPage> {
       final responses = await Future.wait([
         dio.get(
           '/hearings',
-          queryParameters: const {'limit': 150},
+          queryParameters: const {'limit': 100},
           options: Options(headers: authHeaders(ref)),
         ),
         dio.get(
           '/cases',
-          queryParameters: const {'limit': 150},
+          queryParameters: const {'limit': 100},
           options: Options(headers: authHeaders(ref)),
         ),
         dio.get(
           '/courts',
-          queryParameters: const {'limit': 400},
+          queryParameters: const {'limit': 100},
           options: Options(headers: authHeaders(ref)),
         ),
       ]);
