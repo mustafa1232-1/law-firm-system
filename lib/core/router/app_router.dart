@@ -20,6 +20,7 @@ import 'package:lexiq_iraq/features/decisions/presentation/pages/decisions_explo
 import 'package:lexiq_iraq/features/documents/presentation/pages/documents_page.dart';
 import 'package:lexiq_iraq/features/hearings/presentation/pages/hearings_calendar_page.dart';
 import 'package:lexiq_iraq/features/lawyer_hub/presentation/pages/hub_profile.dart';
+import 'package:lexiq_iraq/features/laws/presentation/pages/law_article_reader_page.dart';
 import 'package:lexiq_iraq/features/laws/presentation/pages/law_reader_page.dart';
 import 'package:lexiq_iraq/features/laws/presentation/pages/laws_explorer_page.dart';
 import 'package:lexiq_iraq/features/notifications/presentation/pages/notifications_page.dart';
@@ -79,6 +80,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: '/laws/:id',
             builder: (context, state) => LawReaderPage(
               lawId: state.pathParameters['id']!,
+            ),
+          ),
+          GoRoute(
+            path: '/laws/:lawId/articles/:articleId',
+            builder: (context, state) => LawArticleReaderPage(
+              lawId: state.pathParameters['lawId']!,
+              articleId: state.pathParameters['articleId']!,
             ),
           ),
           GoRoute(
@@ -146,6 +154,7 @@ String _routeTitle(String path) {
   if (path.startsWith('/research')) return 'Research Workspace';
   if (path.startsWith('/constitution/articles/')) return 'Constitution Article Reader';
   if (path.startsWith('/constitution')) return 'Constitution Explorer';
+  if (path.startsWith('/laws/') && path.contains('/articles/')) return 'Law Article Reader';
   if (path.startsWith('/laws/')) return 'Law Reader';
   if (path.startsWith('/laws')) return 'Iraqi Laws Explorer';
   if (path.startsWith('/decisions')) return 'Judicial Decisions Explorer';

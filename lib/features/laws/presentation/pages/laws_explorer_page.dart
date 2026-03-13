@@ -150,6 +150,26 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
     context.go('/laws/$lawId');
   }
 
+  void _openArticleFromSearch(Map<String, dynamic> article) {
+    final articleId = (article['_id'] ?? article['id'])?.toString();
+    if (articleId == null || articleId.isEmpty) {
+      return;
+    }
+
+    final lawRef = article['lawId'];
+    String? lawId;
+    if (lawRef is Map) {
+      lawId = (lawRef['_id'] ?? lawRef['id'])?.toString();
+    } else if (lawRef is String) {
+      lawId = lawRef;
+    }
+
+    if (lawId == null || lawId.isEmpty) {
+      return;
+    }
+    context.go('/laws/$lawId/articles/$articleId');
+  }
+
   Future<void> _copyUrl(String url) async {
     await Clipboard.setData(ClipboardData(text: url));
     if (!mounted) {
@@ -422,6 +442,7 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
                                 : '';
                             return ListTile(
                               contentPadding: EdgeInsets.zero,
+                              onTap: () => _openArticleFromSearch(article),
                               leading: const Icon(Icons.article_outlined),
                               title: Text(
                                 'Article ${(article['articleNumber'] ?? '-').toString()}',
@@ -430,6 +451,7 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
                                 '${lawTitle.isEmpty ? '' : '$lawTitle\n'}$text',
                               ),
                               isThreeLine: true,
+                              trailing: const Icon(Icons.open_in_new_rounded),
                             );
                           }),
                       ],

@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/network/api_helpers.dart';
 import '../../../../core/network/dio_client.dart';
@@ -24,13 +25,11 @@ class LawReaderPage extends ConsumerStatefulWidget {
 
 class _LawReaderPageState extends ConsumerState<LawReaderPage> {
   bool _loading = false;
-  bool _explaining = false;
   String? _error;
 
   Map<String, dynamic>? _law;
   List<Map<String, dynamic>> _articles = const [];
-  Map<String, dynamic>? _selectedArticle;
-  Map<String, dynamic>? _explanation;
+  bool _handledInitialOpen = false;
 
   @override
   void initState() {
@@ -81,22 +80,6 @@ class _LawReaderPageState extends ConsumerState<LawReaderPage> {
       final law = (lawResponse.data as Map).cast<String, dynamic>();
       final articles = await _fetchAllLawArticles(dio);
 
-      Map<String, dynamic>? selected;
-      if (widget.initialArticleNumber != null &&
-          widget.initialArticleNumber!.isNotEmpty) {
-        selected = articles.firstWhere(
-          (item) =>
-              (item['articleNumber'] ?? '').toString() ==
-              widget.initialArticleNumber,
-          orElse: () => articles.isNotEmpty ? articles.first : <String, dynamic>{},
-        );
-        if (selected.isEmpty) {
-          selected = null;
-        }
-      } else {
-        selected = articles.isNotEmpty ? articles.first : null;
-      }
-
       if (!mounted) {
         return;
       }
@@ -104,9 +87,26 @@ class _LawReaderPageState extends ConsumerState<LawReaderPage> {
       setState(() {
         _law = law;
         _articles = articles;
-        _selectedArticle = selected;
-        _explanation = null;
       });
+
+      if (!_handledInitialOpen &&
+          widget.initialArticleNumber != null &&
+          widget.initialArticleNumber!.trim().isNotEmpty) {
+        _handledInitialOpen = true;
+        final article = articles.cast<Map<String, dynamic>?>().firstWhere(
+              (item) =>
+                  (item?['articleNumber'] ?? '').toString() ==
+                  widget.initialArticleNumber,
+              orElse: () => null,
+            );
+        if (article != null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              _openArticle(article);
+            }
+          });
+        }
+      }
     } catch (error) {
       if (!mounted) {
         return;
@@ -119,83 +119,31 @@ class _LawReaderPageState extends ConsumerState<LawReaderPage> {
     }
   }
 
-  Future<void> _explainSelectedArticle() async {
-    final law = _law;
-    final selected = _selectedArticle;
-    if (law == null || selected == null) {
+  void _openArticle(Map<String, dynamic> article) {
+    final articleId = article['_id']?.toString();
+    if (articleId == null || articleId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تعذر فتح المادة لعدم توفر المعرّف.')),
+      );
       return;
     }
-
-    setState(() => _explaining = true);
-    try {
-      final dio = ref.read(dioProvider);
-      final query = [
-        'اشرح المادة ${(selected['articleNumber'] ?? '-').toString()} من ${(law['title'] ?? 'القانون').toString()} شرحًا عمليًا للمحامي.',
-        'نص المادة:',
-        (selected['text'] ?? '').toString(),
-      ].join('\n');
-
-      final response = await dio.post(
-        '/ai/legal-research',
-        data: {
-          'query': query,
-          'searchConstitution': true,
-          'searchLaws': true,
-          'searchDecisions': true,
-        },
-        options: Options(headers: authHeaders(ref)),
-      );
-
-      if (!mounted) {
-        return;
-      }
-      setState(() => _explanation = (response.data as Map).cast<String, dynamic>());
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(parseApiError(error))),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _explaining = false);
-      }
-    }
+    context.go('/laws/${widget.lawId}/articles/$articleId');
   }
 
-  List<String> _resolveParagraphs(Map<String, dynamic>? selected) {
-    if (selected == null) {
-      return const [];
-    }
-
-    final raw = (selected['paragraphs'] as List?)
-            ?.map((entry) => entry.toString().trim())
-            .where((entry) => entry.isNotEmpty)
-            .toList() ??
-        const [];
-
-    if (raw.isNotEmpty) {
-      return raw;
-    }
-
-    final text = (selected['text'] ?? '').toString().trim();
+  String _articlePreview(Map<String, dynamic> item) {
+    final text = (item['text'] ?? '').toString().trim();
     if (text.isEmpty) {
-      return const [];
+      return 'لا يوجد نص مفهرس لهذه المادة.';
     }
-
-    return text
-        .split(RegExp(r'\n+'))
-        .map((entry) => entry.trim())
-        .where((entry) => entry.isNotEmpty)
-        .toList();
+    if (text.length <= 180) {
+      return text;
+    }
+    return '${text.substring(0, 180)}...';
   }
 
   @override
   Widget build(BuildContext context) {
     final law = _law;
-    final selected = _selectedArticle;
-    final isWide = MediaQuery.sizeOf(context).width >= 1200;
 
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -206,30 +154,11 @@ class _LawReaderPageState extends ConsumerState<LawReaderPage> {
           children: [
             SectionHeader(
               title: (law?['title'] ?? 'قارئ القانون').toString(),
-              subtitle: 'عرض نصوص مواد القانون كاملة مع التفريعات',
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  OutlinedButton.icon(
-                    onPressed: _loading ? null : _loadLaw,
-                    icon: const Icon(Icons.refresh_rounded),
-                    label: const Text('تحديث'),
-                  ),
-                  const SizedBox(width: 8),
-                  ElevatedButton.icon(
-                    onPressed: _explaining || selected == null
-                        ? null
-                        : _explainSelectedArticle,
-                    icon: _explaining
-                        ? const SizedBox(
-                            width: 14,
-                            height: 14,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.psychology_alt_rounded),
-                    label: const Text('شرح المادة'),
-                  ),
-                ],
+              subtitle: 'اختر مادة لفتح صفحة مستقلة تتضمن النص الكامل والشرح',
+              trailing: OutlinedButton.icon(
+                onPressed: _loading ? null : _loadLaw,
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('تحديث'),
               ),
             ),
             const SizedBox(height: 12),
@@ -254,8 +183,7 @@ class _LawReaderPageState extends ConsumerState<LawReaderPage> {
                     Chip(label: Text('السنة: ${(law['year'] ?? '-').toString()}')),
                     Chip(label: Text('الجهة: ${(law['issuingBody'] ?? '-').toString()}')),
                     Chip(label: Text('المجال: ${(law['legalDomain'] ?? '-').toString()}')),
-                    if ((law['sourceName'] ?? '').toString().trim().isNotEmpty)
-                      Chip(label: Text('المصدر: ${(law['sourceName'] ?? '-').toString()}')),
+                    Chip(label: Text('عدد المواد: ${_articles.length}')),
                   ],
                 ),
               ),
@@ -276,47 +204,7 @@ class _LawReaderPageState extends ConsumerState<LawReaderPage> {
                 ),
               ],
               const SizedBox(height: 12),
-              if (isWide)
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(flex: 2, child: _articlesPanel(context)),
-                    const SizedBox(width: 12),
-                    Expanded(flex: 5, child: _readerPanel(context, selected)),
-                  ],
-                )
-              else ...[
-                _articlesPanel(context),
-                const SizedBox(height: 12),
-                _readerPanel(context, selected),
-              ],
-              const SizedBox(height: 12),
-              if (_explanation != null)
-                GlassPanel(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'شرح المادة (AI)',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      const SizedBox(height: 8),
-                      Text((_explanation?['summary'] ?? '').toString()),
-                      const SizedBox(height: 8),
-                      Text((_explanation?['groundedAnswer'] ?? '').toString()),
-                      const SizedBox(height: 10),
-                      Text(
-                        ((_explanation?['disclaimer'] ??
-                                    'هذه المخرجات أولية وتحتاج مراجعة محامٍ بشري.')
-                                as String)
-                            .trim(),
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: LexiqColors.brassGold,
-                            ),
-                      ),
-                    ],
-                  ),
-                ),
+              _articlesPanel(context),
             ],
           ],
         ),
@@ -344,36 +232,40 @@ class _LawReaderPageState extends ConsumerState<LawReaderPage> {
               separatorBuilder: (_, _) => const SizedBox(height: 6),
               itemBuilder: (context, index) {
                 final item = _articles[index];
-                final isSelected =
-                    item['_id']?.toString() == _selectedArticle?['_id']?.toString();
                 return InkWell(
-                  onTap: () => setState(() {
-                    _selectedArticle = item;
-                    _explanation = null;
-                  }),
+                  onTap: () => _openArticle(item),
                   borderRadius: BorderRadius.circular(12),
                   child: Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: isSelected
-                            ? LexiqColors.imperialBlue
-                            : LexiqColors.slateGray.withValues(alpha: 0.22),
+                        color: LexiqColors.slateGray.withValues(alpha: 0.22),
                       ),
-                      color: isSelected
-                          ? LexiqColors.imperialBlue.withValues(alpha: 0.12)
-                          : Colors.transparent,
                     ),
                     child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(
-                          child: Text(
-                            'المادة ${(item['articleNumber'] ?? '-').toString()}',
-                            style: Theme.of(context).textTheme.titleMedium,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'المادة ${(item['articleNumber'] ?? '-').toString()}',
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                _articlePreview(item),
+                                maxLines: 3,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ],
                           ),
                         ),
-                        const Icon(Icons.chevron_left_rounded),
+                        const SizedBox(width: 8),
+                        const Icon(Icons.open_in_new_rounded),
                       ],
                     ),
                   ),
@@ -382,51 +274,6 @@ class _LawReaderPageState extends ConsumerState<LawReaderPage> {
             ),
         ],
       ),
-    );
-  }
-
-  Widget _readerPanel(BuildContext context, Map<String, dynamic>? selected) {
-    final paragraphs = _resolveParagraphs(selected);
-
-    return GlassPanel(
-      child: selected == null
-          ? const Text('اختر مادة من القائمة لعرض النص الكامل.')
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'المادة ${(selected['articleNumber'] ?? '-').toString()}',
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-                const SizedBox(height: 10),
-                if (paragraphs.isEmpty)
-                  Text(
-                    (selected['text'] ?? '').toString(),
-                    style: Theme.of(context).textTheme.bodyLarge,
-                  )
-                else
-                  ...paragraphs.asMap().entries.map(
-                        (entry) => Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(10),
-                              color: LexiqColors.obsidianBlack.withValues(alpha: 0.32),
-                              border: Border.all(
-                                color: LexiqColors.slateGray.withValues(alpha: 0.2),
-                              ),
-                            ),
-                            child: Text(
-                              entry.value,
-                              style: Theme.of(context).textTheme.bodyLarge,
-                            ),
-                          ),
-                        ),
-                      ),
-              ],
-            ),
     );
   }
 }
