@@ -474,16 +474,19 @@ class _LawyerHubPageState extends ConsumerState<LawyerHubPage> {
                                 'مواد دستورية مرتبطة',
                                 linkedConstitution,
                                 LexiqColors.imperialBlue,
+                                authorityType: 'constitution',
                               ),
                               _chipGroup(
                                 'مواد قانونية مرتبطة',
                                 linkedLaws,
                                 LexiqColors.emeraldJustice,
+                                authorityType: 'law',
                               ),
                               _chipGroup(
                                 'قرارات مرتبطة',
                                 linkedDecisions,
                                 LexiqColors.brassGold,
+                                authorityType: 'decision',
                               ),
                             ],
                           ),
@@ -498,11 +501,27 @@ class _LawyerHubPageState extends ConsumerState<LawyerHubPage> {
                                   .toString();
                               final sourceType = (entry['sourceType'] ?? '-')
                                   .toString();
+                              final authorityId = (entry['id'] ?? '')
+                                  .toString()
+                                  .trim();
+                              final canOpen =
+                                  authorityId.isNotEmpty &&
+                                  (sourceType == 'constitution' ||
+                                      sourceType == 'law' ||
+                                      sourceType == 'decision');
                               return ListTile(
                                 contentPadding: EdgeInsets.zero,
                                 leading: const Icon(Icons.menu_book_rounded),
                                 title: Text(citation),
                                 subtitle: Text('المصدر: $sourceType'),
+                                trailing: canOpen
+                                    ? const Icon(Icons.open_in_new_rounded)
+                                    : null,
+                                onTap: canOpen
+                                    ? () => context.go(
+                                        '/authority/$sourceType/$authorityId',
+                                      )
+                                    : null,
                               );
                             }),
                         ],
@@ -613,7 +632,12 @@ class _LawyerHubPageState extends ConsumerState<LawyerHubPage> {
     );
   }
 
-  Widget _chipGroup(String label, List<String> values, Color color) {
+  Widget _chipGroup(
+    String label,
+    List<String> values,
+    Color color, {
+    String? authorityType,
+  }) {
     final trimmed = values.where((v) => v.trim().isNotEmpty).toList();
     return Container(
       padding: const EdgeInsets.all(10),
@@ -634,10 +658,16 @@ class _LawyerHubPageState extends ConsumerState<LawyerHubPage> {
               Wrap(
                 spacing: 6,
                 runSpacing: 6,
-                children: trimmed
-                    .take(8)
-                    .map((entry) => Chip(label: Text(entry)))
-                    .toList(),
+                children: trimmed.take(8).map((entry) {
+                  if (authorityType == null) {
+                    return Chip(label: Text(entry));
+                  }
+                  return ActionChip(
+                    label: Text(entry),
+                    onPressed: () =>
+                        context.go('/authority/$authorityType/$entry'),
+                  );
+                }).toList(),
               ),
           ],
         ),

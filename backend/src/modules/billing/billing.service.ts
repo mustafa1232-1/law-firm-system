@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { PaginationQueryDto } from 'src/common/dto/pagination-query.dto';
+import { escapeRegex } from 'src/common/utils/regex.util';
 import { AuditService } from '../audit/audit.service';
 import { CaseFile, CaseDocument } from '../cases/schemas/case.schema';
 import { CreateInvoiceDto, CreatePaymentDto } from './dto/billing.dto';
@@ -104,38 +105,155 @@ export class BillingService {
     return payment;
   }
 
-  async listInvoices(query: PaginationQueryDto) {
+  async listInvoices(
+    query: PaginationQueryDto,
+    filters?: {
+      caseId?: string;
+      clientId?: string;
+      status?: string;
+      search?: string;
+    },
+  ) {
     const { page, limit } = query;
     const skip = (page - 1) * limit;
+    const filter: Record<string, unknown> = {};
+
+    if (filters?.caseId && Types.ObjectId.isValid(filters.caseId)) {
+      filter.caseId = new Types.ObjectId(filters.caseId);
+    }
+    if (filters?.clientId && Types.ObjectId.isValid(filters.clientId)) {
+      filter.clientId = new Types.ObjectId(filters.clientId);
+    }
+    if (filters?.status && ['unpaid', 'partial', 'paid'].includes(filters.status)) {
+      filter.status = filters.status;
+    }
+    if ((filters?.search ?? '').trim().length > 0) {
+      const safe = escapeRegex((filters?.search ?? '').trim());
+      filter.$or = [
+        { invoiceNumber: { $regex: safe, $options: 'i' } },
+        { notes: { $regex: safe, $options: 'i' } },
+      ];
+    }
+
     const [items, total] = await Promise.all([
       this.invoiceModel
-        .find()
+        .find(filter)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
         .populate('clientId', 'fullName companyName')
         .populate('caseId', 'title caseNumber')
         .lean(),
-      this.invoiceModel.countDocuments(),
+      this.invoiceModel.countDocuments(filter),
     ]);
 
-    return { items, page, limit, total };
+    const totalsAgg = await this.invoiceModel.aggregate([
+      { $match: filter },
+      {
+        $group: {
+          _id: '$status',
+          amount: { $sum: '$amount' },
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const totals = {
+      unpaid: { count: 0, amount: 0 },
+      partial: { count: 0, amount: 0 },
+      paid: { count: 0, amount: 0 },
+      all: {
+        count: total,
+        amount: totalsAgg.reduce((sum, entry) => sum + Number(entry.amount ?? 0), 0),
+      },
+    };
+    for (const row of totalsAgg) {
+      const key = `${row._id ?? ''}`;
+      if (key === 'unpaid' || key === 'partial' || key === 'paid') {
+        totals[key] = {
+          count: Number(row.count ?? 0),
+          amount: Number(row.amount ?? 0),
+        };
+      }
+    }
+
+    return { items, page, limit, total, totals };
   }
 
-  async listPayments(query: PaginationQueryDto) {
+  async listPayments(
+    query: PaginationQueryDto,
+    filters?: {
+      invoiceId?: string;
+      caseId?: string;
+      fromDate?: string;
+      toDate?: string;
+    },
+  ) {
     const { page, limit } = query;
     const skip = (page - 1) * limit;
+    const filter: Record<string, unknown> = {};
+
+    if (filters?.invoiceId && Types.ObjectId.isValid(filters.invoiceId)) {
+      filter.invoiceId = new Types.ObjectId(filters.invoiceId);
+    }
+
+    if (filters?.caseId && Types.ObjectId.isValid(filters.caseId)) {
+      const caseInvoices = await this.invoiceModel
+        .find({ caseId: new Types.ObjectId(filters.caseId) })
+        .select('_id')
+        .lean();
+      const invoiceIds = caseInvoices.map((entry) => entry._id);
+      if (filter.invoiceId instanceof Types.ObjectId) {
+        filter.invoiceId = invoiceIds.some((id) => id.equals(filter.invoiceId as Types.ObjectId))
+          ? filter.invoiceId
+          : { $in: [new Types.ObjectId()] };
+      } else {
+        filter.invoiceId = invoiceIds.length
+          ? { $in: invoiceIds }
+          : { $in: [new Types.ObjectId()] };
+      }
+    }
+
+    const fromDate = filters?.fromDate ? new Date(filters.fromDate) : null;
+    const toDate = filters?.toDate ? new Date(filters.toDate) : null;
+    if ((fromDate && !Number.isNaN(fromDate.getTime())) || (toDate && !Number.isNaN(toDate.getTime()))) {
+      filter.paymentDate = {
+        ...(fromDate && !Number.isNaN(fromDate.getTime()) ? { $gte: fromDate } : {}),
+        ...(toDate && !Number.isNaN(toDate.getTime()) ? { $lte: toDate } : {}),
+      };
+    }
+
     const [items, total] = await Promise.all([
       this.paymentModel
-        .find()
+        .find(filter)
         .sort({ paymentDate: -1 })
         .skip(skip)
         .limit(limit)
         .populate('invoiceId', 'invoiceNumber amount status')
         .lean(),
-      this.paymentModel.countDocuments(),
+      this.paymentModel.countDocuments(filter),
     ]);
 
-    return { items, page, limit, total };
+    const summaryAgg = await this.paymentModel.aggregate([
+      { $match: filter },
+      {
+        $group: {
+          _id: null,
+          totalAmount: { $sum: '$amount' },
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    return {
+      items,
+      page,
+      limit,
+      total,
+      totals: {
+        totalAmount: Number(summaryAgg[0]?.totalAmount ?? 0),
+        count: Number(summaryAgg[0]?.count ?? 0),
+      },
+    };
   }
 }

@@ -1,6 +1,7 @@
-﻿import 'package:dio/dio.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/auth/auth_controller.dart';
 import '../../../../core/localization/app_translations.dart';
@@ -10,17 +11,62 @@ import '../../../../shared/widgets/glass_panel.dart';
 import '../../../../shared/widgets/section_header.dart';
 import '../../../../theme/lexiq_colors.dart';
 
-final _caseDetailsProvider = FutureProvider.family.autoDispose<Map<String, dynamic>, String>((ref, caseId) async {
-  final dio = ref.watch(dioProvider);
-  final token = ref.read(accessTokenProvider);
-  final response = await dio.get(
-    '/cases/$caseId',
-    options: Options(
-      headers: token == null ? const <String, String>{} : {'Authorization': 'Bearer $token'},
-    ),
-  );
-  return (response.data as Map).cast<String, dynamic>();
-});
+final _caseDetailsProvider = FutureProvider.family
+    .autoDispose<Map<String, dynamic>, String>((ref, caseId) async {
+      final dio = ref.watch(dioProvider);
+      final token = ref.read(accessTokenProvider);
+      final response = await dio.get(
+        '/cases/$caseId',
+        options: Options(
+          headers: token == null
+              ? const <String, String>{}
+              : {'Authorization': 'Bearer $token'},
+        ),
+      );
+      return (response.data as Map).cast<String, dynamic>();
+    });
+
+final _caseBillingProvider = FutureProvider.family
+    .autoDispose<Map<String, dynamic>, String>((ref, caseId) async {
+      final dio = ref.watch(dioProvider);
+      final token = ref.read(accessTokenProvider);
+      final headers = token == null
+          ? const <String, String>{}
+          : {'Authorization': 'Bearer $token'};
+
+      final responses = await Future.wait([
+        dio.get(
+          '/billing/invoices',
+          queryParameters: {'caseId': caseId, 'limit': 40},
+          options: Options(headers: headers),
+        ),
+        dio.get(
+          '/billing/payments',
+          queryParameters: {'caseId': caseId, 'limit': 40},
+          options: Options(headers: headers),
+        ),
+      ]);
+
+      final invoicesPayload = (responses[0].data as Map)
+          .cast<String, dynamic>();
+      final paymentsPayload = (responses[1].data as Map)
+          .cast<String, dynamic>();
+
+      return {
+        'invoices': ((invoicesPayload['items'] as List?) ?? const [])
+            .map((entry) => (entry as Map).cast<String, dynamic>())
+            .toList(),
+        'payments': ((paymentsPayload['items'] as List?) ?? const [])
+            .map((entry) => (entry as Map).cast<String, dynamic>())
+            .toList(),
+        'invoiceTotals':
+            (invoicesPayload['totals'] as Map?)?.cast<String, dynamic>() ??
+            const {},
+        'paymentTotals':
+            (paymentsPayload['totals'] as Map?)?.cast<String, dynamic>() ??
+            const {},
+      };
+    });
 
 class CaseDetailsPage extends ConsumerStatefulWidget {
   const CaseDetailsPage({super.key, required this.caseId});
@@ -48,7 +94,9 @@ class _CaseDetailsPageState extends ConsumerState<CaseDetailsPage> {
         return;
       }
 
-      setState(() => _analysis = (response.data as Map).cast<String, dynamic>());
+      setState(
+        () => _analysis = (response.data as Map).cast<String, dynamic>(),
+      );
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('تم إنشاء تحليل AI للقضية.')),
       );
@@ -57,9 +105,9 @@ class _CaseDetailsPageState extends ConsumerState<CaseDetailsPage> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(parseApiError(error))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(parseApiError(error))));
     } finally {
       if (mounted) {
         setState(() => _isAnalyzing = false);
@@ -70,6 +118,7 @@ class _CaseDetailsPageState extends ConsumerState<CaseDetailsPage> {
   @override
   Widget build(BuildContext context) {
     final asyncCase = ref.watch(_caseDetailsProvider(widget.caseId));
+    final asyncBilling = ref.watch(_caseBillingProvider(widget.caseId));
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(18),
@@ -81,8 +130,9 @@ class _CaseDetailsPageState extends ConsumerState<CaseDetailsPage> {
               .map((e) => (e as Map).cast<String, dynamic>())
               .toList();
           final evidence = <String>[
-            ...((caseItem['evidenceList'] as List?) ?? const [])
-                .map((e) => e.toString()),
+            ...((caseItem['evidenceList'] as List?) ?? const []).map(
+              (e) => e.toString(),
+            ),
             ...((caseItem['evidenceEntries'] as List?) ?? const [])
                 .map((entry) => (entry as Map).cast<String, dynamic>())
                 .map((entry) {
@@ -94,16 +144,54 @@ class _CaseDetailsPageState extends ConsumerState<CaseDetailsPage> {
                 }),
           ].where((item) => item.trim().isNotEmpty).toSet().toList();
           final riskScore = (caseItem['riskScore'] as num?)?.toInt() ?? 0;
-          final aiInsights = (caseItem['aiInsights'] as Map?)?.cast<String, dynamic>() ?? const {};
-          final suggestions = (_analysis?['suggestions'] as Map?)?.cast<String, dynamic>() ?? const {};
-          final caseGenome = (_analysis?['caseGenome'] as Map?)?.cast<String, dynamic>() ??
-              ((caseItem['caseGenome'] as Map?)?.cast<String, dynamic>() ?? const {});
+          final aiInsights =
+              (caseItem['aiInsights'] as Map?)?.cast<String, dynamic>() ??
+              const {};
+          final suggestions =
+              (_analysis?['suggestions'] as Map?)?.cast<String, dynamic>() ??
+              const {};
+          final caseGenome =
+              (_analysis?['caseGenome'] as Map?)?.cast<String, dynamic>() ??
+              ((caseItem['caseGenome'] as Map?)?.cast<String, dynamic>() ??
+                  const {});
+
+          final contractAmount =
+              (caseItem['contractAmount'] as num?)?.toDouble() ??
+              (caseItem['fees'] as num?)?.toDouble() ??
+              0;
+          final paidAmount = (caseItem['paidAmount'] as num?)?.toDouble() ?? 0;
+          final outstandingAmount =
+              (caseItem['outstandingAmount'] as num?)?.toDouble() ?? 0;
+          final paymentStatus = (caseItem['paymentStatus'] ?? 'unpaid')
+              .toString();
+
+          final billingData =
+              asyncBilling.valueOrNull ?? const <String, dynamic>{};
+          final invoices = ((billingData['invoices'] as List?) ?? const [])
+              .map((entry) => (entry as Map).cast<String, dynamic>())
+              .toList();
+          final payments = ((billingData['payments'] as List?) ?? const [])
+              .map((entry) => (entry as Map).cast<String, dynamic>())
+              .toList();
+          final paymentTotals =
+              (billingData['paymentTotals'] as Map?)?.cast<String, dynamic>() ??
+              const {};
+          final totalPaidByPayments =
+              (paymentTotals['totalAmount'] as num?)?.toDouble() ?? 0;
+          final unpaidInvoices = invoices
+              .where(
+                (item) =>
+                    (item['status'] ?? '').toString().toLowerCase() != 'paid',
+              )
+              .toList();
 
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               SectionHeader(
-                title: context.tr('Case Details | {caseId}', {'caseId': widget.caseId}),
+                title: context.tr('Case Details | {caseId}', {
+                  'caseId': widget.caseId,
+                }),
                 subtitle: 'Case Genome, timeline, evidence, and AI suggestions',
                 trailing: ElevatedButton.icon(
                   onPressed: _isAnalyzing ? null : () => _runAnalysis(caseItem),
@@ -143,7 +231,10 @@ class _CaseDetailsPageState extends ConsumerState<CaseDetailsPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(context.tr('Timeline'), style: Theme.of(context).textTheme.titleMedium),
+                          Text(
+                            context.tr('Timeline'),
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
                           const SizedBox(height: 8),
                           if (timeline.isEmpty)
                             const Text('لا يوجد خط زمني بعد.')
@@ -153,9 +244,13 @@ class _CaseDetailsPageState extends ConsumerState<CaseDetailsPage> {
                                 contentPadding: EdgeInsets.zero,
                                 leading: const Icon(Icons.timeline_rounded),
                                 title: Text((entry['title'] ?? '-').toString()),
-                                subtitle: Text((entry['details'] ?? '').toString()),
+                                subtitle: Text(
+                                  (entry['details'] ?? '').toString(),
+                                ),
                                 trailing: Text(
-                                  ((entry['eventDate'] ?? '').toString()).split('T').first,
+                                  ((entry['eventDate'] ?? '').toString())
+                                      .split('T')
+                                      .first,
                                 ),
                               ),
                             ),
@@ -179,7 +274,9 @@ class _CaseDetailsPageState extends ConsumerState<CaseDetailsPage> {
                               if (evidence.isEmpty)
                                 const Text('لم يتم إضافة أدلة بعد.')
                               else
-                                ...evidence.map((item) => _evidenceTile(context, item)),
+                                ...evidence.map(
+                                  (item) => _evidenceTile(context, item),
+                                ),
                             ],
                           ),
                         ),
@@ -193,33 +290,155 @@ class _CaseDetailsPageState extends ConsumerState<CaseDetailsPage> {
                                 style: Theme.of(context).textTheme.titleMedium,
                               ),
                               const SizedBox(height: 8),
-                              if (caseGenome.isEmpty && aiInsights.isEmpty && suggestions.isEmpty)
-                                const Text('شغّل التحليل لإظهار المقترحات القانونية.')
+                              if (caseGenome.isEmpty &&
+                                  aiInsights.isEmpty &&
+                                  suggestions.isEmpty)
+                                const Text(
+                                  'شغّل التحليل لإظهار المقترحات القانونية.',
+                                )
                               else ...[
-                                if (caseGenome['suggestedConstitutionArticles'] != null)
+                                if (caseGenome['suggestedConstitutionArticles'] !=
+                                    null)
                                   _hint(
                                     context,
                                     'Constitution article',
-                                    (caseGenome['suggestedConstitutionArticles'] as List).join(', '),
+                                    (caseGenome['suggestedConstitutionArticles']
+                                            as List)
+                                        .join(', '),
                                   ),
-                                if (caseGenome['suggestedLegalArticles'] != null)
+                                if (caseGenome['suggestedLegalArticles'] !=
+                                    null)
                                   _hint(
                                     context,
                                     'Legal article',
-                                    (caseGenome['suggestedLegalArticles'] as List).join(', '),
+                                    (caseGenome['suggestedLegalArticles']
+                                            as List)
+                                        .join(', '),
                                   ),
                                 if (caseGenome['similarDecisions'] != null)
                                   _hint(
                                     context,
                                     'Similar decision',
-                                    (caseGenome['similarDecisions'] as List).join(', '),
+                                    (caseGenome['similarDecisions'] as List)
+                                        .join(', '),
                                   ),
                                 if (suggestions['missingDocuments'] is List)
                                   _hint(
                                     context,
                                     'Missing documents',
-                                    (suggestions['missingDocuments'] as List).join(' | '),
+                                    (suggestions['missingDocuments'] as List)
+                                        .join(' | '),
                                   ),
+                              ],
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        GlassPanel(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      'الحالة المالية للقضية',
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.titleMedium,
+                                    ),
+                                  ),
+                                  OutlinedButton.icon(
+                                    onPressed: () => context.go('/billing'),
+                                    icon: const Icon(
+                                      Icons.receipt_long_rounded,
+                                    ),
+                                    label: const Text('فتح الفوترة'),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  _pill(
+                                    context,
+                                    'العقد: IQD ${contractAmount.toStringAsFixed(0)}',
+                                  ),
+                                  _pill(
+                                    context,
+                                    'المسدد: IQD ${paidAmount.toStringAsFixed(0)}',
+                                  ),
+                                  _pill(
+                                    context,
+                                    'المتبقي: IQD ${outstandingAmount.toStringAsFixed(0)}',
+                                  ),
+                                  _pill(
+                                    context,
+                                    'الحالة: ${_paymentStatusLabel(paymentStatus)}',
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              if (asyncBilling.isLoading)
+                                const LinearProgressIndicator(minHeight: 2)
+                              else if (asyncBilling.hasError)
+                                Text(
+                                  'تعذر تحميل بيانات الفواتير.',
+                                  style: TextStyle(
+                                    color: Theme.of(context).colorScheme.error,
+                                  ),
+                                )
+                              else ...[
+                                Text(
+                                  'الفواتير غير المسددة (${unpaidInvoices.length})',
+                                  style: Theme.of(context).textTheme.titleSmall,
+                                ),
+                                const SizedBox(height: 6),
+                                if (unpaidInvoices.isEmpty)
+                                  const Text(
+                                    'كل الفواتير المرتبطة بهذه القضية مسددة بالكامل.',
+                                  )
+                                else
+                                  ...unpaidInvoices
+                                      .take(5)
+                                      .map(
+                                        (item) => Padding(
+                                          padding: const EdgeInsets.only(
+                                            bottom: 6,
+                                          ),
+                                          child: Text(
+                                            '- ${(item['invoiceNumber'] ?? '-').toString()} | ${_paymentStatusLabel((item['status'] ?? 'unpaid').toString())} | IQD ${((item['amount'] as num?) ?? 0).toString()}',
+                                          ),
+                                        ),
+                                      ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'إجمالي الدفعات المسجلة من الفواتير: IQD ${totalPaidByPayments.toStringAsFixed(0)}',
+                                ),
+                                if (payments.isNotEmpty) ...[
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'آخر الدفعات',
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.titleSmall,
+                                  ),
+                                  const SizedBox(height: 6),
+                                  ...payments.take(4).map((payment) {
+                                    final invoice =
+                                        (payment['invoiceId'] as Map?)
+                                            ?.cast<String, dynamic>() ??
+                                        const <String, dynamic>{};
+                                    return Padding(
+                                      padding: const EdgeInsets.only(bottom: 6),
+                                      child: Text(
+                                        '- ${(invoice['invoiceNumber'] ?? '-').toString()} | IQD ${((payment['amount'] as num?) ?? 0).toString()} | ${((payment['paymentDate'] ?? '').toString()).split('T').first}',
+                                      ),
+                                    );
+                                  }),
+                                ],
                               ],
                             ],
                           ),
@@ -252,7 +471,11 @@ class _CaseDetailsPageState extends ConsumerState<CaseDetailsPage> {
       padding: const EdgeInsets.only(bottom: 6),
       child: Row(
         children: [
-          const Icon(Icons.check_circle_outline_rounded, size: 18, color: LexiqColors.emeraldJustice),
+          const Icon(
+            Icons.check_circle_outline_rounded,
+            size: 18,
+            color: LexiqColors.emeraldJustice,
+          ),
           const SizedBox(width: 8),
           Expanded(child: Text(label)),
         ],
@@ -284,5 +507,15 @@ class _CaseDetailsPageState extends ConsumerState<CaseDetailsPage> {
       ),
     );
   }
-}
 
+  String _paymentStatusLabel(String status) {
+    switch (status.toLowerCase()) {
+      case 'paid':
+        return 'مسدد';
+      case 'partial':
+        return 'سداد جزئي';
+      default:
+        return 'غير مسدد';
+    }
+  }
+}

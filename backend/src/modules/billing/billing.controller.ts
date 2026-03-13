@@ -17,8 +17,14 @@ export class BillingController {
   }
 
   @Get('invoices')
-  listInvoices(@Query() query: PaginationQueryDto) {
-    return this.billingService.listInvoices(query);
+  listInvoices(
+    @Query() query: PaginationQueryDto,
+    @Query('caseId') caseId?: string,
+    @Query('clientId') clientId?: string,
+    @Query('status') status?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.billingService.listInvoices(query, { caseId, clientId, status, search });
   }
 
   @Post('payments')
@@ -27,7 +33,13 @@ export class BillingController {
   }
 
   @Get('payments')
-  listPayments(@Query() query: PaginationQueryDto) {
-    return this.billingService.listPayments(query);
+  listPayments(
+    @Query() query: PaginationQueryDto,
+    @Query('invoiceId') invoiceId?: string,
+    @Query('caseId') caseId?: string,
+    @Query('fromDate') fromDate?: string,
+    @Query('toDate') toDate?: string,
+  ) {
+    return this.billingService.listPayments(query, { invoiceId, caseId, fromDate, toDate });
   }
 }

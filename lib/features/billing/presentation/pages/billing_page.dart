@@ -23,6 +23,11 @@ class _BillingPageState extends ConsumerState<BillingPage> {
   List<Map<String, dynamic>> _payments = const [];
   List<Map<String, dynamic>> _clients = const [];
   List<Map<String, dynamic>> _cases = const [];
+  Map<String, dynamic> _invoiceTotals = const {};
+  Map<String, dynamic> _paymentTotals = const {};
+
+  String? _filterCaseId;
+  String _filterInvoiceStatus = 'all';
 
   @override
   void initState() {
@@ -41,12 +46,21 @@ class _BillingPageState extends ConsumerState<BillingPage> {
       final responses = await Future.wait([
         dio.get(
           '/billing/invoices',
-          queryParameters: const {'limit': 100},
+          queryParameters: {
+            'limit': 100,
+            if (_filterCaseId != null && _filterCaseId!.isNotEmpty)
+              'caseId': _filterCaseId,
+            if (_filterInvoiceStatus != 'all') 'status': _filterInvoiceStatus,
+          },
           options: Options(headers: authHeaders(ref)),
         ),
         dio.get(
           '/billing/payments',
-          queryParameters: const {'limit': 100},
+          queryParameters: {
+            'limit': 100,
+            if (_filterCaseId != null && _filterCaseId!.isNotEmpty)
+              'caseId': _filterCaseId,
+          },
           options: Options(headers: authHeaders(ref)),
         ),
         dio.get(
@@ -98,6 +112,16 @@ class _BillingPageState extends ConsumerState<BillingPage> {
         _payments = payments;
         _clients = clients;
         _cases = cases;
+        _invoiceTotals =
+            (((responses[0].data as Map).cast<String, dynamic>())['totals']
+                    as Map?)
+                ?.cast<String, dynamic>() ??
+            const {};
+        _paymentTotals =
+            (((responses[1].data as Map).cast<String, dynamic>())['totals']
+                    as Map?)
+                ?.cast<String, dynamic>() ??
+            const {};
       });
     } catch (error) {
       if (!mounted) {
@@ -463,6 +487,22 @@ class _BillingPageState extends ConsumerState<BillingPage> {
 
   @override
   Widget build(BuildContext context) {
+    final unpaidStats =
+        (_invoiceTotals['unpaid'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final partialStats =
+        (_invoiceTotals['partial'] as Map?)?.cast<String, dynamic>() ??
+        const {};
+    final paidStats =
+        (_invoiceTotals['paid'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final allStats =
+        (_invoiceTotals['all'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final totalPaymentsAmount =
+        (_paymentTotals['totalAmount'] as num?)?.toDouble() ?? 0;
+    final selectedCaseFilter =
+        _cases.any((entry) => _idOf(entry) == _filterCaseId)
+        ? _filterCaseId
+        : null;
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(18),
       child: Column(
@@ -483,6 +523,128 @@ class _BillingPageState extends ConsumerState<BillingPage> {
                   onPressed: _showCreateInvoiceDialog,
                   icon: const Icon(Icons.receipt_rounded),
                   label: Text(context.tr('New Invoice')),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          GlassPanel(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'فلاتر الفوترة',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    SizedBox(
+                      width: 320,
+                      child: DropdownButtonFormField<String?>(
+                        initialValue: selectedCaseFilter,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          labelText: 'تصفية حسب القضية',
+                        ),
+                        items: [
+                          const DropdownMenuItem<String?>(
+                            value: null,
+                            child: Text('كل القضايا'),
+                          ),
+                          ..._cases.map(
+                            (caseItem) => DropdownMenuItem<String?>(
+                              value: _idOf(caseItem),
+                              child: Text(
+                                '${(caseItem['caseNumber'] ?? '-').toString()} - ${(caseItem['title'] ?? '-').toString()}',
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ),
+                        ],
+                        onChanged: (value) =>
+                            setState(() => _filterCaseId = value),
+                      ),
+                    ),
+                    SizedBox(
+                      width: 220,
+                      child: DropdownButtonFormField<String>(
+                        initialValue: _filterInvoiceStatus,
+                        decoration: const InputDecoration(
+                          labelText: 'حالة الفاتورة',
+                        ),
+                        items: const [
+                          DropdownMenuItem(value: 'all', child: Text('الكل')),
+                          DropdownMenuItem(
+                            value: 'unpaid',
+                            child: Text('غير مدفوعة'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'partial',
+                            child: Text('جزئية'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'paid',
+                            child: Text('مدفوعة'),
+                          ),
+                        ],
+                        onChanged: (value) => setState(
+                          () => _filterInvoiceStatus = value ?? 'all',
+                        ),
+                      ),
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: _loading ? null : _loadData,
+                      icon: const Icon(Icons.filter_alt_rounded),
+                      label: const Text('تطبيق الفلاتر'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: _loading
+                          ? null
+                          : () {
+                              setState(() {
+                                _filterCaseId = null;
+                                _filterInvoiceStatus = 'all';
+                              });
+                              _loadData();
+                            },
+                      icon: const Icon(Icons.restart_alt_rounded),
+                      label: const Text('إعادة ضبط'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _summaryChip(
+                      'إجمالي الفواتير',
+                      '${(allStats['count'] as num?)?.toInt() ?? _invoices.length}',
+                    ),
+                    _summaryChip(
+                      'غير مدفوعة',
+                      '${(unpaidStats['count'] as num?)?.toInt() ?? 0}',
+                    ),
+                    _summaryChip(
+                      'جزئية',
+                      '${(partialStats['count'] as num?)?.toInt() ?? 0}',
+                    ),
+                    _summaryChip(
+                      'مدفوعة',
+                      '${(paidStats['count'] as num?)?.toInt() ?? 0}',
+                    ),
+                    _summaryChip(
+                      'إجمالي قيمة الفواتير',
+                      'IQD ${((allStats['amount'] as num?)?.toDouble() ?? 0).toStringAsFixed(0)}',
+                    ),
+                    _summaryChip(
+                      'إجمالي الدفعات',
+                      'IQD ${totalPaymentsAmount.toStringAsFixed(0)}',
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -594,6 +756,24 @@ class _BillingPageState extends ConsumerState<BillingPage> {
       return null;
     }
     return id.toString();
+  }
+
+  Widget _summaryChip(String label, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white24),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(value, style: const TextStyle(fontWeight: FontWeight.w700)),
+          const SizedBox(width: 8),
+          Text(label),
+        ],
+      ),
+    );
   }
 
   String _invoiceStatusLabel(String status) {
