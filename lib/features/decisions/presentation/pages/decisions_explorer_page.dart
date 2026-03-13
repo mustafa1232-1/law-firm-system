@@ -32,12 +32,10 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
 
   List<Map<String, dynamic>> _items = const [];
   List<Map<String, dynamic>> _summaryItems = const [];
-  int _page = 1;
   int _total = 0;
-  final Map<String, _DecisionPageCacheEntry> _searchCache = {};
-  final Map<String, List<Map<String, dynamic>>> _summaryCache = {};
+  final Map<String, _DecisionCacheEntry> _searchCache = {};
 
-  static const int _pageSize = 30;
+  static const int _batchSize = 100;
 
   static const _caseTypes = <String>[
     'الكل',
@@ -81,13 +79,13 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
     if (force) {
       _clearDecisionCaches();
     }
-    await Future.wait([
-      _search(page: 1, force: force),
-      _loadCaseTypeSummary(force: force),
-    ]);
+    await _loadAllDecisions(force: force);
+    await _loadCaseTypeSummary();
   }
 
-  Map<String, dynamic> _buildSearchQueryParameters() {
+  Map<String, dynamic> _buildSearchQueryParameters({
+    bool includeCaseType = false,
+  }) {
     return {
       if (_queryController.text.trim().isNotEmpty)
         'q': _queryController.text.trim(),
@@ -95,16 +93,16 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
         'court': _courtController.text.trim(),
       if (_domainController.text.trim().isNotEmpty)
         'legalDomain': _domainController.text.trim(),
-      if (_selectedCaseType != _caseTypes.first) 'caseType': _selectedCaseType,
+      if (includeCaseType && _selectedCaseType != _caseTypes.first)
+        'caseType': _selectedCaseType,
       if (_selectedCourtLevel != 'all') 'courtLevel': _selectedCourtLevel,
       if (_yearController.text.trim().isNotEmpty)
         'year': _yearController.text.trim(),
     };
   }
 
-  Future<void> _search({int? page, bool force = false}) async {
-    final targetPage = page ?? _page;
-    final key = _searchCacheKey(targetPage);
+  Future<void> _loadAllDecisions({bool force = false}) async {
+    final key = _searchCacheKey();
     if (!force) {
       final cached = _searchCache[key];
       if (cached != null) {
@@ -114,7 +112,6 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
         setState(() {
           _items = cached.items;
           _total = cached.total;
-          _page = targetPage;
           _error = null;
         });
         return;
@@ -128,31 +125,59 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
 
     try {
       final dio = ref.read(dioProvider);
-      final response = await dio.get(
-        '/decisions/search',
-        queryParameters: {
-          ..._buildSearchQueryParameters(),
-          'limit': _pageSize,
-          'page': targetPage,
-        },
-        options: Options(headers: authHeaders(ref)),
-      );
-      final data = (response.data as Map).cast<String, dynamic>();
-      final items = ((data['items'] as List?) ?? const [])
-          .map((entry) => (entry as Map).cast<String, dynamic>())
-          .toList();
-      final total = (data['total'] as num?)?.toInt() ?? items.length;
+      final allItems = <Map<String, dynamic>>[];
+      var total = 0;
+      var page = 1;
+
+      while (true) {
+        final response = await dio.get(
+          '/decisions/search',
+          queryParameters: {
+            ..._buildSearchQueryParameters(),
+            'limit': _batchSize,
+            'page': page,
+          },
+          options: Options(headers: authHeaders(ref)),
+        );
+        final data = (response.data as Map).cast<String, dynamic>();
+        final items = ((data['items'] as List?) ?? const [])
+            .map((entry) => (entry as Map).cast<String, dynamic>())
+            .toList();
+
+        if (page == 1) {
+          total = (data['total'] as num?)?.toInt() ?? items.length;
+        }
+
+        if (items.isEmpty) {
+          break;
+        }
+
+        allItems.addAll(items);
+
+        if (allItems.length >= total) {
+          break;
+        }
+
+        page += 1;
+
+        if (page > 10000) {
+          break;
+        }
+      }
 
       if (!mounted) {
         return;
       }
 
-      _searchCache[key] = _DecisionPageCacheEntry(items: items, total: total);
+      final normalizedTotal = total > 0 ? total : allItems.length;
+      _searchCache[key] = _DecisionCacheEntry(
+        items: allItems,
+        total: normalizedTotal,
+      );
 
       setState(() {
-        _items = items;
-        _total = total;
-        _page = targetPage;
+        _items = allItems;
+        _total = normalizedTotal;
       });
     } catch (error) {
       if (!mounted) {
@@ -166,56 +191,30 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
     }
   }
 
-  Future<void> _loadCaseTypeSummary({bool force = false}) async {
-    final key = _summaryCacheKey();
-    if (!force) {
-      final cached = _summaryCache[key];
-      if (cached != null) {
-        if (!mounted) {
-          return;
-        }
-        setState(() => _summaryItems = cached);
-        return;
-      }
+  Future<void> _loadCaseTypeSummary() async {
+    if (!mounted) {
+      return;
     }
 
-    try {
-      final dio = ref.read(dioProvider);
-      final response = await dio.get(
-        '/decisions/case-type-summary',
-        queryParameters: {
-          if (_selectedCourtLevel != 'all') 'courtLevel': _selectedCourtLevel,
-          if (_yearController.text.trim().isNotEmpty)
-            'year': _yearController.text.trim(),
-        },
-        options: Options(headers: authHeaders(ref)),
-      );
-
-      final data = (response.data as Map).cast<String, dynamic>();
-      final items = ((data['items'] as List?) ?? const [])
-          .map((entry) => (entry as Map).cast<String, dynamic>())
-          .toList();
-
-      if (!mounted) {
-        return;
-      }
-
-      _summaryCache[key] = items;
-      setState(() => _summaryItems = items);
-    } catch (_) {
-      if (!mounted) {
-        return;
-      }
-
-      final grouped = _groupItemsByType(_items);
-      setState(
-        () => _summaryItems = grouped.entries
+    final grouped = _groupItemsByType(_items);
+    final summary =
+        grouped.entries
             .map(
               (entry) => {'caseType': entry.key, 'count': entry.value.length},
             )
-            .toList(),
-      );
-    }
+            .toList()
+          ..sort((a, b) {
+            final countA = (a['count'] as num?)?.toInt() ?? 0;
+            final countB = (b['count'] as num?)?.toInt() ?? 0;
+            if (countA != countB) {
+              return countB.compareTo(countA);
+            }
+            return (a['caseType'] ?? '').toString().compareTo(
+              (b['caseType'] ?? '').toString(),
+            );
+          });
+
+    setState(() => _summaryItems = summary);
   }
 
   Future<void> _syncFromPublicSource() async {
@@ -261,10 +260,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
       );
 
       _clearDecisionCaches();
-      await Future.wait([
-        _search(page: 1, force: true),
-        _loadCaseTypeSummary(force: true),
-      ]);
+      await _loadAll(force: true);
     } catch (error) {
       if (!mounted) {
         return;
@@ -1087,21 +1083,15 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
     );
   }
 
-  String _searchCacheKey(int page) {
+  String _searchCacheKey() {
     final params = _buildSearchQueryParameters();
     final sorted = params.keys.toList()..sort();
     final queryKey = sorted.map((key) => '$key=${params[key] ?? ''}').join('&');
-    return '$queryKey|page=$page|limit=$_pageSize';
-  }
-
-  String _summaryCacheKey() {
-    final year = _yearController.text.trim();
-    return 'courtLevel=$_selectedCourtLevel|year=$year';
+    return '$queryKey|limit=$_batchSize';
   }
 
   void _clearDecisionCaches() {
     _searchCache.clear();
-    _summaryCache.clear();
   }
 
   bool _isArabic(BuildContext context) => Localizations.localeOf(
@@ -1165,6 +1155,32 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
     return arToEn[raw] ?? raw;
   }
 
+  String _canonicalCaseType(String caseType) {
+    final raw = caseType.trim();
+    if (raw.isEmpty) {
+      return 'أخرى';
+    }
+
+    const enToAr = <String, String>{
+      'all': 'الكل',
+      'civil': 'مدني',
+      'criminal': 'جزائي',
+      'personal status': 'أحوال شخصية',
+      'commercial': 'تجاري',
+      'administrative': 'إداري',
+      'labor': 'عمالي',
+      'real estate': 'عقاري',
+      'enforcement': 'تنفيذ',
+      'constitutional': 'دستوري',
+      'evidence': 'إثبات',
+      'procedural': 'إجرائي',
+      'endowment': 'وقف',
+      'other': 'أخرى',
+    };
+
+    return enToAr[raw.toLowerCase()] ?? raw;
+  }
+
   Map<String, List<Map<String, dynamic>>> _groupItemsByType(
     List<Map<String, dynamic>> items,
   ) {
@@ -1172,7 +1188,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
 
     for (final item in items) {
       final rawType = (item['caseType'] ?? '').toString().trim();
-      final type = rawType.isEmpty ? 'other' : rawType;
+      final type = _canonicalCaseType(rawType);
       grouped.putIfAbsent(type, () => []).add(item);
     }
 
@@ -1186,63 +1202,20 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
     return value.toString().split('T').first;
   }
 
-  int get _totalPages =>
-      _total == 0 ? 1 : ((_total + _pageSize - 1) ~/ _pageSize);
-
-  Future<void> _goToPage(int page) async {
-    if (page < 1 || page > _totalPages || page == _page || _loading) {
-      return;
-    }
-    await _search(page: page);
-  }
-
-  Widget _buildPaginationPanel(BuildContext context) {
-    final totalPages = _totalPages;
-    if (totalPages <= 1) {
-      return const SizedBox.shrink();
-    }
-
-    return GlassPanel(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      child: Wrap(
-        alignment: WrapAlignment.spaceBetween,
-        runSpacing: 8,
-        spacing: 10,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          Text(
-            _loc(
-              context,
-              'صفحة $_page من $totalPages',
-              'Page $_page of $totalPages',
-            ),
-          ),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              OutlinedButton.icon(
-                onPressed: _page > 1 ? () => _goToPage(_page - 1) : null,
-                icon: const Icon(Icons.chevron_right_rounded),
-                label: Text(_loc(context, 'السابق', 'Previous')),
-              ),
-              const SizedBox(width: 8),
-              OutlinedButton.icon(
-                onPressed: _page < totalPages
-                    ? () => _goToPage(_page + 1)
-                    : null,
-                icon: const Icon(Icons.chevron_left_rounded),
-                label: Text(_loc(context, 'التالي', 'Next')),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    final grouped = _groupItemsByType(_items);
+    final selectedType = _canonicalCaseType(_selectedCaseType);
+    final visibleItems = selectedType == _caseTypes.first
+        ? _items
+        : _items
+              .where(
+                (item) =>
+                    _canonicalCaseType((item['caseType'] ?? '').toString()) ==
+                    selectedType,
+              )
+              .toList();
+
+    final grouped = _groupItemsByType(visibleItems);
     final sortedGroups = grouped.entries.toList()
       ..sort((a, b) => b.value.length - a.value.length);
 
@@ -1279,10 +1252,6 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
             _buildFiltersPanel(context),
             const SizedBox(height: 12),
             _buildSummaryPanel(context),
-            if (_totalPages > 1) ...[
-              const SizedBox(height: 12),
-              _buildPaginationPanel(context),
-            ],
             const SizedBox(height: 12),
             if (_loading)
               const GlassPanel(
@@ -1298,13 +1267,17 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
                   style: const TextStyle(color: LexiqColors.crimsonAlert),
                 ),
               )
-            else if (_items.isEmpty)
+            else if (visibleItems.isEmpty)
               GlassPanel(
                 child: Text(
                   _loc(
                     context,
-                    'لا توجد قرارات مطابقة للفلاتر الحالية.',
-                    'No decisions match the current filters.',
+                    selectedType == _caseTypes.first
+                        ? 'لا توجد قرارات مطابقة للفلاتر الحالية.'
+                        : 'لا توجد قرارات ضمن نوع القضية المحدد.',
+                    selectedType == _caseTypes.first
+                        ? 'No decisions match the current filters.'
+                        : 'No decisions for the selected case type.',
                   ),
                 ),
               )
@@ -1335,10 +1308,6 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
                       ],
                     ),
                   ),
-                  if (_totalPages > 1) ...[
-                    const SizedBox(height: 12),
-                    _buildPaginationPanel(context),
-                  ],
                 ],
               ),
           ],
@@ -1356,8 +1325,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
         child: TextField(
           controller: _queryController,
           onSubmitted: (_) async {
-            await _search(page: 1);
-            await _loadCaseTypeSummary();
+            await _loadAll();
           },
           decoration: InputDecoration(
             hintText: _loc(
@@ -1374,8 +1342,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
         child: TextField(
           controller: _courtController,
           onSubmitted: (_) async {
-            await _search(page: 1);
-            await _loadCaseTypeSummary();
+            await _loadAll();
           },
           decoration: InputDecoration(
             labelText: _loc(context, 'المحكمة', 'Court'),
@@ -1388,8 +1355,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
         child: TextField(
           controller: _domainController,
           onSubmitted: (_) async {
-            await _search(page: 1);
-            await _loadCaseTypeSummary();
+            await _loadAll();
           },
           decoration: InputDecoration(
             labelText: _loc(context, 'المجال القانوني', 'Legal Domain'),
@@ -1403,8 +1369,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
           controller: _yearController,
           keyboardType: TextInputType.number,
           onSubmitted: (_) async {
-            await _search(page: 1);
-            await _loadCaseTypeSummary();
+            await _loadAll();
           },
           decoration: InputDecoration(
             labelText: _loc(context, 'السنة', 'Year'),
@@ -1484,8 +1449,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
                 onPressed: _loading
                     ? null
                     : () async {
-                        await _search(page: 1);
-                        await _loadCaseTypeSummary();
+                        await _loadAll();
                       },
                 icon: const Icon(Icons.search_rounded),
                 label: Text(_loc(context, 'بحث', 'Search')),
@@ -1538,30 +1502,58 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
 
   Widget _buildSummaryPanel(BuildContext context) {
     final total = _total;
+    final selectedType = _canonicalCaseType(_selectedCaseType);
 
-    return Wrap(
-      spacing: 10,
-      runSpacing: 10,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _SummaryCard(
-          title: _loc(context, 'النتائج الحالية', 'Current Results'),
-          value: '$total',
-          icon: Icons.gavel_rounded,
-          color: LexiqColors.imperialBlue,
-        ),
-        ..._summaryItems.take(8).map((entry) {
-          final caseType = _localizeCaseType(
+        Text(
+          _loc(
             context,
-            (entry['caseType'] ?? 'other').toString(),
-          );
-          final count = (entry['count'] ?? 0).toString();
-          return _SummaryCard(
-            title: caseType,
-            value: count,
-            icon: Icons.folder_special_rounded,
-            color: LexiqColors.brassGold,
-          );
-        }),
+            'عداد القرارات حسب نوع القضية (اضغط على النوع للعرض)',
+            'Decision counters by case type (tap a type to view)',
+          ),
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            _SummaryCard(
+              title: _selectedCourtLevel == 'appellate'
+                  ? _loc(
+                      context,
+                      'كل الأنواع (استئنافي)',
+                      'All Types (Appellate)',
+                    )
+                  : _loc(context, 'كل الأنواع', 'All Types'),
+              value: '$total',
+              icon: Icons.gavel_rounded,
+              color: LexiqColors.imperialBlue,
+              selected: selectedType == _caseTypes.first,
+              onTap: () => setState(() => _selectedCaseType = _caseTypes.first),
+            ),
+            ..._summaryItems.map((entry) {
+              final rawType = _canonicalCaseType(
+                (entry['caseType'] ?? 'other').toString(),
+              );
+              final caseType = _localizeCaseType(context, rawType);
+              final count = (entry['count'] ?? 0).toString();
+              final selected = selectedType == rawType;
+              return _SummaryCard(
+                title: caseType,
+                value: count,
+                icon: Icons.folder_special_rounded,
+                color: selected
+                    ? LexiqColors.imperialBlue
+                    : LexiqColors.brassGold,
+                selected: selected,
+                onTap: () => setState(() => _selectedCaseType = rawType),
+              );
+            }),
+          ],
+        ),
       ],
     );
   }
@@ -1573,49 +1565,75 @@ class _SummaryCard extends StatelessWidget {
     required this.value,
     required this.icon,
     required this.color,
+    this.selected = false,
+    this.onTap,
   });
 
   final String title;
   final String value;
   final IconData icon;
   final Color color;
+  final bool selected;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 220,
-      child: GlassPanel(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        child: Row(
-          children: [
-            Container(
-              width: 34,
-              height: 34,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(10),
-                color: color.withValues(alpha: 0.2),
-              ),
-              child: Icon(icon, color: color, size: 18),
+    return GestureDetector(
+      onTap: onTap,
+      child: SizedBox(
+        width: 220,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: selected
+                  ? color.withValues(alpha: 0.9)
+                  : Colors.transparent,
+              width: 1.3,
             ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(value, style: Theme.of(context).textTheme.titleLarge),
-                  const SizedBox(height: 2),
-                  Text(
-                    title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: LexiqColors.slateGray,
-                    ),
+          ),
+          child: GlassPanel(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                    color: color.withValues(alpha: 0.2),
                   ),
-                ],
-              ),
+                  child: Icon(icon, color: color, size: 18),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        value,
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: selected
+                              ? LexiqColors.ivoryText
+                              : LexiqColors.slateGray,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (selected)
+                  Icon(Icons.check_circle_rounded, color: color, size: 18),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -1743,8 +1761,8 @@ class _DecisionGroupPanel extends StatelessWidget {
   }
 }
 
-class _DecisionPageCacheEntry {
-  const _DecisionPageCacheEntry({required this.items, required this.total});
+class _DecisionCacheEntry {
+  const _DecisionCacheEntry({required this.items, required this.total});
 
   final List<Map<String, dynamic>> items;
   final int total;
