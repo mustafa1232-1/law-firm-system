@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AuditModule } from '../audit/audit.module';
 import { IngestModule } from '../ingest/ingest.module';
+import { StorageModule } from '../storage/storage.module';
 import { DecisionChunk, DecisionChunkSchema } from './schemas/decision-chunk.schema';
 import {
   JudicialDecision,
@@ -14,6 +15,7 @@ import { DecisionsService } from './decisions.service';
   imports: [
     AuditModule,
     IngestModule,
+    StorageModule,
     MongooseModule.forFeature([
       { name: JudicialDecision.name, schema: JudicialDecisionSchema },
       { name: DecisionChunk.name, schema: DecisionChunkSchema },

@@ -61,7 +61,10 @@ Implemented modules:
 - `GET /api/v1/constitution/search?q=`
 - `GET /api/v1/laws/search?q=`
 - `GET /api/v1/decisions/search?q=`
+- `GET /api/v1/decisions/case-type-summary`
 - `POST /api/v1/decisions/ingest`
+- `POST /api/v1/decisions/sync/sjc-appellate`
+- `POST /api/v1/decisions/upload` (multipart upload for appellate/cassation decisions)
 - `POST /api/v1/ai/case-analysis`
 - `POST /api/v1/ai/legal-research`
 - `POST /api/v1/ai/argument-builder`
@@ -113,6 +116,8 @@ cd backend && npm run sync:constitution
 cd backend && npm run verify:constitution
 cd backend && npm run seed:public-data
 cd backend && npm run reset:production
+cd backend && npm run sync:sjc-appellate
+cd backend && npm run seed:decisions:appellate-cassation
 
 # Frontend
 flutter analyze
@@ -165,6 +170,29 @@ cd backend
 SEED_REPLACE=true npm run seed:public-data
 ```
 
+Sync public appellate/cassation decisions (scrape + classify + upsert):
+
+```bash
+cd backend
+MONGODB_URI=... npm run sync:sjc-appellate
+```
+
+Seed pre-collected appellate/cassation decisions from local seed file:
+
+```bash
+cd backend
+MONGODB_URI=... npm run seed:decisions:appellate-cassation
+```
+
+Optional controls:
+
+- `SJC_START_ID` (default `1`)
+- `SJC_END_ID` (default `4200`)
+- `SJC_CONCURRENCY` (default `20`)
+- `SJC_MAX_DECISIONS` (default `1200`)
+- `SJC_MODE=appellate|all` (default `appellate`)
+- `SJC_DRY_RUN=true|false` (default `false`)
+
 Current seeded legal corpus includes:
 
 - Iraqi Constitution full text (articles 1..144)
@@ -173,6 +201,9 @@ Current seeded legal corpus includes:
 - Constitution records include article ordering and extracted paragraph chunks for full-article reading views
 - Curated Iraqi law documents and indexed law articles
 - Expanded curated judicial decision records for search and retrieval
+- Appellate/cassation decision seed bundle:
+  - `backend/data/public/judicial_decisions_appellate_cassation.seed.json`
+  - currently includes `75` records (`71` appellate + `4` cassation)
 - Iraqi courts directory (seeded from publicly available OSM courthouse data) with searchable location metadata
 
 Constitution import/encoding safety:

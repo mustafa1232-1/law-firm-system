@@ -54,6 +54,34 @@ function readJson(fileName) {
   return JSON.parse(fs.readFileSync(abs, 'utf8'));
 }
 
+function readJsonIfExists(fileName, fallback = []) {
+  const abs = path.join(__dirname, '..', 'data', 'public', fileName);
+  if (!fs.existsSync(abs)) {
+    return fallback;
+  }
+  return JSON.parse(fs.readFileSync(abs, 'utf8'));
+}
+
+function mergeDecisionSeeds(...seedLists) {
+  const mergedBySource = new Map();
+  for (const list of seedLists) {
+    if (!Array.isArray(list)) {
+      continue;
+    }
+    for (const item of list) {
+      const source = `${item?.source ?? ''}`.trim();
+      if (!source) {
+        continue;
+      }
+      const previous = mergedBySource.get(source);
+      if (!previous || item?.sourceType === 'public_web_scrape') {
+        mergedBySource.set(source, item);
+      }
+    }
+  }
+  return Array.from(mergedBySource.values());
+}
+
 async function seedLegalData(db) {
   const constitutionCollection = db.collection('constitution_articles');
   const lawDocumentsCollection = db.collection('law_documents');
@@ -64,6 +92,14 @@ async function seedLegalData(db) {
   const constitutionSeed = readJson('constitution_articles.seed.json');
   const lawsSeed = readJson('laws.seed.json');
   const decisionsSeed = readJson('judicial_decisions.seed.json');
+  const appellateCassationDecisionsSeed = readJsonIfExists(
+    'judicial_decisions_appellate_cassation.seed.json',
+    [],
+  );
+  const mergedDecisionsSeed = mergeDecisionSeeds(
+    decisionsSeed,
+    appellateCassationDecisionsSeed,
+  );
   const courtsSeed = readJson('iraqi_courts.seed.json');
 
   const constitutionDocs = constitutionSeed.map((item) => ({
@@ -119,7 +155,7 @@ async function seedLegalData(db) {
     }
   }
 
-  const decisionDocs = decisionsSeed.map((item) => ({
+  const decisionDocs = mergedDecisionsSeed.map((item) => ({
     ...item,
     decisionDate: new Date(item.decisionDate),
     publicationDate: item.publicationDate ? new Date(item.publicationDate) : undefined,

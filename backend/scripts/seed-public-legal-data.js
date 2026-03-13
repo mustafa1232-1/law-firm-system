@@ -53,6 +53,34 @@ function readJson(relativePath) {
   return JSON.parse(fs.readFileSync(abs, 'utf8'));
 }
 
+function readJsonIfExists(relativePath, fallback = []) {
+  const abs = path.join(__dirname, '..', relativePath);
+  if (!fs.existsSync(abs)) {
+    return fallback;
+  }
+  return JSON.parse(fs.readFileSync(abs, 'utf8'));
+}
+
+function mergeDecisionSeeds(...seedLists) {
+  const mergedBySource = new Map();
+  for (const list of seedLists) {
+    if (!Array.isArray(list)) {
+      continue;
+    }
+    for (const item of list) {
+      const source = `${item?.source ?? ''}`.trim();
+      if (!source) {
+        continue;
+      }
+      const previous = mergedBySource.get(source);
+      if (!previous || item?.sourceType === 'public_web_scrape') {
+        mergedBySource.set(source, item);
+      }
+    }
+  }
+  return Array.from(mergedBySource.values());
+}
+
 async function main() {
   const uri = process.env.MONGODB_URI;
   if (!uri) {
@@ -73,6 +101,14 @@ async function main() {
   const constitutionSeed = readJson('data/public/constitution_articles.seed.json');
   const lawsSeed = readJson('data/public/laws.seed.json');
   const decisionsSeed = readJson('data/public/judicial_decisions.seed.json');
+  const appellateCassationDecisionsSeed = readJsonIfExists(
+    'data/public/judicial_decisions_appellate_cassation.seed.json',
+    [],
+  );
+  const mergedDecisionsSeed = mergeDecisionSeeds(
+    decisionsSeed,
+    appellateCassationDecisionsSeed,
+  );
   const courtsSeed = readJson('data/public/iraqi_courts.seed.json');
 
   if (replaceData) {
@@ -142,7 +178,7 @@ async function main() {
     }
   }
 
-  const decisionDocs = decisionsSeed.map((item) => ({
+  const decisionDocs = mergedDecisionsSeed.map((item) => ({
     ...item,
     decisionDate: new Date(item.decisionDate),
     publicationDate: item.publicationDate ? new Date(item.publicationDate) : undefined,

@@ -85,6 +85,21 @@ export class JudicialDecision {
 
   @Prop({ required: false })
   normalizedText?: string;
+
+  @Prop({ required: false })
+  attachmentStoragePath?: string;
+
+  @Prop({ required: false })
+  attachmentOriginalName?: string;
+
+  @Prop({ required: false })
+  attachmentMimeType?: string;
+
+  @Prop({ required: false })
+  attachmentSizeBytes?: number;
+
+  @Prop({ required: false })
+  submittedByUserId?: string;
 }
 
 export const JudicialDecisionSchema = SchemaFactory.createForClass(JudicialDecision);

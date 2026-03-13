@@ -13,6 +13,8 @@
     "verify:constitution": "node scripts/verify-constitution-seed.js",
     "sanitize:seeds": "node scripts/sanitize-seed-arabic.js",
     "reset:production": "node scripts/reset-and-seed-production.js",
+    "sync:sjc-appellate": "node scripts/sync-sjc-appellate-decisions.js",
+    "seed:decisions:appellate-cassation": "node scripts/seed-appellate-cassation-decisions.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint ."
   },
