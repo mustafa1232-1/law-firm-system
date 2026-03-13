@@ -98,8 +98,16 @@ async function seedLegalData(db) {
     const articles = (lawSeed.articles ?? []).map((article) => ({
       lawId: insertedLaw.insertedId,
       articleNumber: article.articleNumber,
+      articleOrder:
+        Number.isFinite(Number(article.articleOrder)) && Number(article.articleOrder) > 0
+          ? Number(article.articleOrder)
+          : toArticleOrder(article.articleNumber),
       text: article.text,
       normalizedText: normalizeArabic(article.text ?? ''),
+      paragraphs:
+        Array.isArray(article.paragraphs) && article.paragraphs.length
+          ? article.paragraphs
+          : extractParagraphs(article.text ?? ''),
       keywords: article.keywords ?? [],
       createdAt: new Date(),
       updatedAt: new Date(),
