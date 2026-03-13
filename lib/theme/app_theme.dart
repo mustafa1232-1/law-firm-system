@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'lexiq_colors.dart';
 
 class AppTheme {
-  static ThemeData build() {
+  static ThemeData build({required bool isArabic}) {
     const colorScheme = ColorScheme(
       brightness: Brightness.dark,
       primary: LexiqColors.imperialBlue,
@@ -22,42 +22,54 @@ class AppTheme {
       useMaterial3: true,
     );
 
-    final textTheme = GoogleFonts.cairoTextTheme(base.textTheme).copyWith(
-      headlineLarge: GoogleFonts.cairo(
-        fontSize: 34,
-        fontWeight: FontWeight.w800,
-        color: LexiqColors.ivoryText,
-      ),
-      headlineMedium: GoogleFonts.cairo(
-        fontSize: 28,
-        fontWeight: FontWeight.w700,
-        color: LexiqColors.ivoryText,
-      ),
-      titleLarge: GoogleFonts.cairo(
-        fontSize: 20,
-        fontWeight: FontWeight.w700,
-        color: LexiqColors.ivoryText,
-      ),
-      titleMedium: GoogleFonts.cairo(
-        fontSize: 16,
-        fontWeight: FontWeight.w600,
-        color: LexiqColors.ivoryText,
-      ),
-      bodyLarge: GoogleFonts.cairo(
-        fontSize: 15,
-        fontWeight: FontWeight.w500,
-        color: LexiqColors.ivoryText,
-      ),
-      bodyMedium: GoogleFonts.cairo(
-        fontSize: 14,
-        color: LexiqColors.slateGray,
-      ),
-      labelLarge: GoogleFonts.manrope(
-        fontSize: 13,
-        fontWeight: FontWeight.w700,
-        color: LexiqColors.ivoryText,
-      ),
-    );
+    final headlineLarge = isArabic ? GoogleFonts.cairo : GoogleFonts.manrope;
+    final headlineMedium = isArabic ? GoogleFonts.cairo : GoogleFonts.manrope;
+    final titleLarge = isArabic ? GoogleFonts.cairo : GoogleFonts.manrope;
+    final titleMedium = isArabic ? GoogleFonts.cairo : GoogleFonts.manrope;
+    final bodyLarge = isArabic ? GoogleFonts.cairo : GoogleFonts.manrope;
+    final bodyMedium = isArabic ? GoogleFonts.cairo : GoogleFonts.manrope;
+    final labelLarge = isArabic ? GoogleFonts.cairo : GoogleFonts.manrope;
+
+    final textTheme =
+        (isArabic
+                ? GoogleFonts.cairoTextTheme(base.textTheme)
+                : GoogleFonts.manropeTextTheme(base.textTheme))
+            .copyWith(
+              headlineLarge: headlineLarge(
+                fontSize: 34,
+                fontWeight: FontWeight.w800,
+                color: LexiqColors.ivoryText,
+              ),
+              headlineMedium: headlineMedium(
+                fontSize: 28,
+                fontWeight: FontWeight.w700,
+                color: LexiqColors.ivoryText,
+              ),
+              titleLarge: titleLarge(
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                color: LexiqColors.ivoryText,
+              ),
+              titleMedium: titleMedium(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: LexiqColors.ivoryText,
+              ),
+              bodyLarge: bodyLarge(
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+                color: LexiqColors.ivoryText,
+              ),
+              bodyMedium: bodyMedium(
+                fontSize: 14,
+                color: LexiqColors.slateGray,
+              ),
+              labelLarge: labelLarge(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: LexiqColors.ivoryText,
+              ),
+            );
 
     return base.copyWith(
       textTheme: textTheme,
@@ -71,11 +83,15 @@ class AppTheme {
         fillColor: LexiqColors.deepNavy.withValues(alpha: 0.75),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: LexiqColors.slateGray.withValues(alpha: 0.25)),
+          borderSide: BorderSide(
+            color: LexiqColors.slateGray.withValues(alpha: 0.25),
+          ),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: LexiqColors.slateGray.withValues(alpha: 0.25)),
+          borderSide: BorderSide(
+            color: LexiqColors.slateGray.withValues(alpha: 0.25),
+          ),
         ),
         focusedBorder: const OutlineInputBorder(
           borderRadius: BorderRadius.all(Radius.circular(14)),
@@ -87,7 +103,9 @@ class AppTheme {
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(18),
-          side: BorderSide(color: LexiqColors.slateGray.withValues(alpha: 0.18)),
+          side: BorderSide(
+            color: LexiqColors.slateGray.withValues(alpha: 0.18),
+          ),
         ),
       ),
       dividerColor: LexiqColors.slateGray.withValues(alpha: 0.25),
@@ -95,7 +113,9 @@ class AppTheme {
         style: ElevatedButton.styleFrom(
           backgroundColor: LexiqColors.imperialBlue,
           foregroundColor: LexiqColors.ivoryText,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
         ),
       ),

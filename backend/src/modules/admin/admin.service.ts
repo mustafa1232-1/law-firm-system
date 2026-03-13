@@ -4,6 +4,10 @@ import { Model } from 'mongoose';
 import * as fs from 'fs';
 import * as path from 'path';
 import { normalizeArabic } from 'src/common/utils/arabic-normalization.util';
+import {
+  sanitizeHumanText,
+  sanitizeLooseObject,
+} from 'src/common/utils/text-sanitizer.util';
 import { Payment, PaymentDocument } from '../billing/schemas/payment.schema';
 import { CaseFile, CaseDocument } from '../cases/schemas/case.schema';
 import {
@@ -157,24 +161,42 @@ export class AdminService {
       await this.decisionModel.insertMany(decisionDocs, { ordered: false });
     }
 
-    const courtDocs = courtsSeed.map((item) => ({
-      ...item,
-      name: item.name ?? item.nameAr ?? item.nameEn ?? 'محكمة غير مسماة',
-      nameAr: item.nameAr ?? undefined,
-      nameEn: item.nameEn ?? undefined,
-      governorate: item.governorate ?? undefined,
-      city: item.city ?? undefined,
-      district: item.district ?? undefined,
-      area: item.area ?? undefined,
-      addressDescription: item.addressDescription ?? undefined,
-      latitude: item.latitude ?? undefined,
-      longitude: item.longitude ?? undefined,
-      source: item.source ?? 'openstreetmap',
-      sourceType: item.sourceType ?? 'osm_amenity_courthouse',
-      sourceRef: item.sourceRef ?? undefined,
-      sourceUrl: item.sourceUrl ?? undefined,
-      tags: item.tags ?? {},
-    }));
+    const courtDocs = courtsSeed
+      .map((item) => {
+        const nameAr = sanitizeHumanText(item.nameAr);
+        const nameEn = sanitizeHumanText(item.nameEn);
+        const name =
+          sanitizeHumanText(item.name, nameAr ?? nameEn ?? 'محكمة عراقية') ??
+          'محكمة عراقية';
+
+        return {
+          name,
+          nameAr,
+          nameEn,
+          governorate: sanitizeHumanText(item.governorate),
+          city: sanitizeHumanText(item.city),
+          district: sanitizeHumanText(item.district),
+          area: sanitizeHumanText(item.area),
+          addressDescription: sanitizeHumanText(item.addressDescription),
+          latitude:
+            typeof item.latitude === 'number' ? Number(item.latitude) : undefined,
+          longitude:
+            typeof item.longitude === 'number'
+              ? Number(item.longitude)
+              : undefined,
+          source: sanitizeHumanText(item.source, 'openstreetmap') ?? 'openstreetmap',
+          sourceType:
+            sanitizeHumanText(item.sourceType, 'osm_amenity_courthouse') ??
+            'osm_amenity_courthouse',
+          sourceRef: sanitizeHumanText(item.sourceRef, '/'),
+          sourceUrl: sanitizeHumanText(
+            item.sourceUrl,
+            'https://www.openstreetmap.org',
+          ),
+          tags: sanitizeLooseObject(item.tags),
+        };
+      })
+      .filter((item) => Boolean(item.name));
 
     if (courtDocs.length) {
       await this.courtModel.insertMany(courtDocs, { ordered: false });

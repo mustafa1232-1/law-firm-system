@@ -13,6 +13,7 @@ class LexiqApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(appRouterProvider);
     final locale = ref.watch(localeProvider);
+    final isArabic = locale.languageCode.toLowerCase().startsWith('ar');
 
     return MaterialApp.router(
       title: 'LexIQ Iraq',
@@ -24,10 +25,9 @@ class LexiqApp extends ConsumerWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      theme: AppTheme.build(),
+      theme: AppTheme.build(isArabic: isArabic),
       routerConfig: router,
       builder: (context, child) {
-        final isArabic = locale.languageCode.toLowerCase().startsWith('ar');
         return Directionality(
           textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
           child: child ?? const SizedBox.shrink(),

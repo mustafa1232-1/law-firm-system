@@ -29,12 +29,11 @@ function extractParagraphs(text) {
     return [];
   }
 
-  const ordinalSplitRegex = RegExp(
-    '(?=\\b(?:اولا|أولا|اولاً|أولاً|ثانيا|ثانياً|ثالثا|ثالثاً|رابعا|رابعاً|خامسا|خامساً|سادسا|سادساً|سابعا|سابعاً|ثامنا|ثامناً|تاسعا|تاسعاً|عاشرا|عاشراً)\\b)',
-  );
+  const markerSplitRegex =
+    /(?=(?:^|\s)(?:\(?\d+\)?[-.)]|[A-Za-z]\)|[\u0660-\u0669]+\)|[\u06F0-\u06F9]+\)))/g;
 
   const chunks = value
-    .split(ordinalSplitRegex)
+    .split(markerSplitRegex)
     .map((entry) => entry.trim())
     .filter(Boolean);
 
@@ -43,7 +42,7 @@ function extractParagraphs(text) {
   }
 
   return value
-    .split(/(?<=[\.؛])\s+/)
+    .split(/(?<=[\.؛!?])\s+/)
     .map((entry) => entry.trim())
     .filter(Boolean);
 }
@@ -206,7 +205,11 @@ async function main() {
 
   const courtDocs = courtsSeed.map((item) => ({
     ...item,
-    name: item.name ?? item.nameAr ?? item.nameEn ?? 'محكمة غير مسماة',
+    name:
+      item.name ??
+      item.nameAr ??
+      item.nameEn ??
+      '\u0645\u062d\u0643\u0645\u0629 \u063a\u064a\u0631 \u0645\u0633\u0645\u0627\u0629',
     source: item.source ?? 'openstreetmap',
     sourceType: item.sourceType ?? 'osm_amenity_courthouse',
     tags: item.tags ?? {},

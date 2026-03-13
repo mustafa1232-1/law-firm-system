@@ -25,7 +25,7 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
   bool _loadingMore = false;
   String? _error;
   String? _note;
-  String _selectedCategory = 'Ø§Ù„ÙƒÙ„';
+  String _selectedCategory = 'all';
   _ResultsTab _activeTab = _ResultsTab.laws;
   bool _searchMode = false;
   String _activeQuery = '';
@@ -41,13 +41,22 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
 
   static const int _pageSize = 30;
 
-  static const _smartSearchExamples = <String>[
-    'Ø§Ù„Ù…Ø§Ø¯Ø© 1',
-    'ØªØ¹ÙˆÙŠØ¶ Ø§Ù„Ø¶Ø±Ø±',
-    'Ø§Ù„Ø§Ø®ØªØµØ§Øµ Ø§Ù„Ù‚Ø¶Ø§Ø¦ÙŠ',
-    'Ù‚Ø§Ù†ÙˆÙ† 40',
-    'Ø§Ù„Ø¥Ø«Ø¨Ø§Øª',
-    'Ø§Ù„Ø¹Ù‚Ø¯ ÙˆØ§Ù„Ø§Ù„ØªØ²Ø§Ù…',
+  static const _smartSearchExamplesAr = <String>[
+    'المادة 1',
+    'تعويض الضرر',
+    'الاختصاص القضائي',
+    'قانون 40',
+    'الإثبات',
+    'العقد والالتزام',
+  ];
+
+  static const _smartSearchExamplesEn = <String>[
+    'Article 1',
+    'Compensation',
+    'Judicial jurisdiction',
+    'Law 40',
+    'Evidence',
+    'Contract and obligations',
   ];
 
   @override
@@ -398,7 +407,7 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
   String _categoryOfLaw(Map<String, dynamic> law) {
     final domain = (law['legalDomain'] ?? '').toString().trim();
     if (domain.isEmpty) {
-      return 'ØºÙŠØ± Ù…ØµÙ†Ù';
+      return 'uncategorized';
     }
     return domain;
   }
@@ -412,7 +421,7 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
   }
 
   List<Map<String, dynamic>> _filteredLaws() {
-    if (_selectedCategory == 'Ø§Ù„ÙƒÙ„') {
+    if (_selectedCategory == 'all') {
       return _laws;
     }
     return _laws
@@ -423,7 +432,7 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
   List<Map<String, dynamic>> _filteredArticles(
     List<Map<String, dynamic>> filteredLaws,
   ) {
-    if (_selectedCategory == 'Ø§Ù„ÙƒÙ„') {
+    if (_selectedCategory == 'all') {
       return _articles;
     }
 
@@ -446,7 +455,7 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
   }
 
   List<String> _availableCategories() {
-    final values = <String>{'Ø§Ù„ÙƒÙ„'};
+    final values = <String>{'all'};
     for (final law in _laws) {
       values.add(_categoryOfLaw(law));
     }
@@ -473,6 +482,26 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
     return '';
   }
 
+  bool _isArabic(BuildContext context) => Localizations.localeOf(
+    context,
+  ).languageCode.toLowerCase().startsWith('ar');
+
+  String _loc(BuildContext context, String ar, String en) =>
+      _isArabic(context) ? ar : en;
+
+  List<String> _smartSearchExamples(BuildContext context) =>
+      _isArabic(context) ? _smartSearchExamplesAr : _smartSearchExamplesEn;
+
+  String _categoryLabel(BuildContext context, String category) {
+    if (category == 'all') {
+      return _loc(context, 'الكل', 'All');
+    }
+    if (category == 'uncategorized') {
+      return _loc(context, 'غير مصنف', 'Uncategorized');
+    }
+    return category;
+  }
+
   @override
   Widget build(BuildContext context) {
     final filteredLaws = _filteredLaws();
@@ -480,7 +509,7 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
     final categories = _availableCategories();
 
     return Directionality(
-      textDirection: TextDirection.rtl,
+      textDirection: _isArabic(context) ? TextDirection.rtl : TextDirection.ltr,
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
         child: Column(
@@ -512,7 +541,7 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
                         }
                       },
                 icon: const Icon(Icons.refresh_rounded),
-                label: const Text('ØªØ­Ø¯ÙŠØ«'),
+                label: Text(_loc(context, 'تحديث', 'Refresh')),
               ),
             ),
             const SizedBox(height: 12),
@@ -533,7 +562,7 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
             ),
             const SizedBox(height: 12),
             if (_loading)
-              _buildLoadingPanel()
+              _buildLoadingPanel(context)
             else if (_error != null)
               _buildErrorPanel(_error!)
             else if (_activeTab == _ResultsTab.laws)
@@ -577,12 +606,16 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Ø¨Ø­Ø« Ù‚Ø§Ù†ÙˆÙ†ÙŠ Ø°ÙƒÙŠ',
+                      _loc(context, 'بحث قانوني ذكي', 'Smart Legal Search'),
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                     const SizedBox(height: 3),
                     Text(
-                      'Ø§Ø¨Ø­Ø« Ø¨ÙƒÙ„Ù…Ø© Ø£Ùˆ Ø±Ù‚Ù… Ù…Ø§Ø¯Ø© Ø£Ùˆ Ø±Ù‚Ù… Ù‚Ø§Ù†ÙˆÙ†ØŒ Ù…Ø¹ Ù†ØªØ§Ø¦Ø¬ Ù…Ù†Ø¸Ù…Ø© Ø¨ÙŠÙ† Ø§Ù„Ù‚ÙˆØ§Ù†ÙŠÙ† ÙˆØ§Ù„Ù…ÙˆØ§Ø¯.',
+                      _loc(
+                        context,
+                        'ابحث بكلمة أو رقم مادة أو رقم قانون، مع نتائج منظمة بين القوانين والمواد.',
+                        'Search by keyword, article number, or law number with structured law/article results.',
+                      ),
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: LexiqColors.slateGray,
                       ),
@@ -599,7 +632,11 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
               onSubmitted: (_) => _search(),
               textInputAction: TextInputAction.search,
               decoration: InputDecoration(
-                hintText: 'Ø§ÙƒØªØ¨ Ø¹Ø¨Ø§Ø±Ø© Ø§Ù„Ø¨Ø­Ø« Ø§Ù„Ù‚Ø§Ù†ÙˆÙ†ÙŠØ©',
+                hintText: _loc(
+                  context,
+                  'اكتب عبارة البحث القانونية',
+                  'Type your legal search query',
+                ),
                 prefixIcon: const Icon(Icons.search_rounded),
                 suffixIcon: _searchController.text.trim().isEmpty
                     ? null
@@ -619,7 +656,7 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
               child: ElevatedButton.icon(
                 onPressed: _loading ? null : _search,
                 icon: const Icon(Icons.auto_awesome_rounded),
-                label: const Text('Ø¨Ø­Ø« Ø°ÙƒÙŠ'),
+                label: Text(_loc(context, 'بحث ذكي', 'Smart Search')),
               ),
             ),
             const SizedBox(height: 8),
@@ -634,7 +671,7 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
                         _loadInitialLaws();
                       },
                 icon: const Icon(Icons.restart_alt_rounded),
-                label: const Text('Ø¥Ø¹Ø§Ø¯Ø© Ø¶Ø¨Ø·'),
+                label: Text(_loc(context, 'إعادة ضبط', 'Reset')),
               ),
             ),
           ] else
@@ -646,8 +683,11 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
                     onSubmitted: (_) => _search(),
                     textInputAction: TextInputAction.search,
                     decoration: InputDecoration(
-                      hintText:
-                          'Ø§ÙƒØªØ¨ Ø¹Ø¨Ø§Ø±Ø© Ø§Ù„Ø¨Ø­Ø« Ø§Ù„Ù‚Ø§Ù†ÙˆÙ†ÙŠØ©',
+                      hintText: _loc(
+                        context,
+                        'اكتب عبارة البحث القانونية',
+                        'Type your legal search query',
+                      ),
                       prefixIcon: const Icon(Icons.search_rounded),
                       suffixIcon: _searchController.text.trim().isEmpty
                           ? null
@@ -666,7 +706,7 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
                 ElevatedButton.icon(
                   onPressed: _loading ? null : _search,
                   icon: const Icon(Icons.auto_awesome_rounded),
-                  label: const Text('Ø¨Ø­Ø« Ø°ÙƒÙŠ'),
+                  label: Text(_loc(context, 'بحث ذكي', 'Smart Search')),
                 ),
                 const SizedBox(width: 8),
                 OutlinedButton.icon(
@@ -678,13 +718,13 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
                           _loadInitialLaws();
                         },
                   icon: const Icon(Icons.restart_alt_rounded),
-                  label: const Text('Ø¥Ø¹Ø§Ø¯Ø© Ø¶Ø¨Ø·'),
+                  label: Text(_loc(context, 'إعادة ضبط', 'Reset')),
                 ),
               ],
             ),
           const SizedBox(height: 12),
           Text(
-            'Ø£Ù…Ø«Ù„Ø© Ø¨Ø­Ø« Ø³Ø±ÙŠØ¹Ø©',
+            _loc(context, 'أمثلة بحث سريعة', 'Quick Search Examples'),
             style: Theme.of(
               context,
             ).textTheme.titleSmall?.copyWith(color: LexiqColors.brassGold),
@@ -693,7 +733,7 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
-              children: _smartSearchExamples
+              children: _smartSearchExamples(context)
                   .map(
                     (example) => Padding(
                       padding: const EdgeInsetsDirectional.only(end: 8),
@@ -711,22 +751,36 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
           ),
           if ((_note ?? '').isNotEmpty) ...[
             const SizedBox(height: 10),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                color: LexiqColors.obsidianBlack.withValues(alpha: 0.24),
-                border: Border.all(
-                  color: LexiqColors.slateGray.withValues(alpha: 0.18),
-                ),
-              ),
-              child: Text(
-                _note!,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: LexiqColors.slateGray),
-              ),
+            Builder(
+              builder: (context) {
+                final normalized = (_note ?? '').trim();
+                final noteText =
+                    normalized ==
+                        'اكتب كلمة أو رقم مادة أو رقم قانون للبحث الذكي.'
+                    ? _loc(
+                        context,
+                        'اكتب كلمة أو رقم مادة أو رقم قانون للبحث الذكي.',
+                        'Type a keyword, article number, or law number for smart search.',
+                      )
+                    : normalized;
+                return Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    color: LexiqColors.obsidianBlack.withValues(alpha: 0.24),
+                    border: Border.all(
+                      color: LexiqColors.slateGray.withValues(alpha: 0.18),
+                    ),
+                  ),
+                  child: Text(
+                    noteText,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: LexiqColors.slateGray,
+                    ),
+                  ),
+                );
+              },
             ),
           ],
         ],
@@ -748,7 +802,11 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.expand_more_rounded),
-            label: Text(_loadingMore ? 'جاري تحميل المزيد...' : 'تحميل المزيد'),
+            label: Text(
+              _loadingMore
+                  ? _loc(context, 'جاري تحميل المزيد...', 'Loading more...')
+                  : _loc(context, 'تحميل المزيد', 'Load more'),
+            ),
           ),
         ),
       ),
@@ -762,25 +820,25 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
   }) {
     final stats = <({String label, String value, IconData icon, Color color})>[
       (
-        label: 'Ø¥Ø¬Ù…Ø§Ù„ÙŠ Ø§Ù„Ù‚ÙˆØ§Ù†ÙŠÙ†',
+        label: _loc(context, 'إجمالي القوانين', 'Total laws'),
         value: _totalLaws.toString(),
         icon: Icons.gavel_rounded,
         color: LexiqColors.imperialBlue,
       ),
       (
-        label: 'Ø§Ù„Ù‚ÙˆØ§Ù†ÙŠÙ† Ø§Ù„Ù…Ø¹Ø±ÙˆØ¶Ø©',
+        label: _loc(context, 'القوانين المعروضة', 'Shown laws'),
         value: filteredLaws.length.toString(),
         icon: Icons.view_agenda_rounded,
         color: LexiqColors.brassGold,
       ),
       (
-        label: 'Ø¥Ø¬Ù…Ø§Ù„ÙŠ Ø§Ù„Ù…ÙˆØ§Ø¯',
+        label: _loc(context, 'إجمالي المواد', 'Total articles'),
         value: _totalArticles.toString(),
         icon: Icons.article_rounded,
         color: LexiqColors.emeraldJustice,
       ),
       (
-        label: 'Ø§Ù„Ù…ÙˆØ§Ø¯ Ø§Ù„Ù…Ø¹Ø±ÙˆØ¶Ø©',
+        label: _loc(context, 'المواد المعروضة', 'Shown articles'),
         value: filteredArticles.length.toString(),
         icon: Icons.tune_rounded,
         color: LexiqColors.slateGray,
@@ -809,7 +867,7 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'ØªØµÙÙŠØ© Ø­Ø³Ø¨ Ø§Ù„ØªØµÙ†ÙŠÙ',
+            _loc(context, 'تصفية حسب التصنيف', 'Filter by category'),
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 8),
@@ -819,7 +877,7 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
             children: categories
                 .map(
                   (category) => ChoiceChip(
-                    label: Text(category),
+                    label: Text(_categoryLabel(context, category)),
                     selected: _selectedCategory == category,
                     onSelected: (_) =>
                         setState(() => _selectedCategory = category),
@@ -844,7 +902,7 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
             child: _ResultTabButton(
               selected: _activeTab == _ResultsTab.laws,
               icon: Icons.menu_book_rounded,
-              title: 'Ø§Ù„Ù‚ÙˆØ§Ù†ÙŠÙ†',
+              title: _loc(context, 'القوانين', 'Laws'),
               count: lawsCount,
               onTap: () => setState(() => _activeTab = _ResultsTab.laws),
             ),
@@ -854,7 +912,7 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
             child: _ResultTabButton(
               selected: _activeTab == _ResultsTab.articles,
               icon: Icons.description_rounded,
-              title: 'Ø§Ù„Ù…ÙˆØ§Ø¯',
+              title: _loc(context, 'المواد', 'Articles'),
               count: articlesCount,
               onTap: () => setState(() => _activeTab = _ResultsTab.articles),
             ),
@@ -864,16 +922,22 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
     );
   }
 
-  Widget _buildLoadingPanel() {
-    return const GlassPanel(
+  Widget _buildLoadingPanel(BuildContext context) {
+    return GlassPanel(
       child: Padding(
-        padding: EdgeInsets.symmetric(vertical: 18),
+        padding: const EdgeInsets.symmetric(vertical: 18),
         child: Center(
           child: Column(
             children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 10),
-              Text('Ø¬Ø§Ø±ÙŠ ØªØ­Ù…ÙŠÙ„ Ø§Ù„Ù†ØªØ§Ø¦Ø¬ Ø§Ù„Ù‚Ø§Ù†ÙˆÙ†ÙŠØ©...'),
+              const CircularProgressIndicator(),
+              const SizedBox(height: 10),
+              Text(
+                _loc(
+                  context,
+                  'جاري تحميل النتائج القانونية...',
+                  'Loading legal results...',
+                ),
+              ),
             ],
           ),
         ),
@@ -910,14 +974,17 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Ù†ØªØ§Ø¦Ø¬ Ø§Ù„Ù‚ÙˆØ§Ù†ÙŠÙ†',
+            _loc(context, 'نتائج القوانين', 'Law Results'),
             style: Theme.of(context).textTheme.titleLarge,
           ),
           const SizedBox(height: 10),
           if (laws.isEmpty)
-            const _EmptyResultsMessage(
-              message:
-                  'Ù„Ø§ ØªÙˆØ¬Ø¯ Ù‚ÙˆØ§Ù†ÙŠÙ† Ù…Ø·Ø§Ø¨Ù‚Ø© Ù„Ù…Ø¹Ø§ÙŠÙŠØ± Ø§Ù„Ø¨Ø­Ø« Ø§Ù„Ø­Ø§Ù„ÙŠØ©.',
+            _EmptyResultsMessage(
+              message: _loc(
+                context,
+                'لا توجد قوانين مطابقة لمعايير البحث الحالية.',
+                'No laws match the current search criteria.',
+              ),
             )
           else
             ListView.separated(
@@ -928,7 +995,7 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
               itemBuilder: (context, index) {
                 final law = laws[index];
                 final lawId = _lawId(law);
-                final category = _categoryOfLaw(law);
+                final category = _categoryLabel(context, _categoryOfLaw(law));
                 final reason = (law['relevanceReason'] ?? '').toString().trim();
                 final score = (law['relevanceScore'] ?? '').toString().trim();
 
@@ -960,7 +1027,7 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
                                 ? null
                                 : () => _openLaw(lawId),
                             icon: const Icon(Icons.arrow_outward_rounded),
-                            tooltip: 'ÙØªØ­ Ø§Ù„Ù‚Ø§Ù†ÙˆÙ†',
+                            tooltip: _loc(context, 'فتح القانون', 'Open law'),
                           ),
                         ],
                       ),
@@ -971,12 +1038,19 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
                         children: [
                           _MetaChip(
                             icon: Icons.numbers_rounded,
-                            text:
-                                'Ø§Ù„Ù‚Ø§Ù†ÙˆÙ† ${(law['lawNumber'] ?? '-').toString()}',
+                            text: _loc(
+                              context,
+                              'القانون ${(law['lawNumber'] ?? '-').toString()}',
+                              'Law ${(law['lawNumber'] ?? '-').toString()}',
+                            ),
                           ),
                           _MetaChip(
                             icon: Icons.calendar_today_rounded,
-                            text: 'Ø³Ù†Ø© ${(law['year'] ?? '-').toString()}',
+                            text: _loc(
+                              context,
+                              'سنة ${(law['year'] ?? '-').toString()}',
+                              'Year ${(law['year'] ?? '-').toString()}',
+                            ),
                           ),
                           _MetaChip(
                             icon: Icons.account_tree_rounded,
@@ -985,14 +1059,22 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
                           if (score.isNotEmpty)
                             _MetaChip(
                               icon: Icons.insights_rounded,
-                              text: 'Ø¯Ø±Ø¬Ø© $score',
+                              text: _loc(
+                                context,
+                                'درجة $score',
+                                'Score $score',
+                              ),
                             ),
                         ],
                       ),
                       if (reason.isNotEmpty) ...[
                         const SizedBox(height: 10),
                         Text(
-                          'Ø³Ø¨Ø¨ Ø§Ù„ØµÙ„Ø©: $reason',
+                          _loc(
+                            context,
+                            'سبب الصلة: $reason',
+                            'Relevance reason: $reason',
+                          ),
                           style: Theme.of(context).textTheme.bodyMedium
                               ?.copyWith(color: LexiqColors.slateGray),
                         ),
@@ -1005,8 +1087,12 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
                               ? null
                               : () => _openLaw(lawId),
                           icon: const Icon(Icons.menu_book_rounded),
-                          label: const Text(
-                            'ÙØªØ­ Ø§Ù„Ù†Øµ Ø§Ù„ÙƒØ§Ù…Ù„ Ù„Ù„Ù‚Ø§Ù†ÙˆÙ†',
+                          label: Text(
+                            _loc(
+                              context,
+                              'فتح النص الكامل للقانون',
+                              'Open full law text',
+                            ),
                           ),
                         ),
                       ),
@@ -1029,14 +1115,17 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Ù†ØªØ§Ø¦Ø¬ Ø§Ù„Ù…ÙˆØ§Ø¯',
+            _loc(context, 'نتائج المواد', 'Article Results'),
             style: Theme.of(context).textTheme.titleLarge,
           ),
           const SizedBox(height: 10),
           if (articles.isEmpty)
-            const _EmptyResultsMessage(
-              message:
-                  'Ù„Ø§ ØªÙˆØ¬Ø¯ Ù…ÙˆØ§Ø¯ Ù…Ø·Ø§Ø¨Ù‚Ø© Ù„Ù…Ø¹Ø§ÙŠÙŠØ± Ø§Ù„Ø¨Ø­Ø« Ø§Ù„Ø­Ø§Ù„ÙŠØ©.',
+            _EmptyResultsMessage(
+              message: _loc(
+                context,
+                'لا توجد مواد مطابقة لمعايير البحث الحالية.',
+                'No articles match the current search criteria.',
+              ),
             )
           else
             ListView.separated(
@@ -1084,7 +1173,11 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
                                 ),
                               ),
                               child: Text(
-                                'Ø§Ù„Ù…Ø§Ø¯Ø© ${(article['articleNumber'] ?? '-').toString()}',
+                                _loc(
+                                  context,
+                                  'المادة ${(article['articleNumber'] ?? '-').toString()}',
+                                  'Article ${(article['articleNumber'] ?? '-').toString()}',
+                                ),
                                 style: Theme.of(context).textTheme.labelLarge,
                               ),
                             ),
@@ -1092,7 +1185,11 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
                             if (score.isNotEmpty)
                               _MetaChip(
                                 icon: Icons.auto_graph_rounded,
-                                text: 'Ø¯Ø±Ø¬Ø© $score',
+                                text: _loc(
+                                  context,
+                                  'درجة $score',
+                                  'Score $score',
+                                ),
                               ),
                             const Spacer(),
                             const Icon(Icons.open_in_new_rounded),
@@ -1114,7 +1211,11 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
                         if (reason.isNotEmpty) ...[
                           const SizedBox(height: 10),
                           Text(
-                            'Ø³Ø¨Ø¨ Ø§Ù„ØµÙ„Ø©: $reason',
+                            _loc(
+                              context,
+                              'سبب الصلة: $reason',
+                              'Relevance reason: $reason',
+                            ),
                             style: Theme.of(context).textTheme.bodySmall
                                 ?.copyWith(color: LexiqColors.slateGray),
                           ),

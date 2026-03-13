@@ -7,6 +7,10 @@ import {
   buildSearchTerms,
   buildTokenRegexConditions,
 } from 'src/common/utils/search-query.util';
+import {
+  sanitizeHumanText,
+  sanitizeStringArray,
+} from 'src/common/utils/text-sanitizer.util';
 import { AuditService } from '../audit/audit.service';
 import { IngestService } from '../ingest/ingest.service';
 import { StorageService } from '../storage/storage.service';
@@ -221,6 +225,22 @@ export class DecisionsService {
     return {
       items: items.map((item) => ({
         ...item,
+        courtName:
+          sanitizeHumanText(
+            (item.courtName ?? '').toString(),
+            'محكمة عراقية',
+          ) ?? 'محكمة عراقية',
+        legalDomain:
+          sanitizeHumanText((item.legalDomain ?? '').toString(), 'أخرى') ??
+          'أخرى',
+        summary: sanitizeHumanText((item.summary ?? '').toString()),
+        outcome: sanitizeHumanText((item.outcome ?? '').toString()),
+        legalKeywords: sanitizeStringArray(item.legalKeywords),
+        constitutionalReferences: sanitizeStringArray(
+          item.constitutionalReferences,
+        ),
+        legalArticleReferences: sanitizeStringArray(item.legalArticleReferences),
+        tags: sanitizeStringArray(item.tags),
         caseType: this.mapCaseType((item.caseType ?? '').toString()),
         hasAttachment: Boolean(item.attachmentStoragePath),
         relevanceReason,
@@ -309,12 +329,37 @@ export class DecisionsService {
 
     return {
       ...decision,
+      courtName:
+        sanitizeHumanText(
+          (decision.courtName ?? '').toString(),
+          'محكمة عراقية',
+        ) ?? 'محكمة عراقية',
+      legalDomain:
+        sanitizeHumanText((decision.legalDomain ?? '').toString(), 'أخرى') ??
+        'أخرى',
+      summary: sanitizeHumanText((decision.summary ?? '').toString()),
+      fullText: sanitizeHumanText((decision.fullText ?? '').toString()),
+      outcome: sanitizeHumanText((decision.outcome ?? '').toString()),
+      legalKeywords: sanitizeStringArray(decision.legalKeywords),
+      constitutionalReferences: sanitizeStringArray(
+        decision.constitutionalReferences,
+      ),
+      legalArticleReferences: sanitizeStringArray(decision.legalArticleReferences),
+      tags: sanitizeStringArray(decision.tags),
       caseType: this.mapCaseType((decision.caseType ?? '').toString()),
       attachmentUrl: decision.attachmentStoragePath
         ? await this.storageService.getSignedUrl(decision.attachmentStoragePath)
         : null,
       similarDecisions: similar.map((entry) => ({
         ...entry,
+        courtName:
+          sanitizeHumanText(
+            (entry.courtName ?? '').toString(),
+            'محكمة عراقية',
+          ) ?? 'محكمة عراقية',
+        legalDomain:
+          sanitizeHumanText((entry.legalDomain ?? '').toString(), 'أخرى') ??
+          'أخرى',
         caseType: this.mapCaseType((entry.caseType ?? '').toString()),
       })),
     };

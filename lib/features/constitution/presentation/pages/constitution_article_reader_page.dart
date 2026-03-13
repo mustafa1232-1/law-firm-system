@@ -76,8 +76,12 @@ class _ConstitutionArticleReaderPageState
     try {
       final dio = ref.read(dioProvider);
       final query = [
-        'اشرح المادة ${(article['articleNumber'] ?? '-').toString()} من الدستور العراقي شرحًا تفصيليًا للمحامي.',
-        'نص المادة:',
+        _loc(
+          context,
+          'اشرح المادة ${(article['articleNumber'] ?? '-').toString()} من الدستور العراقي شرحًا تفصيليًا للمحامي.',
+          'Explain article ${(article['articleNumber'] ?? '-').toString()} of the Iraqi constitution in a detailed way for a lawyer.',
+        ),
+        _loc(context, 'نص المادة:', 'Article text:'),
         (article['text'] ?? '').toString(),
       ].join('\n');
 
@@ -164,7 +168,7 @@ class _ConstitutionArticleReaderPageState
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'المرجعيات المقترحة',
+            _loc(context, 'المرجعيات المقترحة', 'Suggested Authorities'),
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 8),
@@ -214,7 +218,9 @@ class _ConstitutionArticleReaderPageState
                     OutlinedButton.icon(
                       onPressed: () => context.go('/authority/$sourceType/$id'),
                       icon: const Icon(Icons.open_in_new_rounded),
-                      label: const Text('فتح المرجع'),
+                      label: Text(
+                        _loc(context, 'فتح المرجع', 'Open Authority'),
+                      ),
                     ),
                   ],
                 ],
@@ -225,6 +231,13 @@ class _ConstitutionArticleReaderPageState
       ),
     );
   }
+
+  bool _isArabic(BuildContext context) => Localizations.localeOf(
+    context,
+  ).languageCode.toLowerCase().startsWith('ar');
+
+  String _loc(BuildContext context, String ar, String en) =>
+      _isArabic(context) ? ar : en;
 
   @override
   Widget build(BuildContext context) {
@@ -240,16 +253,28 @@ class _ConstitutionArticleReaderPageState
     final confidence = (_explanation?['confidence'] as num?)?.toDouble();
 
     return Directionality(
-      textDirection: TextDirection.rtl,
+      textDirection:
+          Localizations.localeOf(
+            context,
+          ).languageCode.toLowerCase().startsWith('ar')
+          ? TextDirection.rtl
+          : TextDirection.ltr,
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SectionHeader(
-              title:
-                  'المادة الدستورية ${(article?['articleNumber'] ?? '-').toString()}',
-              subtitle: 'قارئ دستوري كامل مع شرح تفصيلي للمحامي',
+              title: _loc(
+                context,
+                'المادة الدستورية ${(article?['articleNumber'] ?? '-').toString()}',
+                'Constitution Article ${(article?['articleNumber'] ?? '-').toString()}',
+              ),
+              subtitle: _loc(
+                context,
+                'قارئ دستوري كامل مع شرح تفصيلي للمحامي',
+                'Full constitution reader with detailed lawyer-oriented explanation.',
+              ),
               trailing: Wrap(
                 spacing: 8,
                 runSpacing: 8,
@@ -257,7 +282,7 @@ class _ConstitutionArticleReaderPageState
                   OutlinedButton.icon(
                     onPressed: _loading ? null : _loadArticle,
                     icon: const Icon(Icons.refresh_rounded),
-                    label: const Text('تحديث'),
+                    label: Text(_loc(context, 'تحديث', 'Refresh')),
                   ),
                   ElevatedButton.icon(
                     onPressed: _explaining || article == null
@@ -270,7 +295,9 @@ class _ConstitutionArticleReaderPageState
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : const Icon(Icons.psychology_alt_rounded),
-                    label: const Text('شرح تفصيلي'),
+                    label: Text(
+                      _loc(context, 'شرح تفصيلي', 'Detailed Explanation'),
+                    ),
                   ),
                 ],
               ),
@@ -286,14 +313,26 @@ class _ConstitutionArticleReaderPageState
                 ),
               )
             else if (article == null)
-              const GlassPanel(child: Text('تعذر تحميل المادة الدستورية.'))
+              GlassPanel(
+                child: Text(
+                  _loc(
+                    context,
+                    'تعذر تحميل المادة الدستورية.',
+                    'Failed to load constitution article.',
+                  ),
+                ),
+              )
             else ...[
               GlassPanel(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'المادة ${(article['articleNumber'] ?? '-').toString()}',
+                      _loc(
+                        context,
+                        'المادة ${(article['articleNumber'] ?? '-').toString()}',
+                        'Article ${(article['articleNumber'] ?? '-').toString()}',
+                      ),
                       style: Theme.of(context).textTheme.headlineSmall,
                     ),
                     if ((article['title'] ?? '')
@@ -313,12 +352,20 @@ class _ConstitutionArticleReaderPageState
                       children: [
                         Chip(
                           label: Text(
-                            'الباب: ${(article['chapter'] ?? '-').toString()}',
+                            _loc(
+                              context,
+                              'الباب: ${(article['chapter'] ?? '-').toString()}',
+                              'Chapter: ${(article['chapter'] ?? '-').toString()}',
+                            ),
                           ),
                         ),
                         Chip(
                           label: Text(
-                            'القسم: ${(article['section'] ?? '-').toString()}',
+                            _loc(
+                              context,
+                              'القسم: ${(article['section'] ?? '-').toString()}',
+                              'Section: ${(article['section'] ?? '-').toString()}',
+                            ),
                           ),
                         ),
                       ],
@@ -332,7 +379,7 @@ class _ConstitutionArticleReaderPageState
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'النص الكامل',
+                      _loc(context, 'النص الكامل', 'Full Text'),
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                     const SizedBox(height: 12),
@@ -368,14 +415,22 @@ class _ConstitutionArticleReaderPageState
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'شرح المادة الدستورية',
+                        _loc(
+                          context,
+                          'شرح المادة الدستورية',
+                          'Constitution Article Explanation',
+                        ),
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
                       if (confidence != null) ...[
                         const SizedBox(height: 8),
                         Chip(
                           label: Text(
-                            'مستوى الثقة ${(confidence * 100).toStringAsFixed(0)}%',
+                            _loc(
+                              context,
+                              'مستوى الثقة ${(confidence * 100).toStringAsFixed(0)}%',
+                              'Confidence ${(confidence * 100).toStringAsFixed(0)}%',
+                            ),
                           ),
                         ),
                       ],
@@ -385,7 +440,7 @@ class _ConstitutionArticleReaderPageState
                           .trim()
                           .isNotEmpty) ...[
                         Text(
-                          'المعنى المبسط',
+                          _loc(context, 'المعنى المبسط', 'Plain Meaning'),
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
                         const SizedBox(height: 4),
@@ -397,7 +452,7 @@ class _ConstitutionArticleReaderPageState
                           .trim()
                           .isNotEmpty) ...[
                         Text(
-                          'الشرح المفصل',
+                          _loc(context, 'الشرح المفصل', 'Detailed Explanation'),
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
                         const SizedBox(height: 4),
@@ -408,17 +463,29 @@ class _ConstitutionArticleReaderPageState
                       ],
                       _buildListSection(
                         context,
-                        'القضايا القانونية المستخرجة',
+                        _loc(
+                          context,
+                          'القضايا القانونية المستخرجة',
+                          'Extracted Legal Issues',
+                        ),
                         _explanation?['extractedIssues'],
                       ),
                       _buildListSection(
                         context,
-                        'أسئلة متابعة للمحامي',
+                        _loc(
+                          context,
+                          'أسئلة متابعة للمحامي',
+                          'Follow-up Questions for Lawyer',
+                        ),
                         _explanation?['proposedQuestions'],
                       ),
                       _buildListSection(
                         context,
-                        'قيود وحدود التحليل',
+                        _loc(
+                          context,
+                          'قيود وحدود التحليل',
+                          'Analysis Limits and Constraints',
+                        ),
                         _explanation?['limitations'],
                       ),
                       _buildAuthoritiesSection(
@@ -427,7 +494,11 @@ class _ConstitutionArticleReaderPageState
                       ),
                       Text(
                         ((_explanation?['disclaimer'] ??
-                                    'هذه المخرجات أولية وتحتاج مراجعة محامٍ بشري.')
+                                    _loc(
+                                      context,
+                                      'هذه المخرجات أولية وتحتاج مراجعة محامٍ بشري.',
+                                      'These outputs are preliminary and require review by a licensed lawyer.',
+                                    ))
                                 as String)
                             .trim(),
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(

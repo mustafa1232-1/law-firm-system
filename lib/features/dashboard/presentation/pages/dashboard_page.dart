@@ -155,7 +155,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
 
     final caseTypeMap = <String, int>{};
     for (final item in cases) {
-      final type = (item['caseType'] ?? 'Ã˜Â£Ã˜Â®Ã˜Â±Ã™â€°').toString();
+      final type = (item['caseType'] ?? 'other').toString();
       caseTypeMap[type] = (caseTypeMap[type] ?? 0) + 1;
     }
     final caseTypeDistribution =
@@ -194,7 +194,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
         .map(
           (item) => {
             'type': 'notification',
-            'title': (item['title'] ?? 'Ã˜ÂªÃ™â€ Ã˜Â¨Ã™Å Ã™â€¡').toString(),
+            'title': (item['title'] ?? 'alert').toString(),
             'subtitle': (item['message'] ?? '').toString(),
             'level': (item['level'] ?? 'info').toString(),
           },
@@ -319,25 +319,25 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   ) {
     final checkpoints = <Map<String, dynamic>>[
       {
-        'label': 'Ã™â€šÃ˜Â¨Ã™â€ž Ã™Å Ã™Ë†Ã™â€¦',
+        'label': '1 day before',
         'remindAt': hearingDate
             .subtract(const Duration(hours: 24))
             .toIso8601String(),
       },
       {
-        'label': 'Ã™â€šÃ˜Â¨Ã™â€ž 6 Ã˜Â³Ã˜Â§Ã˜Â¹Ã˜Â§Ã˜Âª',
+        'label': '6 hours before',
         'remindAt': hearingDate
             .subtract(const Duration(hours: 6))
             .toIso8601String(),
       },
       {
-        'label': 'Ã™â€šÃ˜Â¨Ã™â€ž Ã˜Â³Ã˜Â§Ã˜Â¹Ã˜ÂªÃ™Å Ã™â€ ',
+        'label': '2 hours before',
         'remindAt': hearingDate
             .subtract(const Duration(hours: 2))
             .toIso8601String(),
       },
       {
-        'label': 'Ã™â€šÃ˜Â¨Ã™â€ž Ã˜Â³Ã˜Â§Ã˜Â¹Ã˜Â©',
+        'label': '1 hour before',
         'remindAt': hearingDate
             .subtract(const Duration(hours: 1))
             .toIso8601String(),
@@ -369,6 +369,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isArabic = _isArabic(context);
     final width = MediaQuery.sizeOf(context).width;
     final crossAxisCount = width >= 1320
         ? 4
@@ -416,39 +417,47 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       MetricCard(
         title: 'Active Cases',
         value: activeCases.toString(),
-        delta:
-            '$activeCases Ã™â€¦Ã™â€žÃ™ÂÃ™â€¹Ã˜Â§ Ã™â€šÃ™Å Ã˜Â¯ Ã˜Â§Ã™â€žÃ˜Â¹Ã™â€¦Ã™â€ž',
+        delta: isArabic
+            ? '$activeCases ملفًا قيد العمل'
+            : '$activeCases active files',
       ),
       MetricCard(
         title: 'Hearings This Week',
         value: hearingsThisWeek.toString(),
-        delta:
-            '$hearingsThisWeek Ã˜Â¬Ã™â€žÃ˜Â³Ã˜Â© Ã™â€¡Ã˜Â°Ã˜Â§ Ã˜Â§Ã™â€žÃ˜Â£Ã˜Â³Ã˜Â¨Ã™Ë†Ã˜Â¹',
+        delta: isArabic
+            ? '$hearingsThisWeek جلسة هذا الأسبوع'
+            : '$hearingsThisWeek hearings this week',
         positive: true,
       ),
       MetricCard(
         title: 'Overdue Tasks',
         value: overdueTasks.toString(),
         delta: overdueTasks == 0
-            ? 'Ã™â€žÃ˜Â§ Ã˜ÂªÃ™Ë†Ã˜Â¬Ã˜Â¯ Ã™â€¦Ã™â€¡Ã˜Â§Ã™â€¦ Ã™â€¦Ã˜ÂªÃ˜Â£Ã˜Â®Ã˜Â±Ã˜Â©'
-            : 'Ã˜ÂªÃ˜Â­Ã˜ÂªÃ˜Â§Ã˜Â¬ Ã™â€¦Ã˜ÂªÃ˜Â§Ã˜Â¨Ã˜Â¹Ã˜Â© Ã˜Â¹Ã˜Â§Ã˜Â¬Ã™â€žÃ˜Â©',
+            ? _loc(context, 'لا توجد مهام متأخرة', 'No overdue tasks')
+            : _loc(context, 'تحتاج متابعة عاجلة', 'Needs urgent follow-up'),
         positive: overdueTasks == 0,
       ),
       MetricCard(
         title: 'Billing Collected',
         value: 'IQD ${billingCollected.toStringAsFixed(0)}',
-        delta: '$paymentsCount Ã˜Â¯Ã™ÂÃ˜Â¹Ã˜Â© Ã™â€¦Ã˜Â³Ã˜Â¬Ã™â€žÃ˜Â©',
+        delta: isArabic
+            ? '$paymentsCount دفعة مسجلة'
+            : '$paymentsCount recorded payments',
       ),
       MetricCard(
         title: 'Case Win Rate',
         value: '${winRate.toStringAsFixed(1)}%',
-        delta: '$resolvedCases Ù‚Ø¶ÙŠØ© Ù…Ø­Ø³ÙˆÙ…Ø©',
+        delta: isArabic
+            ? '$resolvedCases قضية محسومة'
+            : '$resolvedCases resolved cases',
         positive: winRate >= 50,
       ),
       MetricCard(
         title: 'Collection Rate',
         value: '${collectionRate.toStringAsFixed(1)}%',
-        delta: '$totalCases Ø¥Ø¬Ù…Ø§Ù„ÙŠ Ø§Ù„Ù‚Ø¶Ø§ÙŠØ§',
+        delta: isArabic
+            ? '$totalCases إجمالي القضايا'
+            : '$totalCases total cases',
         positive: collectionRate >= 70,
       ),
     ];
@@ -465,7 +474,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             trailing: IconButton(
               onPressed: _loading ? null : _loadDashboard,
               icon: const Icon(Icons.refresh_rounded),
-              tooltip: 'Ã˜ÂªÃ˜Â­Ã˜Â¯Ã™Å Ã˜Â«',
+              tooltip: _loc(context, 'تحديث', 'Refresh'),
             ),
           ),
           const SizedBox(height: 14),
@@ -482,17 +491,25 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Ã™â€¦Ã™ÂÃ™Æ’Ã˜Â±Ã˜Â© Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â­Ã˜Â§Ã™â€¦Ã™Å ',
+                  _loc(context, 'مفكرة المحامي', 'Lawyer Agenda'),
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  'Ã˜ÂªÃ™â€ Ã˜Â¨Ã™Å Ã™â€¡Ã˜Â§Ã˜Âª Ã˜Â§Ã™â€žÃ˜Â¬Ã™â€žÃ˜Â³Ã˜Â§Ã˜Âª Ã™Ë†Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â±Ã˜Â§Ã™ÂÃ˜Â¹Ã˜Â§Ã˜Âª Ã™â€¦Ã˜Â¹ Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â­Ã™Æ’Ã™â€¦Ã˜Â© Ã™Ë†Ã˜Â§Ã™â€žÃ™â€¦Ã™Ë†Ã™â€šÃ˜Â¹ Ã™Ë†Ã™â€ Ã™â€šÃ˜Â·Ã˜Â© Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â°Ã™Æ’Ã™Å Ã˜Â± Ã˜Â§Ã™â€žÃ™â€šÃ˜Â§Ã˜Â¯Ã™â€¦Ã˜Â©.',
+                Text(
+                  _loc(
+                    context,
+                    'تنبيهات الجلسات والمرافعات مع المحكمة والموقع ونقطة التذكير القادمة.',
+                    'Hearing and pleading reminders with court details and next reminder checkpoint.',
+                  ),
                 ),
                 const SizedBox(height: 10),
                 if (lawyerAgenda.isEmpty)
-                  const Text(
-                    'Ã™â€žÃ˜Â§ Ã˜ÂªÃ™Ë†Ã˜Â¬Ã˜Â¯ Ã˜Â¬Ã™â€žÃ˜Â³Ã˜Â§Ã˜Âª Ã™â€šÃ˜Â§Ã˜Â¯Ã™â€¦Ã˜Â© Ã˜Â¶Ã™â€¦Ã™â€  Ã™â€¦Ã™ÂÃ™Æ’Ã˜Â±Ã˜Â© Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â­Ã˜Â§Ã™â€¦Ã™Å .',
+                  Text(
+                    _loc(
+                      context,
+                      'لا توجد جلسات قادمة ضمن مفكرة المحامي.',
+                      'No upcoming hearings in the lawyer agenda.',
+                    ),
                   )
                 else
                   ...lawyerAgenda
@@ -530,7 +547,11 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Ã™â€¦Ã˜Â¤Ã˜Â´Ã˜Â±Ã˜Â§Ã˜Âª Ã˜Â§Ã™â€žÃ™â€šÃ˜Â¶Ã˜Â§Ã™Å Ã˜Â§ Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â§Ã™â€žÃ™Å Ã˜Â© Ã™Ë†Ã˜Â§Ã™â€žÃ™â€ Ã˜ÂªÃ˜Â§Ã˜Â¦Ã˜Â¬',
+                  _loc(
+                    context,
+                    'مؤشرات القضايا المالية والنتائج',
+                    'Financial and Case Outcome Indicators',
+                  ),
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: 10),
@@ -539,49 +560,57 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                   runSpacing: 10,
                   children: [
                     _indicatorChip(
-                      'Ã™â€¦Ã™ÂÃ˜ÂªÃ™Ë†Ã˜Â­Ã˜Â© Ã˜Â¹Ã™â€žÃ™Å Ã™â€¡Ã˜Â§ Ã˜Â¯Ã™Å Ã™Ë†Ã™â€ ',
+                      _loc(context, 'مفتوحة عليها ديون', 'Open with debt'),
                       ((financeIndicators['openWithDebt'] ?? 0) as num)
                           .toInt()
                           .toString(),
                       LexiqColors.crimsonAlert,
                     ),
                     _indicatorChip(
-                      'Ã™â€¦Ã™ÂÃ˜ÂªÃ™Ë†Ã˜Â­Ã˜Â© Ã™â€¦Ã˜Â³Ã˜Â¯Ã˜Â¯Ã˜Â© Ã˜Â¨Ã˜Â§Ã™â€žÃ™Æ’Ã˜Â§Ã™â€¦Ã™â€ž',
+                      _loc(
+                        context,
+                        'مفتوحة مسددة بالكامل',
+                        'Open and fully paid',
+                      ),
                       ((financeIndicators['openFullyPaid'] ?? 0) as num)
                           .toInt()
                           .toString(),
                       LexiqColors.emeraldJustice,
                     ),
                     _indicatorChip(
-                      'Ã™â€¦Ã˜ÂºÃ™â€žÃ™â€šÃ˜Â© Ã˜Â¹Ã™â€žÃ™Å Ã™â€¡Ã˜Â§ Ã˜Â¯Ã™Å Ã™Ë†Ã™â€ ',
+                      _loc(context, 'مغلقة عليها ديون', 'Closed with debt'),
                       ((financeIndicators['closedWithDebt'] ?? 0) as num)
                           .toInt()
                           .toString(),
                       LexiqColors.brassGold,
                     ),
                     _indicatorChip(
-                      'Ã™â€¦Ã˜ÂºÃ™â€žÃ™â€šÃ˜Â© Ã™â€¦Ã˜Â³Ã˜Â¯Ã˜Â¯Ã˜Â© Ã˜Â¨Ã˜Â§Ã™â€žÃ™Æ’Ã˜Â§Ã™â€¦Ã™â€ž',
+                      _loc(
+                        context,
+                        'مغلقة مسددة بالكامل',
+                        'Closed and fully paid',
+                      ),
                       ((financeIndicators['closedFullyPaid'] ?? 0) as num)
                           .toInt()
                           .toString(),
                       LexiqColors.imperialBlue,
                     ),
                     _indicatorChip(
-                      'Ã™â€šÃ˜Â¶Ã˜Â§Ã™Å Ã˜Â§ Ã˜Â±Ã˜Â§Ã˜Â¨Ã˜Â­Ã˜Â©',
+                      _loc(context, 'قضايا رابحة', 'Won cases'),
                       ((financeIndicators['wonCases'] ?? 0) as num)
                           .toInt()
                           .toString(),
                       LexiqColors.emeraldJustice,
                     ),
                     _indicatorChip(
-                      'Ã™â€šÃ˜Â¶Ã˜Â§Ã™Å Ã˜Â§ Ã˜Â®Ã˜Â§Ã˜Â³Ã˜Â±Ã˜Â©',
+                      _loc(context, 'قضايا خاسرة', 'Lost cases'),
                       ((financeIndicators['lostCases'] ?? 0) as num)
                           .toInt()
                           .toString(),
                       LexiqColors.crimsonAlert,
                     ),
                     _indicatorChip(
-                      'Ã˜Â¥Ã˜Â¬Ã™â€¦Ã˜Â§Ã™â€žÃ™Å  Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â¯Ã™Å Ã™Ë†Ã™â€ Ã™Å Ã˜Â©',
+                      _loc(context, 'إجمالي المديونية', 'Total outstanding'),
                       'IQD ${((financeIndicators['totalOutstanding'] ?? 0) as num).toStringAsFixed(0)}',
                       LexiqColors.brassGold,
                     ),
@@ -610,14 +639,18 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                             ),
                             const SizedBox(height: 10),
                             if (upcomingHearings.isEmpty)
-                              const Text(
-                                'Ã™â€žÃ˜Â§ Ã˜ÂªÃ™Ë†Ã˜Â¬Ã˜Â¯ Ã˜Â¬Ã™â€žÃ˜Â³Ã˜Â§Ã˜Âª Ã™â€šÃ˜Â§Ã˜Â¯Ã™â€¦Ã˜Â©.',
+                              Text(
+                                _loc(
+                                  context,
+                                  'لا توجد جلسات قادمة.',
+                                  'No upcoming hearings.',
+                                ),
                               )
                             else
                               ...upcomingHearings.map((item) {
                                 final caseTitle =
                                     ((item['caseId'] as Map?)?['title'] ??
-                                            'Ã˜Â¬Ã™â€žÃ˜Â³Ã˜Â©')
+                                            _loc(context, 'جلسة', 'Hearing'))
                                         .toString();
                                 return Padding(
                                   padding: const EdgeInsets.symmetric(
@@ -654,13 +687,17 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Ã˜Â§Ã™â€žÃ™â€¦Ã™â€¡Ã˜Â§Ã™â€¦ Ã˜Â§Ã™â€žÃ˜Â¹Ã˜Â§Ã˜Â¬Ã™â€žÃ˜Â©',
+                              _loc(context, 'المهام العاجلة', 'Urgent Tasks'),
                               style: Theme.of(context).textTheme.titleMedium,
                             ),
                             const SizedBox(height: 10),
                             if (urgentTasks.isEmpty)
-                              const Text(
-                                'Ã™â€žÃ˜Â§ Ã˜ÂªÃ™Ë†Ã˜Â¬Ã˜Â¯ Ã™â€¦Ã™â€¡Ã˜Â§Ã™â€¦ Ã˜Â¹Ã˜Â§Ã˜Â¬Ã™â€žÃ˜Â© Ã˜Â­Ã˜Â§Ã™â€žÃ™Å Ã™â€¹Ã˜Â§.',
+                              Text(
+                                _loc(
+                                  context,
+                                  'لا توجد مهام عاجلة حاليًا.',
+                                  'No urgent tasks for now.',
+                                ),
                               )
                             else
                               ...urgentTasks.map((item) {
@@ -702,8 +739,12 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                             ),
                             const SizedBox(height: 10),
                             if (alerts.isEmpty)
-                              const Text(
-                                'Ã™â€žÃ˜Â§ Ã˜ÂªÃ™Ë†Ã˜Â¬Ã˜Â¯ Ã˜ÂªÃ™â€ Ã˜Â¨Ã™Å Ã™â€¡Ã˜Â§Ã˜Âª Ã˜Â­Ã˜Â§Ã™â€žÃ™Å Ã™â€¹Ã˜Â§.',
+                              Text(
+                                _loc(
+                                  context,
+                                  'لا توجد تنبيهات حاليًا.',
+                                  'No alerts for now.',
+                                ),
                               )
                             else
                               ...alerts.map(
@@ -711,8 +752,10 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                                   padding: const EdgeInsets.only(bottom: 10),
                                   child: _alertTile(
                                     context,
-                                    (alert['title'] ?? 'Ã˜ÂªÃ™â€ Ã˜Â¨Ã™Å Ã™â€¡')
-                                        .toString(),
+                                    _localizeAlertTitle(
+                                      context,
+                                      (alert['title'] ?? '').toString(),
+                                    ),
                                     (alert['subtitle'] ?? '').toString(),
                                     _alertColor(
                                       (alert['level'] ?? 'info').toString(),
@@ -729,19 +772,28 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Ã˜ÂªÃ™Ë†Ã˜Â²Ã™Å Ã˜Â¹ Ã˜Â£Ã™â€ Ã™Ë†Ã˜Â§Ã˜Â¹ Ã˜Â§Ã™â€žÃ™â€šÃ˜Â¶Ã˜Â§Ã™Å Ã˜Â§',
+                              _loc(
+                                context,
+                                'توزيع أنواع القضايا',
+                                'Case Type Distribution',
+                              ),
                               style: Theme.of(context).textTheme.titleMedium,
                             ),
                             const SizedBox(height: 10),
                             if (caseTypeDistribution.isEmpty)
-                              const Text(
-                                'Ã™â€žÃ˜Â§ Ã˜ÂªÃ™Ë†Ã˜Â¬Ã˜Â¯ Ã˜Â¨Ã™Å Ã˜Â§Ã™â€ Ã˜Â§Ã˜Âª Ã™Æ’Ã˜Â§Ã™ÂÃ™Å Ã˜Â©.',
+                              Text(
+                                _loc(
+                                  context,
+                                  'لا توجد بيانات كافية.',
+                                  'No sufficient data.',
+                                ),
                               )
                             else
                               ...caseTypeDistribution.map((entry) {
-                                final caseType =
-                                    (entry['caseType'] ?? 'Ã˜Â£Ã˜Â®Ã˜Â±Ã™â€°')
-                                        .toString();
+                                final caseType = _localizeCaseType(
+                                  context,
+                                  (entry['caseType'] ?? 'other').toString(),
+                                );
                                 final count = ((entry['count'] ?? 0) as num)
                                     .toInt();
                                 return Padding(
@@ -786,8 +838,12 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     final nextReminder = (item['nextReminder'] as Map?)
         ?.cast<String, dynamic>();
     final reminderLabel = nextReminder == null
-        ? 'Ã˜ÂªÃ™â€¦ Ã˜ÂªÃ˜Â¬Ã˜Â§Ã™Ë†Ã˜Â² Ã˜Â¬Ã™â€¦Ã™Å Ã˜Â¹ Ã™â€ Ã™â€šÃ˜Â§Ã˜Â· Ã˜Â§Ã™â€žÃ˜ÂªÃ™â€ Ã˜Â¨Ã™Å Ã™â€¡'
-        : '${(nextReminder['label'] ?? '').toString()} - ${_dateTimeShort(nextReminder['remindAt'])}';
+        ? _loc(
+            context,
+            'تم تجاوز جميع نقاط التنبيه',
+            'All reminder checkpoints have passed',
+          )
+        : '${_localizeReminderLabel(context, (nextReminder['label'] ?? '').toString())} - ${_dateTimeShort(nextReminder['remindAt'])}';
 
     return Container(
       padding: const EdgeInsets.all(10),
@@ -800,32 +856,133 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(caseLabel.isEmpty ? 'Ã˜Â¬Ã™â€žÃ˜Â³Ã˜Â©' : caseLabel),
+          Text(
+            caseLabel.isEmpty ? _loc(context, 'جلسة', 'Hearing') : caseLabel,
+          ),
           const SizedBox(height: 4),
-          Text('Ã˜Â§Ã™â€žÃ™â€¦Ã™Ë†Ã˜Â¹Ã˜Â¯: $hearingDate'),
-          Text('Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â­Ã™Æ’Ã™â€¦Ã˜Â©: $court'),
+          Text(_loc(context, 'الموعد: $hearingDate', 'Date: $hearingDate')),
+          Text(_loc(context, 'المحكمة: $court', 'Court: $court')),
           if (location.isNotEmpty)
             Text(
-              'Ã˜Â§Ã™â€žÃ™â€¦Ã™Ë†Ã™â€šÃ˜Â¹ Ã˜Â§Ã™â€žÃ˜Â¥Ã˜Â¯Ã˜Â§Ã˜Â±Ã™Å : $location',
+              _loc(
+                context,
+                'الموقع الإداري: $location',
+                'Administrative location: $location',
+              ),
             ),
           if (locationDetails.trim().isNotEmpty)
-            Text('Ã™Ë†Ã˜ÂµÃ™Â Ã˜Â§Ã™â€žÃ™â€¦Ã™Æ’Ã˜Â§Ã™â€ : $locationDetails'),
+            Text(
+              _loc(
+                context,
+                'وصف المكان: $locationDetails',
+                'Location details: $locationDetails',
+              ),
+            ),
           if ((item['room'] ?? '').toString().isNotEmpty)
             Text(
-              'Ã˜Â§Ã™â€žÃ™â€šÃ˜Â§Ã˜Â¹Ã˜Â©: ${(item['room'] ?? '').toString()}',
+              _loc(
+                context,
+                'القاعة: ${(item['room'] ?? '').toString()}',
+                'Room: ${(item['room'] ?? '').toString()}',
+              ),
             ),
           if ((item['judge'] ?? '').toString().isNotEmpty)
             Text(
-              'Ã˜Â§Ã™â€žÃ™â€šÃ˜Â§Ã˜Â¶Ã™Å : ${(item['judge'] ?? '').toString()}',
+              _loc(
+                context,
+                'القاضي: ${(item['judge'] ?? '').toString()}',
+                'Judge: ${(item['judge'] ?? '').toString()}',
+              ),
             ),
           const SizedBox(height: 4),
           Text(
-            'Ã˜Â§Ã™â€žÃ˜ÂªÃ™â€ Ã˜Â¨Ã™Å Ã™â€¡ Ã˜Â§Ã™â€žÃ™â€šÃ˜Â§Ã˜Â¯Ã™â€¦: $reminderLabel',
+            _loc(
+              context,
+              'التنبيه القادم: $reminderLabel',
+              'Next reminder: $reminderLabel',
+            ),
             style: const TextStyle(color: LexiqColors.emeraldJustice),
           ),
         ],
       ),
     );
+  }
+
+  bool _isArabic(BuildContext context) => Localizations.localeOf(
+    context,
+  ).languageCode.toLowerCase().startsWith('ar');
+
+  String _loc(BuildContext context, String ar, String en) =>
+      _isArabic(context) ? ar : en;
+
+  String _localizeAlertTitle(BuildContext context, String title) {
+    final normalized = title.trim().toLowerCase();
+    if (normalized.isEmpty ||
+        normalized == 'alert' ||
+        title.trim() == 'تنبيه') {
+      return _loc(context, 'تنبيه', 'Alert');
+    }
+    return title;
+  }
+
+  String _localizeCaseType(BuildContext context, String caseType) {
+    const arToEn = <String, String>{
+      'مدني': 'Civil',
+      'تجاري': 'Commercial',
+      'جزائي': 'Criminal',
+      'جنائي': 'Criminal',
+      'أحوال شخصية': 'Personal Status',
+      'عمالي': 'Labor',
+      'إداري': 'Administrative',
+      'عقاري': 'Real Estate',
+      'تنفيذ': 'Enforcement',
+      'دستوري': 'Constitutional',
+      'تحكيم': 'Arbitration',
+      'ضريبي': 'Tax',
+      'أخرى': 'Other',
+      'other': 'Other',
+    };
+    const enToAr = <String, String>{
+      'civil': 'مدني',
+      'commercial': 'تجاري',
+      'criminal': 'جنائي',
+      'personal status': 'أحوال شخصية',
+      'labor': 'عمالي',
+      'administrative': 'إداري',
+      'real estate': 'عقاري',
+      'enforcement': 'تنفيذ',
+      'constitutional': 'دستوري',
+      'arbitration': 'تحكيم',
+      'tax': 'ضريبي',
+      'other': 'أخرى',
+    };
+
+    final raw = caseType.trim();
+    if (_isArabic(context)) {
+      return enToAr[raw.toLowerCase()] ?? raw;
+    }
+    return arToEn[raw] ?? raw;
+  }
+
+  String _localizeReminderLabel(BuildContext context, String label) {
+    const mapAr = <String, String>{
+      '1 day before': 'قبل يوم',
+      '6 hours before': 'قبل 6 ساعات',
+      '2 hours before': 'قبل ساعتين',
+      '1 hour before': 'قبل ساعة',
+    };
+    const mapEn = <String, String>{
+      'قبل يوم': '1 day before',
+      'قبل 6 ساعات': '6 hours before',
+      'قبل ساعتين': '2 hours before',
+      'قبل ساعة': '1 hour before',
+    };
+
+    final raw = label.trim();
+    if (_isArabic(context)) {
+      return mapAr[raw] ?? raw;
+    }
+    return mapEn[raw] ?? raw;
   }
 
   Widget _indicatorChip(String label, String value, Color color) {

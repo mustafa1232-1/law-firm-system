@@ -251,7 +251,11 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'تمت المزامنة: $collected قرار | $inserted جديد | $updated محدّث',
+            _loc(
+              context,
+              'تمت المزامنة: $collected قرار | $inserted جديد | $updated محدّث',
+              'Sync completed: $collected decisions | $inserted inserted | $updated updated',
+            ),
           ),
         ),
       );
@@ -291,7 +295,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('إضافة قرار جديد'),
+          title: Text(_loc(context, 'إضافة قرار جديد', 'Add New Decision')),
           content: SizedBox(
             width: 680,
             child: SingleChildScrollView(
@@ -313,7 +317,11 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
                     icon: const Icon(Icons.attach_file_rounded),
                     label: Text(
                       pickedFile == null
-                          ? 'اختيار ملف القرار (PDF/صورة)'
+                          ? _loc(
+                              context,
+                              'اختيار ملف القرار (PDF/صورة)',
+                              'Choose decision file (PDF/Image)',
+                            )
                           : pickedFile!.name,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -321,22 +329,24 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
                   const SizedBox(height: 10),
                   TextField(
                     controller: courtNameController,
-                    decoration: const InputDecoration(labelText: 'اسم المحكمة'),
+                    decoration: InputDecoration(
+                      labelText: _loc(context, 'اسم المحكمة', 'Court Name'),
+                    ),
                   ),
                   const SizedBox(height: 10),
                   DropdownButtonFormField<String>(
                     initialValue: selectedCourtLevel,
-                    decoration: const InputDecoration(
-                      labelText: 'مستوى المحكمة',
+                    decoration: InputDecoration(
+                      labelText: _loc(context, 'مستوى المحكمة', 'Court Level'),
                     ),
-                    items: const [
+                    items: [
                       DropdownMenuItem(
                         value: 'appellate',
-                        child: Text('استئنافي'),
+                        child: Text(_loc(context, 'استئنافي', 'Appellate')),
                       ),
                       DropdownMenuItem(
                         value: 'cassation',
-                        child: Text('تمييزي'),
+                        child: Text(_loc(context, 'تمييزي', 'Cassation')),
                       ),
                     ],
                     onChanged: (value) {
@@ -349,43 +359,65 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
                   const SizedBox(height: 10),
                   TextField(
                     controller: decisionNumberController,
-                    decoration: const InputDecoration(labelText: 'رقم القرار'),
+                    decoration: InputDecoration(
+                      labelText: _loc(context, 'رقم القرار', 'Decision Number'),
+                    ),
                   ),
                   const SizedBox(height: 10),
                   TextField(
                     controller: decisionDateController,
-                    decoration: const InputDecoration(
-                      labelText: 'تاريخ القرار (YYYY-MM-DD)',
+                    decoration: InputDecoration(
+                      labelText: _loc(
+                        context,
+                        'تاريخ القرار (YYYY-MM-DD)',
+                        'Decision Date (YYYY-MM-DD)',
+                      ),
                     ),
                   ),
                   const SizedBox(height: 10),
                   TextField(
                     controller: caseTypeController,
-                    decoration: const InputDecoration(
-                      labelText: 'نوع القضية (اختياري)',
+                    decoration: InputDecoration(
+                      labelText: _loc(
+                        context,
+                        'نوع القضية (اختياري)',
+                        'Case Type (optional)',
+                      ),
                     ),
                   ),
                   const SizedBox(height: 10),
                   TextField(
                     controller: legalDomainController,
-                    decoration: const InputDecoration(
-                      labelText: 'المجال القانوني (اختياري)',
+                    decoration: InputDecoration(
+                      labelText: _loc(
+                        context,
+                        'المجال القانوني (اختياري)',
+                        'Legal Domain (optional)',
+                      ),
                     ),
                   ),
                   const SizedBox(height: 10),
                   TextField(
                     controller: summaryController,
                     maxLines: 3,
-                    decoration: const InputDecoration(
-                      labelText: 'ملخص القرار (اختياري)',
+                    decoration: InputDecoration(
+                      labelText: _loc(
+                        context,
+                        'ملخص القرار (اختياري)',
+                        'Decision Summary (optional)',
+                      ),
                     ),
                   ),
                   const SizedBox(height: 10),
                   TextField(
                     controller: fullTextController,
                     maxLines: 5,
-                    decoration: const InputDecoration(
-                      labelText: 'النص الكامل (اختياري)',
+                    decoration: InputDecoration(
+                      labelText: _loc(
+                        context,
+                        'النص الكامل (اختياري)',
+                        'Full Text (optional)',
+                      ),
                     ),
                   ),
                 ],
@@ -395,13 +427,21 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('إغلاق'),
+              child: Text(_loc(context, 'إغلاق', 'Close')),
             ),
             ElevatedButton(
               onPressed: () async {
                 if (pickedFile == null || pickedFile!.bytes == null) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('يرجى اختيار ملف القرار.')),
+                    SnackBar(
+                      content: Text(
+                        _loc(
+                          context,
+                          'يرجى اختيار ملف القرار.',
+                          'Please select the decision file.',
+                        ),
+                      ),
+                    ),
                   );
                   return;
                 }
@@ -409,9 +449,13 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
                     decisionNumberController.text.trim().isEmpty ||
                     decisionDateController.text.trim().isEmpty) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
+                    SnackBar(
                       content: Text(
-                        'اسم المحكمة ورقم القرار وتاريخ القرار مطلوبة.',
+                        _loc(
+                          context,
+                          'اسم المحكمة ورقم القرار وتاريخ القرار مطلوبة.',
+                          'Court name, decision number, and date are required.',
+                        ),
                       ),
                     ),
                   );
@@ -461,7 +505,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
                   ).showSnackBar(SnackBar(content: Text(parseApiError(error))));
                 }
               },
-              child: const Text('حفظ'),
+              child: Text(_loc(context, 'حفظ', 'Save')),
             ),
           ],
         ),
@@ -481,9 +525,17 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('تمت إضافة القرار بنجاح.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _loc(
+              context,
+              'تمت إضافة القرار بنجاح.',
+              'Decision added successfully.',
+            ),
+          ),
+        ),
+      );
     }
   }
 
@@ -514,18 +566,52 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
             final summary = (decision['summary'] ?? '').toString().trim();
             final fullTextRaw = (decision['fullText'] ?? '').toString().trim();
             final fullText = fullTextRaw.length > 12000
-                ? '${fullTextRaw.substring(0, 12000)}\n[تم اختصار النص الكامل لطوله]'
+                ? '${fullTextRaw.substring(0, 12000)}\n${_loc(dialogContext, '[تم اختصار النص الكامل لطوله]', '[Full text truncated due to length]')}'
                 : fullTextRaw;
 
             final query = [
-              'اشرح القرار القضائي العراقي التالي شرحًا تفصيليًا للمحامي.',
-              'المحكمة: ${(decision['courtName'] ?? '-').toString()}',
-              'رقم القرار: ${(decision['decisionNumber'] ?? '-').toString()}',
-              'نوع القضية: ${(decision['caseType'] ?? '-').toString()}',
-              'المجال القانوني: ${(decision['legalDomain'] ?? '-').toString()}',
-              if (summary.isNotEmpty) 'ملخص القرار:\n$summary',
-              if (fullText.isNotEmpty) 'النص الكامل:\n$fullText',
-              'قدّم: معنى القرار، الأساس القانوني، نقاط القوة والضعف، وكيفية توظيفه بالمرافعة.',
+              _loc(
+                dialogContext,
+                'اشرح القرار القضائي العراقي التالي شرحًا تفصيليًا للمحامي.',
+                'Explain the following Iraqi judicial decision in detail for a lawyer.',
+              ),
+              _loc(
+                dialogContext,
+                'المحكمة: ${(decision['courtName'] ?? '-').toString()}',
+                'Court: ${(decision['courtName'] ?? '-').toString()}',
+              ),
+              _loc(
+                dialogContext,
+                'رقم القرار: ${(decision['decisionNumber'] ?? '-').toString()}',
+                'Decision Number: ${(decision['decisionNumber'] ?? '-').toString()}',
+              ),
+              _loc(
+                dialogContext,
+                'نوع القضية: ${(decision['caseType'] ?? '-').toString()}',
+                'Case Type: ${(decision['caseType'] ?? '-').toString()}',
+              ),
+              _loc(
+                dialogContext,
+                'المجال القانوني: ${(decision['legalDomain'] ?? '-').toString()}',
+                'Legal Domain: ${(decision['legalDomain'] ?? '-').toString()}',
+              ),
+              if (summary.isNotEmpty)
+                _loc(
+                  dialogContext,
+                  'ملخص القرار:\n$summary',
+                  'Decision Summary:\n$summary',
+                ),
+              if (fullText.isNotEmpty)
+                _loc(
+                  dialogContext,
+                  'النص الكامل:\n$fullText',
+                  'Full Text:\n$fullText',
+                ),
+              _loc(
+                dialogContext,
+                'قدّم: معنى القرار، الأساس القانوني، نقاط القوة والضعف، وكيفية توظيفه بالمرافعة.',
+                'Provide: decision meaning, legal basis, strengths and weaknesses, and advocacy usage.',
+              ),
             ].join('\n\n');
 
             setDialogState(() {
@@ -586,22 +672,38 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
                           children: [
                             Chip(
                               label: Text(
-                                'النوع: ${(decision['caseType'] ?? '-').toString()}',
+                                _loc(
+                                  context,
+                                  'النوع: ${(decision['caseType'] ?? '-').toString()}',
+                                  'Type: ${(decision['caseType'] ?? '-').toString()}',
+                                ),
                               ),
                             ),
                             Chip(
                               label: Text(
-                                'المجال: ${(decision['legalDomain'] ?? '-').toString()}',
+                                _loc(
+                                  context,
+                                  'المجال: ${(decision['legalDomain'] ?? '-').toString()}',
+                                  'Domain: ${(decision['legalDomain'] ?? '-').toString()}',
+                                ),
                               ),
                             ),
                             Chip(
                               label: Text(
-                                'المستوى: ${(decision['courtLevel'] ?? '-').toString()}',
+                                _loc(
+                                  context,
+                                  'المستوى: ${(decision['courtLevel'] ?? '-').toString()}',
+                                  'Level: ${(decision['courtLevel'] ?? '-').toString()}',
+                                ),
                               ),
                             ),
                             Chip(
                               label: Text(
-                                'التاريخ: ${_dateOnly(decision['decisionDate'])}',
+                                _loc(
+                                  context,
+                                  'التاريخ: ${_dateOnly(decision['decisionDate'])}',
+                                  'Date: ${_dateOnly(decision['decisionDate'])}',
+                                ),
                               ),
                             ),
                             ElevatedButton.icon(
@@ -617,7 +719,9 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
                                       ),
                                     )
                                   : const Icon(Icons.psychology_alt_rounded),
-                              label: const Text('شرح القرار'),
+                              label: Text(
+                                _loc(context, 'شرح القرار', 'Explain Decision'),
+                              ),
                             ),
                           ],
                         ),
@@ -627,7 +731,11 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
                             .trim()
                             .isNotEmpty) ...[
                           SelectableText(
-                            'رابط ملف القرار: ${(decision['attachmentUrl'] ?? '').toString()}',
+                            _loc(
+                              context,
+                              'رابط ملف القرار: ${(decision['attachmentUrl'] ?? '').toString()}',
+                              'Decision File URL: ${(decision['attachmentUrl'] ?? '').toString()}',
+                            ),
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                           const SizedBox(height: 12),
@@ -642,7 +750,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
                             .trim()
                             .isNotEmpty) ...[
                           Text(
-                            'النص الكامل',
+                            _loc(context, 'النص الكامل', 'Full Text'),
                             style: Theme.of(context).textTheme.titleMedium,
                           ),
                           const SizedBox(height: 6),
@@ -655,7 +763,11 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
                                 ?.isNotEmpty ??
                             false) ...[
                           Text(
-                            'المواد القانونية ذات الصلة',
+                            _loc(
+                              context,
+                              'المواد القانونية ذات الصلة',
+                              'Related Legal Articles',
+                            ),
                             style: Theme.of(context).textTheme.titleSmall,
                           ),
                           const SizedBox(height: 4),
@@ -670,7 +782,11 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
                                 ?.isNotEmpty ??
                             false) ...[
                           Text(
-                            'المواد الدستورية ذات الصلة',
+                            _loc(
+                              context,
+                              'المواد الدستورية ذات الصلة',
+                              'Related Constitutional Articles',
+                            ),
                             style: Theme.of(context).textTheme.titleSmall,
                           ),
                           const SizedBox(height: 4),
@@ -710,7 +826,11 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'الشرح التفصيلي للقرار',
+                                  _loc(
+                                    context,
+                                    'الشرح التفصيلي للقرار',
+                                    'Detailed Decision Explanation',
+                                  ),
                                   style: Theme.of(
                                     context,
                                   ).textTheme.titleMedium,
@@ -719,7 +839,11 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
                                   const SizedBox(height: 8),
                                   Chip(
                                     label: Text(
-                                      'مستوى الثقة ${(confidence * 100).toStringAsFixed(0)}%',
+                                      _loc(
+                                        context,
+                                        'مستوى الثقة ${(confidence * 100).toStringAsFixed(0)}%',
+                                        'Confidence ${(confidence * 100).toStringAsFixed(0)}%',
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -729,7 +853,11 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
                                     .trim()
                                     .isNotEmpty) ...[
                                   Text(
-                                    'المعنى المبسط',
+                                    _loc(
+                                      context,
+                                      'المعنى المبسط',
+                                      'Plain Meaning',
+                                    ),
                                     style: Theme.of(
                                       context,
                                     ).textTheme.titleSmall,
@@ -745,7 +873,11 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
                                     .trim()
                                     .isNotEmpty) ...[
                                   Text(
-                                    'التحليل القانوني',
+                                    _loc(
+                                      context,
+                                      'التحليل القانوني',
+                                      'Legal Analysis',
+                                    ),
                                     style: Theme.of(
                                       context,
                                     ).textTheme.titleSmall,
@@ -759,17 +891,29 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
                                 ],
                                 _buildExplanationListSection(
                                   context,
-                                  title: 'القضايا القانونية المستخرجة',
+                                  title: _loc(
+                                    context,
+                                    'القضايا القانونية المستخرجة',
+                                    'Extracted Legal Issues',
+                                  ),
                                   value: explanation?['extractedIssues'],
                                 ),
                                 _buildExplanationListSection(
                                   context,
-                                  title: 'أسئلة متابعة للمحامي',
+                                  title: _loc(
+                                    context,
+                                    'أسئلة متابعة للمحامي',
+                                    'Follow-up Questions',
+                                  ),
                                   value: explanation?['proposedQuestions'],
                                 ),
                                 _buildExplanationListSection(
                                   context,
-                                  title: 'قيود وحدود التحليل',
+                                  title: _loc(
+                                    context,
+                                    'قيود وحدود التحليل',
+                                    'Analysis Limits',
+                                  ),
                                   value: explanation?['limitations'],
                                 ),
                                 _buildSuggestedAuthoritiesSection(
@@ -778,7 +922,11 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
                                 ),
                                 Text(
                                   ((explanation?['disclaimer'] ??
-                                              'هذه المخرجات أولية وتحتاج مراجعة محامٍ بشري.')
+                                              _loc(
+                                                context,
+                                                'هذه المخرجات أولية وتحتاج مراجعة محامٍ بشري.',
+                                                'These outputs are preliminary and require human legal review.',
+                                              ))
                                           as String)
                                       .trim(),
                                   style: Theme.of(context).textTheme.bodySmall
@@ -788,12 +936,18 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
                             ),
                           ),
                         Text(
-                          'قرارات مشابهة',
+                          _loc(context, 'قرارات مشابهة', 'Similar Decisions'),
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
                         const SizedBox(height: 8),
                         if (similar.isEmpty)
-                          const Text('لا توجد قرارات مشابهة.')
+                          Text(
+                            _loc(
+                              context,
+                              'لا توجد قرارات مشابهة.',
+                              'No similar decisions.',
+                            ),
+                          )
                         else
                           ...similar.map(
                             (entry) => Padding(
@@ -810,7 +964,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('إغلاق'),
+                    child: Text(_loc(context, 'إغلاق', 'Close')),
                   ),
                 ],
               );
@@ -887,7 +1041,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'المرجعيات المقترحة',
+            _loc(context, 'المرجعيات المقترحة', 'Suggested Authorities'),
             style: Theme.of(context).textTheme.titleSmall,
           ),
           const SizedBox(height: 5),
@@ -950,6 +1104,67 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
     _summaryCache.clear();
   }
 
+  bool _isArabic(BuildContext context) => Localizations.localeOf(
+    context,
+  ).languageCode.toLowerCase().startsWith('ar');
+
+  String _loc(BuildContext context, String ar, String en) =>
+      _isArabic(context) ? ar : en;
+
+  String _localizeCourtLevelLabel(BuildContext context, String level) {
+    switch (level) {
+      case 'appellate':
+        return _loc(context, 'استئنافي', 'Appellate');
+      case 'cassation':
+        return _loc(context, 'تمييزي', 'Cassation');
+      case 'all':
+      default:
+        return _loc(context, 'كل المستويات', 'All levels');
+    }
+  }
+
+  String _localizeCaseType(BuildContext context, String caseType) {
+    const arToEn = <String, String>{
+      'الكل': 'All',
+      'مدني': 'Civil',
+      'جزائي': 'Criminal',
+      'جنائي': 'Criminal',
+      'أحوال شخصية': 'Personal Status',
+      'تجاري': 'Commercial',
+      'إداري': 'Administrative',
+      'عمالي': 'Labor',
+      'عقاري': 'Real Estate',
+      'تنفيذ': 'Enforcement',
+      'دستوري': 'Constitutional',
+      'إثبات': 'Evidence',
+      'إجرائي': 'Procedural',
+      'وقف': 'Endowment',
+      'أخرى': 'Other',
+      'other': 'Other',
+    };
+    const enToAr = <String, String>{
+      'all': 'الكل',
+      'civil': 'مدني',
+      'criminal': 'جزائي',
+      'personal status': 'أحوال شخصية',
+      'commercial': 'تجاري',
+      'administrative': 'إداري',
+      'labor': 'عمالي',
+      'real estate': 'عقاري',
+      'enforcement': 'تنفيذ',
+      'constitutional': 'دستوري',
+      'evidence': 'إثبات',
+      'procedural': 'إجرائي',
+      'endowment': 'وقف',
+      'other': 'أخرى',
+    };
+    final raw = caseType.trim();
+    if (_isArabic(context)) {
+      return enToAr[raw.toLowerCase()] ?? raw;
+    }
+    return arToEn[raw] ?? raw;
+  }
+
   Map<String, List<Map<String, dynamic>>> _groupItemsByType(
     List<Map<String, dynamic>> items,
   ) {
@@ -957,7 +1172,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
 
     for (final item in items) {
       final rawType = (item['caseType'] ?? '').toString().trim();
-      final type = rawType.isEmpty ? 'أخرى' : rawType;
+      final type = rawType.isEmpty ? 'other' : rawType;
       grouped.putIfAbsent(type, () => []).add(item);
     }
 
@@ -995,14 +1210,20 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
         spacing: 10,
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
-          Text('صفحة $_page من $totalPages'),
+          Text(
+            _loc(
+              context,
+              'صفحة $_page من $totalPages',
+              'Page $_page of $totalPages',
+            ),
+          ),
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               OutlinedButton.icon(
                 onPressed: _page > 1 ? () => _goToPage(_page - 1) : null,
                 icon: const Icon(Icons.chevron_right_rounded),
-                label: const Text('السابق'),
+                label: Text(_loc(context, 'السابق', 'Previous')),
               ),
               const SizedBox(width: 8),
               OutlinedButton.icon(
@@ -1010,7 +1231,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
                     ? () => _goToPage(_page + 1)
                     : null,
                 icon: const Icon(Icons.chevron_left_rounded),
-                label: const Text('التالي'),
+                label: Text(_loc(context, 'التالي', 'Next')),
               ),
             ],
           ),
@@ -1026,19 +1247,32 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
       ..sort((a, b) => b.value.length - a.value.length);
 
     return Directionality(
-      textDirection: TextDirection.rtl,
+      textDirection:
+          Localizations.localeOf(
+            context,
+          ).languageCode.toLowerCase().startsWith('ar')
+          ? TextDirection.rtl
+          : TextDirection.ltr,
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SectionHeader(
-              title: 'مستكشف القرارات القضائية',
-              subtitle: 'بحث القرارات وتصنيفها وربطها بالقضايا والمرجعيات',
+              title: _loc(
+                context,
+                'مستكشف القرارات القضائية',
+                'Judicial Decisions Explorer',
+              ),
+              subtitle: _loc(
+                context,
+                'بحث القرارات وتصنيفها وربطها بالقضايا والمرجعيات',
+                'Search, classify, and link decisions to cases and authorities.',
+              ),
               trailing: OutlinedButton.icon(
                 onPressed: _loading ? null : () => _loadAll(force: true),
                 icon: const Icon(Icons.refresh_rounded),
-                label: const Text('تحديث'),
+                label: Text(_loc(context, 'تحديث', 'Refresh')),
               ),
             ),
             const SizedBox(height: 12),
@@ -1065,8 +1299,14 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
                 ),
               )
             else if (_items.isEmpty)
-              const GlassPanel(
-                child: Text('لا توجد قرارات مطابقة للفلاتر الحالية.'),
+              GlassPanel(
+                child: Text(
+                  _loc(
+                    context,
+                    'لا توجد قرارات مطابقة للفلاتر الحالية.',
+                    'No decisions match the current filters.',
+                  ),
+                ),
               )
             else
               Column(
@@ -1076,13 +1316,17 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'القرارات حسب نوع القضية',
+                          _loc(
+                            context,
+                            'القرارات حسب نوع القضية',
+                            'Decisions by Case Type',
+                          ),
                           style: Theme.of(context).textTheme.titleLarge,
                         ),
                         const SizedBox(height: 10),
                         ...sortedGroups.map(
                           (group) => _DecisionGroupPanel(
-                            caseType: group.key,
+                            caseType: _localizeCaseType(context, group.key),
                             items: group.value,
                             onOpen: _openDecision,
                             dateOnly: _dateOnly,
@@ -1115,9 +1359,13 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
             await _search(page: 1);
             await _loadCaseTypeSummary();
           },
-          decoration: const InputDecoration(
-            hintText: 'بحث بالنص أو رقم القرار',
-            prefixIcon: Icon(Icons.search_rounded),
+          decoration: InputDecoration(
+            hintText: _loc(
+              context,
+              'بحث بالنص أو رقم القرار',
+              'Search by text or decision number',
+            ),
+            prefixIcon: const Icon(Icons.search_rounded),
           ),
         ),
       ),
@@ -1129,9 +1377,9 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
             await _search(page: 1);
             await _loadCaseTypeSummary();
           },
-          decoration: const InputDecoration(
-            labelText: 'المحكمة',
-            prefixIcon: Icon(Icons.account_balance_rounded),
+          decoration: InputDecoration(
+            labelText: _loc(context, 'المحكمة', 'Court'),
+            prefixIcon: const Icon(Icons.account_balance_rounded),
           ),
         ),
       ),
@@ -1143,9 +1391,9 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
             await _search(page: 1);
             await _loadCaseTypeSummary();
           },
-          decoration: const InputDecoration(
-            labelText: 'المجال القانوني',
-            prefixIcon: Icon(Icons.category_outlined),
+          decoration: InputDecoration(
+            labelText: _loc(context, 'المجال القانوني', 'Legal Domain'),
+            prefixIcon: const Icon(Icons.category_outlined),
           ),
         ),
       ),
@@ -1158,10 +1406,10 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
             await _search(page: 1);
             await _loadCaseTypeSummary();
           },
-          decoration: const InputDecoration(
-            labelText: 'السنة',
+          decoration: InputDecoration(
+            labelText: _loc(context, 'السنة', 'Year'),
             hintText: '2026',
-            prefixIcon: Icon(Icons.calendar_today_rounded),
+            prefixIcon: const Icon(Icons.calendar_today_rounded),
           ),
         ),
       ),
@@ -1169,11 +1417,15 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
         width: isCompact ? double.infinity : 220,
         child: DropdownButtonFormField<String>(
           initialValue: _selectedCaseType,
-          decoration: const InputDecoration(labelText: 'نوع القضية'),
+          decoration: InputDecoration(
+            labelText: _loc(context, 'نوع القضية', 'Case Type'),
+          ),
           items: _caseTypes
               .map(
-                (type) =>
-                    DropdownMenuItem<String>(value: type, child: Text(type)),
+                (type) => DropdownMenuItem<String>(
+                  value: type,
+                  child: Text(_localizeCaseType(context, type)),
+                ),
               )
               .toList(),
           onChanged: (value) {
@@ -1188,12 +1440,14 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
         width: isCompact ? double.infinity : 220,
         child: DropdownButtonFormField<String>(
           initialValue: _selectedCourtLevel,
-          decoration: const InputDecoration(labelText: 'مستوى المحكمة'),
+          decoration: InputDecoration(
+            labelText: _loc(context, 'مستوى المحكمة', 'Court Level'),
+          ),
           items: _courtLevels
               .map(
                 (entry) => DropdownMenuItem<String>(
                   value: entry.value,
-                  child: Text(entry.label),
+                  child: Text(_localizeCourtLevelLabel(context, entry.value)),
                 ),
               )
               .toList(),
@@ -1212,7 +1466,11 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'فلترة واستعراض القرارات',
+            _loc(
+              context,
+              'فلترة واستعراض القرارات',
+              'Filter and Browse Decisions',
+            ),
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 10),
@@ -1230,7 +1488,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
                         await _loadCaseTypeSummary();
                       },
                 icon: const Icon(Icons.search_rounded),
-                label: const Text('بحث'),
+                label: Text(_loc(context, 'بحث', 'Search')),
               ),
               OutlinedButton.icon(
                 onPressed: _loading
@@ -1247,12 +1505,12 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
                         await _loadAll(force: true);
                       },
                 icon: const Icon(Icons.restart_alt_rounded),
-                label: const Text('إعادة ضبط'),
+                label: Text(_loc(context, 'إعادة ضبط', 'Reset')),
               ),
               ElevatedButton.icon(
                 onPressed: _showAddDecisionDialog,
                 icon: const Icon(Icons.add_circle_outline_rounded),
-                label: const Text('إضافة قرار'),
+                label: Text(_loc(context, 'إضافة قرار', 'Add Decision')),
               ),
               ElevatedButton.icon(
                 onPressed: _syncing ? null : _syncFromPublicSource,
@@ -1263,7 +1521,13 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : const Icon(Icons.cloud_sync_rounded),
-                label: const Text('جلب القرارات الاستئنافية من المصدر العام'),
+                label: Text(
+                  _loc(
+                    context,
+                    'جلب القرارات الاستئنافية من المصدر العام',
+                    'Sync appellate decisions from public source',
+                  ),
+                ),
               ),
             ],
           ),
@@ -1280,13 +1544,16 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
       runSpacing: 10,
       children: [
         _SummaryCard(
-          title: 'النتائج الحالية',
+          title: _loc(context, 'النتائج الحالية', 'Current Results'),
           value: '$total',
           icon: Icons.gavel_rounded,
           color: LexiqColors.imperialBlue,
         ),
         ..._summaryItems.take(8).map((entry) {
-          final caseType = (entry['caseType'] ?? 'أخرى').toString();
+          final caseType = _localizeCaseType(
+            context,
+            (entry['caseType'] ?? 'other').toString(),
+          );
           final count = (entry['count'] ?? 0).toString();
           return _SummaryCard(
             title: caseType,
@@ -1368,6 +1635,13 @@ class _DecisionGroupPanel extends StatelessWidget {
   final Future<void> Function(String id) onOpen;
   final String Function(dynamic value) dateOnly;
 
+  bool _isArabic(BuildContext context) => Localizations.localeOf(
+    context,
+  ).languageCode.toLowerCase().startsWith('ar');
+
+  String _loc(BuildContext context, String ar, String en) =>
+      _isArabic(context) ? ar : en;
+
   @override
   Widget build(BuildContext context) {
     return ExpansionTile(
@@ -1433,11 +1707,19 @@ class _DecisionGroupPanel extends StatelessWidget {
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  Chip(label: Text('المستوى: $level')),
+                  Chip(
+                    label: Text(
+                      _loc(context, 'المستوى: $level', 'Level: $level'),
+                    ),
+                  ),
                   if ((item['legalDomain'] ?? '').toString().trim().isNotEmpty)
                     Chip(
                       label: Text(
-                        'المجال: ${(item['legalDomain'] ?? '').toString()}',
+                        _loc(
+                          context,
+                          'المجال: ${(item['legalDomain'] ?? '').toString()}',
+                          'Domain: ${(item['legalDomain'] ?? '').toString()}',
+                        ),
                       ),
                     ),
                 ],
@@ -1450,7 +1732,7 @@ class _DecisionGroupPanel extends StatelessWidget {
                 child: ElevatedButton.icon(
                   onPressed: id.isEmpty ? null : () => onOpen(id),
                   icon: const Icon(Icons.open_in_new_rounded),
-                  label: const Text('فتح القرار'),
+                  label: Text(_loc(context, 'فتح القرار', 'Open Decision')),
                 ),
               ),
             ],

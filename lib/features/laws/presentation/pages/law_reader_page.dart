@@ -94,11 +94,11 @@ class _LawReaderPageState extends ConsumerState<LawReaderPage> {
           widget.initialArticleNumber!.trim().isNotEmpty) {
         _handledInitialOpen = true;
         final article = articles.cast<Map<String, dynamic>?>().firstWhere(
-              (item) =>
-                  (item?['articleNumber'] ?? '').toString() ==
-                  widget.initialArticleNumber,
-              orElse: () => null,
-            );
+          (item) =>
+              (item?['articleNumber'] ?? '').toString() ==
+              widget.initialArticleNumber,
+          orElse: () => null,
+        );
         if (article != null) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) {
@@ -123,7 +123,15 @@ class _LawReaderPageState extends ConsumerState<LawReaderPage> {
     final articleId = article['_id']?.toString();
     if (articleId == null || articleId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تعذر فتح المادة لعدم توفر المعرّف.')),
+        SnackBar(
+          content: Text(
+            _loc(
+              context,
+              'تعذر فتح المادة لعدم توفر المعرّف.',
+              'Unable to open article because ID is missing.',
+            ),
+          ),
+        ),
       );
       return;
     }
@@ -133,7 +141,11 @@ class _LawReaderPageState extends ConsumerState<LawReaderPage> {
   String _articlePreview(Map<String, dynamic> item) {
     final text = (item['text'] ?? '').toString().trim();
     if (text.isEmpty) {
-      return 'لا يوجد نص مفهرس لهذه المادة.';
+      return _loc(
+        context,
+        'لا يوجد نص مفهرس لهذه المادة.',
+        'No indexed text available for this article.',
+      );
     }
     if (text.length <= 180) {
       return text;
@@ -141,24 +153,42 @@ class _LawReaderPageState extends ConsumerState<LawReaderPage> {
     return '${text.substring(0, 180)}...';
   }
 
+  bool _isArabic(BuildContext context) => Localizations.localeOf(
+    context,
+  ).languageCode.toLowerCase().startsWith('ar');
+
+  String _loc(BuildContext context, String ar, String en) =>
+      _isArabic(context) ? ar : en;
+
   @override
   Widget build(BuildContext context) {
     final law = _law;
 
     return Directionality(
-      textDirection: TextDirection.rtl,
+      textDirection:
+          Localizations.localeOf(
+            context,
+          ).languageCode.toLowerCase().startsWith('ar')
+          ? TextDirection.rtl
+          : TextDirection.ltr,
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SectionHeader(
-              title: (law?['title'] ?? 'قارئ القانون').toString(),
-              subtitle: 'اختر مادة لفتح صفحة مستقلة تتضمن النص الكامل والشرح',
+              title:
+                  (law?['title'] ?? _loc(context, 'قارئ القانون', 'Law Reader'))
+                      .toString(),
+              subtitle: _loc(
+                context,
+                'اختر مادة لفتح صفحة مستقلة تتضمن النص الكامل والشرح',
+                'Select an article to open a dedicated page with full text and explanation.',
+              ),
               trailing: OutlinedButton.icon(
                 onPressed: _loading ? null : _loadLaw,
                 icon: const Icon(Icons.refresh_rounded),
-                label: const Text('تحديث'),
+                label: Text(_loc(context, 'تحديث', 'Refresh')),
               ),
             ),
             const SizedBox(height: 12),
@@ -172,18 +202,66 @@ class _LawReaderPageState extends ConsumerState<LawReaderPage> {
                 ),
               )
             else if (law == null)
-              const GlassPanel(child: Text('تعذر تحميل بيانات القانون.'))
+              GlassPanel(
+                child: Text(
+                  _loc(
+                    context,
+                    'تعذر تحميل بيانات القانون.',
+                    'Failed to load law data.',
+                  ),
+                ),
+              )
             else ...[
               GlassPanel(
                 child: Wrap(
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    Chip(label: Text('رقم القانون: ${(law['lawNumber'] ?? '-').toString()}')),
-                    Chip(label: Text('السنة: ${(law['year'] ?? '-').toString()}')),
-                    Chip(label: Text('الجهة: ${(law['issuingBody'] ?? '-').toString()}')),
-                    Chip(label: Text('المجال: ${(law['legalDomain'] ?? '-').toString()}')),
-                    Chip(label: Text('عدد المواد: ${_articles.length}')),
+                    Chip(
+                      label: Text(
+                        _loc(
+                          context,
+                          'رقم القانون: ${(law['lawNumber'] ?? '-').toString()}',
+                          'Law No.: ${(law['lawNumber'] ?? '-').toString()}',
+                        ),
+                      ),
+                    ),
+                    Chip(
+                      label: Text(
+                        _loc(
+                          context,
+                          'السنة: ${(law['year'] ?? '-').toString()}',
+                          'Year: ${(law['year'] ?? '-').toString()}',
+                        ),
+                      ),
+                    ),
+                    Chip(
+                      label: Text(
+                        _loc(
+                          context,
+                          'الجهة: ${(law['issuingBody'] ?? '-').toString()}',
+                          'Issuing body: ${(law['issuingBody'] ?? '-').toString()}',
+                        ),
+                      ),
+                    ),
+                    Chip(
+                      label: Text(
+                        _loc(
+                          context,
+                          'المجال: ${(law['legalDomain'] ?? '-').toString()}',
+                          'Domain: ${(law['legalDomain'] ?? '-').toString()}',
+                        ),
+                      ),
+                    ),
+                    Chip(
+                      label: Text(
+                        _loc(
+                          context,
+                          'عدد المواد: ${_articles.length}',
+                          'Articles count: ${_articles.length}',
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -194,7 +272,7 @@ class _LawReaderPageState extends ConsumerState<LawReaderPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'رابط المرجع',
+                        _loc(context, 'رابط المرجع', 'Source URL'),
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                       const SizedBox(height: 6),
@@ -218,12 +296,22 @@ class _LawReaderPageState extends ConsumerState<LawReaderPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'مواد القانون (${_articles.length})',
+            _loc(
+              context,
+              'مواد القانون (${_articles.length})',
+              'Law Articles (${_articles.length})',
+            ),
             style: Theme.of(context).textTheme.titleLarge,
           ),
           const SizedBox(height: 10),
           if (_articles.isEmpty)
-            const Text('لا توجد مواد مفهرسة لهذا القانون.')
+            Text(
+              _loc(
+                context,
+                'لا توجد مواد مفهرسة لهذا القانون.',
+                'No indexed articles found for this law.',
+              ),
+            )
           else
             ListView.separated(
               shrinkWrap: true,
@@ -251,7 +339,11 @@ class _LawReaderPageState extends ConsumerState<LawReaderPage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'المادة ${(item['articleNumber'] ?? '-').toString()}',
+                                _loc(
+                                  context,
+                                  'المادة ${(item['articleNumber'] ?? '-').toString()}',
+                                  'Article ${(item['articleNumber'] ?? '-').toString()}',
+                                ),
                                 style: Theme.of(context).textTheme.titleMedium,
                               ),
                               const SizedBox(height: 4),
