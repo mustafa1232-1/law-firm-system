@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../auth/auth_controller.dart';
 import '../config/app_config.dart';
+import '../utils/text_encoding_sanitizer.dart';
 
 final dioProvider = Provider<Dio>((ref) {
   final config = ref.watch(appConfigProvider);
@@ -28,6 +29,10 @@ final dioProvider = Provider<Dio>((ref) {
           }
         }
         handler.next(options);
+      },
+      onResponse: (response, handler) {
+        response.data = sanitizeMojibakeInData(response.data);
+        handler.next(response);
       },
       onError: (error, handler) async {
         final statusCode = error.response?.statusCode;

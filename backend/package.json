@@ -14,6 +14,8 @@
     "sanitize:seeds": "node scripts/sanitize-seed-arabic.js",
     "reset:production": "node scripts/reset-and-seed-production.js",
     "sync:sjc-appellate": "node scripts/sync-sjc-appellate-decisions.js",
+    "sync:sjc-news-decisions": "node scripts/sync-sjc-news-decisions.js",
+    "sync:sjc-election-appeal": "node scripts/sync-sjc-election-appeal-decisions.js",
     "seed:decisions:appellate-cassation": "node scripts/seed-appellate-cassation-decisions.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint ."

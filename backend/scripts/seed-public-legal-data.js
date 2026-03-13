@@ -105,9 +105,16 @@ async function main() {
     'data/public/judicial_decisions_appellate_cassation.seed.json',
     [],
   );
+  const electionAppealDecisionsSeed = readJsonIfExists(
+    'data/public/judicial_decisions_election_appeal.seed.json',
+    [],
+  );
+  const newsDecisionsSeed = readJsonIfExists('data/public/judicial_decisions_news.seed.json', []);
   const mergedDecisionsSeed = mergeDecisionSeeds(
     decisionsSeed,
     appellateCassationDecisionsSeed,
+    electionAppealDecisionsSeed,
+    newsDecisionsSeed,
   );
   const courtsSeed = readJson('data/public/iraqi_courts.seed.json');
 

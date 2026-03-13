@@ -96,9 +96,16 @@ async function seedLegalData(db) {
     'judicial_decisions_appellate_cassation.seed.json',
     [],
   );
+  const electionAppealDecisionsSeed = readJsonIfExists(
+    'judicial_decisions_election_appeal.seed.json',
+    [],
+  );
+  const newsDecisionsSeed = readJsonIfExists('judicial_decisions_news.seed.json', []);
   const mergedDecisionsSeed = mergeDecisionSeeds(
     decisionsSeed,
     appellateCassationDecisionsSeed,
+    electionAppealDecisionsSeed,
+    newsDecisionsSeed,
   );
   const courtsSeed = readJson('iraqi_courts.seed.json');
 
