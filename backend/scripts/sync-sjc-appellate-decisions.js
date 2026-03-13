@@ -1,7 +1,9 @@
-﻿/* eslint-disable no-console */
+/* eslint-disable no-console */
+const fs = require('node:fs');
+const path = require('node:path');
 const mongoose = require('mongoose');
 
-const SJC_BASE_URL = 'https://sjc.iq';
+const SJC_BASE_URL = 'https://www.sjc.iq';
 
 function decodeHtmlEntities(value) {
   return `${value ?? ''}`
@@ -59,7 +61,6 @@ function mapCaseType(rawCaseType, contextText) {
   if (normalized.includes('مدني')) {
     return 'مدني';
   }
-
   if (
     normalized.includes('جزايي') ||
     normalized.includes('جزاي') ||
@@ -69,7 +70,6 @@ function mapCaseType(rawCaseType, contextText) {
   ) {
     return 'جزائي';
   }
-
   if (
     normalized.includes('احوال شخصيه') ||
     normalized.includes('احوال') ||
@@ -83,39 +83,30 @@ function mapCaseType(rawCaseType, contextText) {
   ) {
     return 'أحوال شخصية';
   }
-
   if (normalized.includes('تجاري') || normalized.includes('شركه') || normalized.includes('كمبياله')) {
     return 'تجاري';
   }
-
   if (normalized.includes('اداري') || normalized.includes('انضباط') || normalized.includes('موظفي الدوله')) {
     return 'إداري';
   }
-
   if (normalized.includes('عمال') || normalized.includes('اجور') || normalized.includes('تعويض عمالي')) {
     return 'عمالي';
   }
-
   if (normalized.includes('عقار') || normalized.includes('ايجار') || normalized.includes('تسجيل عقاري')) {
     return 'عقاري';
   }
-
   if (normalized.includes('تنفيذ')) {
     return 'تنفيذ';
   }
-
   if (normalized.includes('دستور') || normalized.includes('دستوري')) {
     return 'دستوري';
   }
-
   if (normalized.includes('اثبات') || normalized.includes('يمين حاسمه')) {
     return 'إثبات';
   }
-
   if (normalized.includes('مرافعات') || normalized.includes('اصول محاكمات')) {
     return 'إجرائي';
   }
-
   if (normalized.includes('وقف')) {
     return 'وقف';
   }
@@ -163,12 +154,12 @@ function extractLegalArticleRefs(text) {
     }
   }
 
-  return Array.from(refs).slice(0, 20);
+  return Array.from(refs).slice(0, 40);
 }
 
 function extractConstitutionalRefs(text) {
   const refs = new Set();
-  const pattern = /الدستور[\s\S]{0,25}?المادة\s*\(?\s*([0-9٠-٩]+)\s*\)?/g;
+  const pattern = /الدستور[\s\S]{0,35}?المادة\s*\(?\s*([0-9٠-٩]+)\s*\)?/g;
 
   for (const match of text.matchAll(pattern)) {
     const n = toWesternDigits(match[1]);
@@ -177,7 +168,7 @@ function extractConstitutionalRefs(text) {
     }
   }
 
-  return Array.from(refs).slice(0, 12);
+  return Array.from(refs).slice(0, 20);
 }
 
 function extractKeywords(value) {
@@ -189,7 +180,7 @@ function extractKeywords(value) {
         .map((token) => token.trim())
         .filter((token) => token.length >= 2),
     ),
-  ).slice(0, 16);
+  ).slice(0, 32);
 }
 
 function looksAppellateOrCassation(normalizedSummary) {
@@ -225,38 +216,151 @@ async function fetchHtml(url, timeoutMs = 9000) {
   }
 }
 
-function extractRows(html) {
-  const rows = [];
-  const pattern =
-    /<a href="#" class="badge text-bg-warning mb-2"><i[^>]*><\/i>([^<]+)<\/a>[\s\S]*?<h6 class="course-title[^"]*"><a href="#">([^<]*)<\/a><\/h6>[\s\S]*?<p>([\s\S]*?)<a href="(\/qview\.\d+\/)"[\s\S]*?<h6 class="course-title[^"]*"><a href="#">(\d{4})<\/a><\/h6>/gi;
+function extractMetaSegmentFromDecisionPage(html) {
+  const match = html.match(
+    /<div class="col-md-9 mt-4 mt-md-0 border-start">([\s\S]*?)<\/div>\s*<\/div>\s*<\/div>\s*<\/section>/i,
+  );
+  return cleanText(match?.[1] ?? '');
+}
 
-  for (const match of html.matchAll(pattern)) {
-    const decisionNumber = cleanText(match[1]);
-    const caseTypeRaw = cleanText(match[2]);
-    const summary = cleanText(match[3]);
-    const detailPath = (match[4] ?? '').trim();
-    const year = Number(match[5]);
+function extractBetweenLabels(text, startLabel, endLabel) {
+  const start = text.indexOf(startLabel);
+  if (start < 0) {
+    return '';
+  }
+  const from = text.slice(start + startLabel.length);
+  const end = from.indexOf(endLabel);
+  return (end >= 0 ? from.slice(0, end) : from).trim();
+}
 
-    if (!decisionNumber || !summary || !detailPath) {
-      continue;
+function extractAfterLabel(text, label) {
+  const index = text.indexOf(label);
+  if (index < 0) {
+    return '';
+  }
+  return text.slice(index + label.length).trim();
+}
+
+function escapeRegex(value) {
+  return `${value ?? ''}`.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function extractDecisionSection(html, sectionTitle, nextSectionTitle) {
+  const escapedTitle = escapeRegex(sectionTitle);
+  const escapedNext = escapeRegex(nextSectionTitle);
+  const pattern = new RegExp(
+    `<div[^>]*text-bg-secondary[^>]*>\\s*${escapedTitle}\\s*<\\/div>([\\s\\S]*?)(?=<div[^>]*text-bg-secondary[^>]*>\\s*${escapedNext}\\s*<\\/div>|$)`,
+    'i',
+  );
+  const match = html.match(pattern);
+  return cleanText(match?.[1] ?? '');
+}
+
+function parseDecisionDate(rawDate, decisionNumber) {
+  const arabicDigits = '٠١٢٣٤٥٦٧٨٩';
+  const easternDigits = '۰۱۲۳۴۵۶۷۸۹';
+
+  const dateText = `${rawDate ?? ''}`
+    .replace(/[٠-٩]/g, (char) => String(arabicDigits.indexOf(char)))
+    .replace(/[۰-۹]/g, (char) => String(easternDigits.indexOf(char)));
+
+  const match = dateText.match(/(\d{1,2})\D+(\d{1,2})\D+(\d{2,4})/);
+  if (match) {
+    const day = Number(match[1]);
+    const month = Number(match[2]);
+    const yearRaw = Number(match[3]);
+    const year = yearRaw < 100 ? 2000 + yearRaw : yearRaw;
+
+    if (year >= 1900 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return new Date(Date.UTC(year, month - 1, day));
     }
-
-    rows.push({
-      decisionNumber,
-      caseTypeRaw,
-      summary,
-      detailPath,
-      year,
-    });
   }
 
-  return rows;
+  const fallbackYear = `${decisionNumber ?? ''}`.match(/(19|20)\d{2}/)?.[0];
+  if (fallbackYear) {
+    return new Date(Date.UTC(Number(fallbackYear), 0, 1));
+  }
+
+  return new Date(Date.UTC(2026, 0, 1));
+}
+
+function extractDecisionFromSjcPage(html, qviewId, mode) {
+  const metaSegment = extractMetaSegmentFromDecisionPage(html);
+  const caseTypeRaw = extractBetweenLabels(metaSegment, 'نوع القرار ::', 'رقم القرار ::');
+  const decisionNumberRaw = extractBetweenLabels(
+    metaSegment,
+    'رقم القرار ::',
+    'تاريخ اصدار القرار ::',
+  );
+  const decisionDateRaw = extractBetweenLabels(
+    metaSegment,
+    'تاريخ اصدار القرار ::',
+    'جهة الاصدار::',
+  );
+  const courtNameRaw = extractAfterLabel(metaSegment, 'جهة الاصدار::');
+
+  const principle = extractDecisionSection(html, 'مبدأ القرار', 'نص القرار');
+  const fullTextSection = extractDecisionSection(html, 'نص القرار', 'قرارات ذات علاقة');
+  const fullText = fullTextSection || principle;
+  const summary = principle || fullTextSection;
+  const decisionNumber = cleanText(decisionNumberRaw).replace(/\s*\/\s*/g, '/');
+  const courtName = cleanText(courtNameRaw) || 'محكمة عراقية';
+
+  if (!decisionNumber || !summary || !fullText) {
+    return null;
+  }
+
+  const caseType = mapCaseType(caseTypeRaw, `${summary} ${fullText} ${courtName}`);
+  const legalDomain = mapLegalDomain(caseType);
+  const normalizedContext = normalizeArabic(
+    `${courtName} ${caseTypeRaw} ${decisionNumber} ${summary} ${fullText}`,
+  );
+
+  if (mode === 'appellate' && !looksAppellateOrCassation(normalizedContext)) {
+    return null;
+  }
+
+  const courtLevel = normalizedContext.includes('تمييز') ? 'cassation' : 'appellate';
+  const decisionDate = parseDecisionDate(decisionDateRaw, decisionNumber);
+  const source = `${SJC_BASE_URL}/qview.${qviewId}/`;
+
+  return {
+    source,
+    sourceType: 'public_web_scrape',
+    courtName,
+    courtLevel,
+    decisionNumber,
+    decisionDate,
+    caseType,
+    legalDomain,
+    summary,
+    fullText,
+    extractedCitations: [],
+    constitutionalReferences: extractConstitutionalRefs(fullText),
+    legalArticleReferences: extractLegalArticleRefs(fullText),
+    legalKeywords: extractKeywords(`${caseType} ${summary} ${decisionNumber}`),
+    outcome:
+      'مستخرج من مصدر علني ويحتاج مراجعة محامٍ بشري قبل الاعتماد المهني النهائي.',
+    precedentWeight: 0.72,
+    confidenceScore: 0.68,
+    tags: [
+      'sjc-sync',
+      'public-source',
+      'full-text',
+      'review-required',
+      caseTypeRaw ? `raw-type:${cleanText(caseTypeRaw)}` : 'raw-type:unknown',
+    ],
+    reviewStatus: 'pending',
+    ingestionStatus: 'published',
+    normalizedText: normalizeArabic(fullText),
+  };
 }
 
 async function collectDecisions({ startId, endId, concurrency, maxDecisions, mode }) {
   let nextId = startId;
   let scannedPages = 0;
   let failedPages = 0;
+  let emptyPages = 0;
   const bySource = new Map();
 
   async function worker() {
@@ -268,63 +372,14 @@ async function collectDecisions({ startId, endId, concurrency, maxDecisions, mod
         const html = await fetchHtml(`${SJC_BASE_URL}/qview.${currentId}/`);
         scannedPages += 1;
 
-        const rows = extractRows(html);
-        for (const row of rows) {
-          if (bySource.size >= maxDecisions) {
-            break;
-          }
+        const decision = extractDecisionFromSjcPage(html, currentId, mode);
+        if (!decision) {
+          emptyPages += 1;
+          continue;
+        }
 
-          const normalizedSummary = normalizeArabic(row.summary);
-          if (mode === 'appellate' && !looksAppellateOrCassation(normalizedSummary)) {
-            continue;
-          }
-
-          const source = `${SJC_BASE_URL}${row.detailPath}`;
-          if (bySource.has(source)) {
-            continue;
-          }
-
-          const caseType = mapCaseType(row.caseTypeRaw, row.summary);
-          const legalDomain = mapLegalDomain(caseType);
-          const courtLevel = normalizedSummary.includes('تمييز')
-            ? 'cassation'
-            : 'appellate';
-          const courtName =
-            courtLevel === 'cassation'
-              ? 'محكمة التمييز الاتحادية'
-              : 'محكمة الاستئناف العراقية';
-
-          const parsedYear = Number.isFinite(row.year) && row.year >= 1900 ? row.year : 2026;
-
-          bySource.set(source, {
-            source,
-            sourceType: 'public_web_scrape',
-            courtName,
-            courtLevel,
-            decisionNumber: row.decisionNumber,
-            decisionDate: new Date(Date.UTC(parsedYear, 0, 1)),
-            caseType,
-            legalDomain,
-            summary: row.summary,
-            fullText: row.summary,
-            extractedCitations: [],
-            constitutionalReferences: extractConstitutionalRefs(row.summary),
-            legalArticleReferences: extractLegalArticleRefs(row.summary),
-            legalKeywords: extractKeywords(`${caseType} ${row.summary}`),
-            outcome:
-              'مستخرج من مصدر علني ويحتاج مراجعة محامٍ بشري قبل الاعتماد المهني النهائي.',
-            precedentWeight: 0.62,
-            confidenceScore: 0.58,
-            tags: [
-              'sjc-sync',
-              'public-source',
-              'review-required',
-              row.caseTypeRaw ? `raw-type:${row.caseTypeRaw}` : 'raw-type:unknown',
-            ],
-            reviewStatus: 'pending',
-            ingestionStatus: 'published',
-            normalizedText: normalizeArabic(row.summary),
-          });
+        if (!bySource.has(decision.source)) {
+          bySource.set(decision.source, decision);
         }
       } catch (_) {
         failedPages += 1;
@@ -346,6 +401,7 @@ async function collectDecisions({ startId, endId, concurrency, maxDecisions, mod
   return {
     scannedPages,
     failedPages,
+    emptyPages,
     collectedCount: decisions.length,
     byCaseType,
     decisions,
@@ -359,11 +415,15 @@ async function main() {
   }
 
   const startId = Number(process.env.SJC_START_ID ?? '1');
-  const endId = Number(process.env.SJC_END_ID ?? '4200');
+  const endId = Number(process.env.SJC_END_ID ?? '12000');
   const concurrency = Number(process.env.SJC_CONCURRENCY ?? '20');
-  const maxDecisions = Number(process.env.SJC_MAX_DECISIONS ?? '1200');
-  const mode = process.env.SJC_MODE === 'all' ? 'all' : 'appellate';
+  const maxDecisions = Number(process.env.SJC_MAX_DECISIONS ?? '5000');
+  const mode = process.env.SJC_MODE === 'appellate' ? 'appellate' : 'all';
   const dryRun = String(process.env.SJC_DRY_RUN ?? 'false').toLowerCase() === 'true';
+  const writeSeed = String(process.env.SJC_WRITE_SEED ?? 'false').toLowerCase() === 'true';
+  const seedPath =
+    process.env.SJC_SEED_OUTPUT_PATH ||
+    path.join(__dirname, '..', 'data', 'public', 'judicial_decisions_appellate_cassation.seed.json');
 
   await mongoose.connect(mongoUri);
   const decisionsCollection = mongoose.connection.db.collection('judicial_decisions');
@@ -376,11 +436,17 @@ async function main() {
     mode,
   });
 
+  if (writeSeed) {
+    fs.writeFileSync(seedPath, `${JSON.stringify(collected.decisions, null, 2)}\n`, 'utf8');
+  }
+
   if (dryRun) {
     console.log(
       JSON.stringify(
         {
           dryRun: true,
+          writeSeed,
+          seedPath: writeSeed ? seedPath : null,
           ...collected,
           preview: collected.decisions.slice(0, 20),
         },
@@ -426,6 +492,8 @@ async function main() {
     JSON.stringify(
       {
         ...collected,
+        writeSeed,
+        seedPath: writeSeed ? seedPath : null,
         insertedCount: result.upsertedCount ?? 0,
         updatedCount: result.modifiedCount ?? 0,
       },

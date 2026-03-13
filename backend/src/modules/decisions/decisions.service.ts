@@ -36,6 +36,7 @@ type ScrapedDecisionRow = {
   caseTypeRaw: string;
   legalDomain: string;
   summary: string;
+  fullText: string;
   courtLevel: 'appellate' | 'cassation';
   courtName: string;
   decisionDate: Date;
@@ -44,14 +45,6 @@ type ScrapedDecisionRow = {
   legalKeywords: string[];
   confidenceScore: number;
   tags: string[];
-};
-
-type ParsedSjcRow = {
-  decisionNumber: string;
-  caseTypeRaw: string;
-  summary: string;
-  detailPath: string;
-  year: number;
 };
 
 @Injectable()
@@ -350,10 +343,10 @@ export class DecisionsService {
 
   async syncSjcAppellate(dto: SyncSjcAppellateDto, actorId?: string) {
     const startId = Math.max(1, dto.startId ?? 1);
-    const endId = Math.max(startId, dto.endId ?? 4200);
+    const endId = Math.max(startId, dto.endId ?? 12000);
     const concurrency = Math.min(50, Math.max(1, dto.concurrency ?? 20));
-    const maxDecisions = Math.min(10000, Math.max(10, dto.maxDecisions ?? 1200));
-    const mode = dto.mode ?? 'appellate';
+    const maxDecisions = Math.min(30000, Math.max(10, dto.maxDecisions ?? 5000));
+    const mode = dto.mode ?? 'all';
     const dryRun = dto.dryRun ?? false;
 
     const scrape = await this.scrapeSjcDecisions({
@@ -395,7 +388,7 @@ export class DecisionsService {
             caseType: entry.caseType,
             legalDomain: entry.legalDomain,
             summary: entry.summary,
-            fullText: entry.summary,
+            fullText: entry.fullText || entry.summary,
             extractedCitations: [],
             constitutionalReferences: entry.constitutionalReferences,
             legalArticleReferences: entry.legalArticleReferences,
@@ -407,7 +400,7 @@ export class DecisionsService {
             tags: entry.tags,
             reviewStatus: 'pending' as const,
             ingestionStatus: 'published' as const,
-            normalizedText: normalizeArabic(entry.summary),
+            normalizedText: normalizeArabic(entry.fullText || entry.summary),
           },
           $setOnInsert: {
             similarityEmbedding: [],
@@ -490,6 +483,7 @@ export class DecisionsService {
     let nextId = options.startId;
     let scannedPages = 0;
     let failedPages = 0;
+    let emptyPages = 0;
     const decisionsBySource = new Map<string, ScrapedDecisionRow>();
 
     const worker = async () => {
@@ -503,21 +497,18 @@ export class DecisionsService {
             9000,
           );
           scannedPages += 1;
+          const normalized = this.extractDecisionFromSjcPage(
+            html,
+            currentId,
+            options.mode,
+          );
+          if (!normalized) {
+            emptyPages += 1;
+            continue;
+          }
 
-          const rows = this.extractRowsFromSjcPage(html);
-          for (const row of rows) {
-            if (decisionsBySource.size >= options.maxDecisions) {
-              break;
-            }
-
-            const normalized = this.normalizeScrapedRow(row, options.mode);
-            if (!normalized) {
-              continue;
-            }
-
-            if (!decisionsBySource.has(normalized.source)) {
-              decisionsBySource.set(normalized.source, normalized);
-            }
+          if (!decisionsBySource.has(normalized.source)) {
+            decisionsBySource.set(normalized.source, normalized);
           }
         } catch {
           failedPages += 1;
@@ -541,85 +532,10 @@ export class DecisionsService {
     return {
       scannedPages,
       failedPages,
+      emptyPages,
       collectedCount: decisions.length,
       byCaseType,
       decisions,
-    };
-  }
-
-  private extractRowsFromSjcPage(html: string): ParsedSjcRow[] {
-    const rows: ParsedSjcRow[] = [];
-    const pattern =
-      /<a href="#" class="badge text-bg-warning mb-2"><i[^>]*><\/i>([^<]+)<\/a>[\s\S]*?<h6 class="course-title[^\"]*"><a href="#">([^<]*)<\/a><\/h6>[\s\S]*?<p>([\s\S]*?)<a href="(\/qview\.\d+\/)"[\s\S]*?<h6 class="course-title[^\"]*"><a href="#">(\d{4})<\/a><\/h6>/gi;
-
-    for (const match of html.matchAll(pattern)) {
-      const decisionNumber = this.cleanHtmlText(match[1]);
-      const caseTypeRaw = this.cleanHtmlText(match[2]);
-      const summary = this.cleanHtmlText(match[3]);
-      const detailPath = (match[4] ?? '').trim();
-      const year = Number(match[5]);
-
-      if (!decisionNumber || !summary || !detailPath) {
-        continue;
-      }
-
-      rows.push({
-        decisionNumber,
-        caseTypeRaw,
-        summary,
-        detailPath,
-        year,
-      });
-    }
-
-    return rows;
-  }
-
-  private normalizeScrapedRow(
-    row: ParsedSjcRow,
-    mode: 'appellate' | 'all',
-  ): ScrapedDecisionRow | null {
-    const summary = row.summary.trim();
-    if (!summary) {
-      return null;
-    }
-
-    const normalizedSummary = normalizeArabic(summary);
-    if (mode === 'appellate' && !this.looksLikeAppellateOrCassation(normalizedSummary)) {
-      return null;
-    }
-
-    const caseType = this.mapCaseType(row.caseTypeRaw, row.summary);
-    const legalDomain = this.mapLegalDomain(caseType);
-    const courtLevel = normalizedSummary.includes('تمييز') ? 'cassation' : 'appellate';
-    const courtName =
-      courtLevel === 'cassation'
-        ? 'محكمة التمييز الاتحادية'
-        : 'محكمة الاستئناف العراقية';
-
-    const source = `${this.sjcBaseUrl}${row.detailPath}`;
-    const parsedYear = Number.isFinite(row.year) && row.year >= 1900 ? row.year : 2026;
-
-    return {
-      source,
-      decisionNumber: row.decisionNumber,
-      caseType,
-      caseTypeRaw: row.caseTypeRaw,
-      legalDomain,
-      summary,
-      courtLevel,
-      courtName,
-      decisionDate: new Date(Date.UTC(parsedYear, 0, 1)),
-      constitutionalReferences: this.extractConstitutionalRefs(summary),
-      legalArticleReferences: this.extractLegalArticleRefs(summary),
-      legalKeywords: this.extractKeywords(`${caseType} ${summary}`).slice(0, 16),
-      confidenceScore: 0.58,
-      tags: [
-        'sjc-sync',
-        'public-source',
-        'review-required',
-        row.caseTypeRaw ? `raw-type:${row.caseTypeRaw}` : 'raw-type:unknown',
-      ],
     };
   }
 
@@ -629,6 +545,152 @@ export class DecisionsService {
       normalizedSummary.includes('تمييز') ||
       normalizedSummary.includes('محكمه')
     );
+  }
+
+  private extractDecisionFromSjcPage(
+    html: string,
+    qviewId: number,
+    mode: 'appellate' | 'all',
+  ): ScrapedDecisionRow | null {
+    const metaSegment = this.extractMetaSegmentFromDecisionPage(html);
+    const caseTypeRaw = this.extractBetweenLabels(
+      metaSegment,
+      'نوع القرار ::',
+      'رقم القرار ::',
+    );
+    const decisionNumberRaw = this.extractBetweenLabels(
+      metaSegment,
+      'رقم القرار ::',
+      'تاريخ اصدار القرار ::',
+    );
+    const decisionDateRaw = this.extractBetweenLabels(
+      metaSegment,
+      'تاريخ اصدار القرار ::',
+      'جهة الاصدار::',
+    );
+    const courtNameRaw = this.extractAfterLabel(metaSegment, 'جهة الاصدار::');
+
+    const principle = this.extractDecisionSection(html, 'مبدأ القرار', 'نص القرار');
+    const fullTextSection = this.extractDecisionSection(
+      html,
+      'نص القرار',
+      'قرارات ذات علاقة',
+    );
+    const fullText = fullTextSection || principle;
+    const summary = principle || fullTextSection;
+
+    const decisionNumber = this.cleanHtmlText(decisionNumberRaw).replace(/\s*\/\s*/g, '/');
+    const courtName = this.cleanHtmlText(courtNameRaw) || 'محكمة عراقية';
+    const caseType = this.mapCaseType(caseTypeRaw, `${summary} ${fullText} ${courtName}`);
+    const legalDomain = this.mapLegalDomain(caseType);
+    const normalizedContext = normalizeArabic(
+      `${courtName} ${caseTypeRaw} ${decisionNumber} ${summary} ${fullText}`,
+    );
+
+    if (!decisionNumber || !summary || !fullText) {
+      return null;
+    }
+
+    if (mode === 'appellate' && !this.looksLikeAppellateOrCassation(normalizedContext)) {
+      return null;
+    }
+
+    const courtLevel = normalizedContext.includes('تمييز') ? 'cassation' : 'appellate';
+    const decisionDate =
+      this.parseDecisionDate(decisionDateRaw, decisionNumber) ??
+      new Date(Date.UTC(2026, 0, 1));
+    const source = `${this.sjcBaseUrl}/qview.${qviewId}/`;
+
+    return {
+      source,
+      decisionNumber,
+      caseType,
+      caseTypeRaw: this.cleanHtmlText(caseTypeRaw),
+      legalDomain,
+      summary,
+      fullText,
+      courtLevel,
+      courtName,
+      decisionDate,
+      constitutionalReferences: this.extractConstitutionalRefs(fullText),
+      legalArticleReferences: this.extractLegalArticleRefs(fullText),
+      legalKeywords: this.extractKeywords(`${caseType} ${summary} ${decisionNumber}`).slice(
+        0,
+        24,
+      ),
+      confidenceScore: 0.68,
+      tags: [
+        'sjc-sync',
+        'public-source',
+        'full-text',
+        'review-required',
+        caseTypeRaw ? `raw-type:${this.cleanHtmlText(caseTypeRaw)}` : 'raw-type:unknown',
+      ],
+    };
+  }
+
+  private extractMetaSegmentFromDecisionPage(html: string) {
+    const match = html.match(
+      /<div class="col-md-9 mt-4 mt-md-0 border-start">([\s\S]*?)<\/div>\s*<\/div>\s*<\/div>\s*<\/section>/i,
+    );
+    return this.cleanHtmlText(match?.[1] ?? '');
+  }
+
+  private extractBetweenLabels(text: string, startLabel: string, endLabel: string) {
+    const start = text.indexOf(startLabel);
+    if (start < 0) {
+      return '';
+    }
+    const from = text.slice(start + startLabel.length);
+    const end = from.indexOf(endLabel);
+    return (end >= 0 ? from.slice(0, end) : from).trim();
+  }
+
+  private extractAfterLabel(text: string, label: string) {
+    const index = text.indexOf(label);
+    if (index < 0) {
+      return '';
+    }
+    return text.slice(index + label.length).trim();
+  }
+
+  private extractDecisionSection(html: string, sectionTitle: string, nextSectionTitle: string) {
+    const escapedTitle = sectionTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const escapedNext = nextSectionTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const pattern = new RegExp(
+      `<div[^>]*text-bg-secondary[^>]*>\\s*${escapedTitle}\\s*<\\/div>([\\s\\S]*?)(?=<div[^>]*text-bg-secondary[^>]*>\\s*${escapedNext}\\s*<\\/div>|$)`,
+      'i',
+    );
+    const match = html.match(pattern);
+    return this.cleanHtmlText(match?.[1] ?? '');
+  }
+
+  private parseDecisionDate(rawDate: string, decisionNumber: string) {
+    const arabicDigits = '٠١٢٣٤٥٦٧٨٩';
+    const easternDigits = '۰۱۲۳۴۵۶۷۸۹';
+
+    const dateText = `${rawDate ?? ''}`
+      .replace(/[٠-٩]/g, (char) => String(arabicDigits.indexOf(char)))
+      .replace(/[۰-۹]/g, (char) => String(easternDigits.indexOf(char)));
+
+    const match = dateText.match(/(\d{1,2})\D+(\d{1,2})\D+(\d{2,4})/);
+    if (match) {
+      const day = Number(match[1]);
+      const month = Number(match[2]);
+      const yearRaw = Number(match[3]);
+      const year = yearRaw < 100 ? 2000 + yearRaw : yearRaw;
+
+      if (year >= 1900 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+        return new Date(Date.UTC(year, month - 1, day));
+      }
+    }
+
+    const fallbackYear = decisionNumber.match(/(19|20)\d{2}/)?.[0];
+    if (fallbackYear) {
+      return new Date(Date.UTC(Number(fallbackYear), 0, 1));
+    }
+
+    return null;
   }
 
   private mapCaseType(rawCaseType?: string, contextText?: string) {
