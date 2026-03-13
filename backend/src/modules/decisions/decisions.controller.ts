@@ -110,7 +110,7 @@ export class DecisionsController {
     return this.decisionsService.uploadDecision(file, dto, user?.sub);
   }
 
-  @Get(':id([0-9a-fA-F]{24})')
+  @Get(':id')
   findOne(@Param('id') id: string) {
     return this.decisionsService.findOne(id);
   }
@@ -125,7 +125,7 @@ export class DecisionsController {
     return this.decisionsService.syncSjcAppellate(dto, user?.sub);
   }
 
-  @Post(':id([0-9a-fA-F]{24})/reclassify')
+  @Post(':id/reclassify')
   reclassify(
     @Param('id') id: string,
     @Body() dto: ReclassifyDecisionDto,
