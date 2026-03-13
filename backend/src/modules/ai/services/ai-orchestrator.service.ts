@@ -1,21 +1,29 @@
 ﻿import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import { Injectable } from '@nestjs/common';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { normalizeArabic } from 'src/common/utils/arabic-normalization.util';
+import { PaginationQueryDto } from 'src/common/dto/pagination-query.dto';
 import { toObjectIdOrUndefined } from 'src/common/utils/object-id.util';
 import { AuditService } from '../../audit/audit.service';
+import { CaseDocument, CaseFile } from '../../cases/schemas/case.schema';
+import {
+  DocumentFile,
+  DocumentFileDocument,
+} from '../../documents/schemas/document.schema';
 import { AiAnalysis, AiAnalysisDocument } from '../schemas/ai-analysis.schema';
 import {
   ArgumentSuggestion,
   ArgumentSuggestionDocument,
 } from '../schemas/argument-suggestion.schema';
+import { AiSession, AiSessionDocument } from '../schemas/ai-session.schema';
 import { MemoDraft, MemoDraftDocument } from '../schemas/memo-draft.schema';
 import {
   ArgumentBuilderDto,
   CaseAnalysisDto,
   LegalResearchDto,
   MemoDraftDto,
+  SaveAiAnalysisDto,
 } from '../dto/ai.dto';
 import { ArgumentSuggestionService } from './argument-suggestion.service';
 import { ConstitutionalMatcherService } from './constitutional-matcher.service';
@@ -37,12 +45,18 @@ export class AiOrchestratorService {
     private readonly memoDraftingService: MemoDraftingService,
     private readonly openAiLegalService: OpenAiLegalService,
     private readonly auditService: AuditService,
+    @InjectModel(AiSession.name)
+    private readonly sessionModel: Model<AiSessionDocument>,
     @InjectModel(AiAnalysis.name)
     private readonly analysisModel: Model<AiAnalysisDocument>,
     @InjectModel(ArgumentSuggestion.name)
     private readonly argumentModel: Model<ArgumentSuggestionDocument>,
     @InjectModel(MemoDraft.name)
     private readonly memoModel: Model<MemoDraftDocument>,
+    @InjectModel(CaseFile.name)
+    private readonly caseModel: Model<CaseDocument>,
+    @InjectModel(DocumentFile.name)
+    private readonly documentModel: Model<DocumentFileDocument>,
   ) {}
 
   async analyzeCase(dto: CaseAnalysisDto, actorId?: string) {
@@ -121,8 +135,14 @@ export class AiOrchestratorService {
   }
 
   async legalResearch(dto: LegalResearchDto, actorId?: string) {
+    const documentContext = await this.loadDocumentContext(
+      dto.documentIds ?? [],
+      dto.caseId,
+    );
+    const queryForResearch = this.buildResearchQuery(dto.query, documentContext);
+
     const retrieval = await this.retrievalService.hybridSearch({
-      query: dto.query,
+      query: queryForResearch,
       searchConstitution: dto.searchConstitution !== false,
       searchLaws: dto.searchLaws !== false,
       searchDecisions: dto.searchDecisions !== false,
@@ -135,14 +155,27 @@ export class AiOrchestratorService {
       decisions: retrieval.filter((r) => r.sourceType === 'decision'),
     };
 
-    const confidence = this.estimateConfidence(retrieval, dto.query);
+    const confidence = this.estimateConfidence(retrieval, queryForResearch);
     const disclaimer = this.getDisclaimer();
     const hasSources =
       grouped.constitution.length + grouped.laws.length + grouped.decisions.length > 0;
     const llmEnrichment = await this.openAiLegalService.enrichLegalResearch({
-      query: dto.query,
+      query: queryForResearch,
       authorities: retrieval,
     });
+
+    const session = await this.resolveSession(
+      dto.sessionId,
+      actorId,
+      dto.caseId,
+      {
+        searchConstitution: dto.searchConstitution !== false,
+        searchLaws: dto.searchLaws !== false,
+        searchDecisions: dto.searchDecisions !== false,
+        searchMyKnowledgeOnly: dto.searchMyKnowledgeOnly === true,
+        documentIds: documentContext.map((doc) => doc.id),
+      },
+    );
 
     const answer = {
       summary:
@@ -158,6 +191,12 @@ export class AiOrchestratorService {
         llmEnrichment?.proposedQuestions ?? this.proposeQuestions(dto.query),
       suggestedAuthorities: retrieval.slice(0, 10),
       confidence,
+      sessionId: session.id,
+      relatedDocuments: documentContext.map((doc) => ({
+        id: doc.id,
+        title: doc.title,
+        originalName: doc.originalName,
+      })),
       limitations:
         llmEnrichment?.limitations ?? [
           'قد تكون بعض البيانات القضائية غير مكتملة أو غير محدثة.',
@@ -169,6 +208,7 @@ export class AiOrchestratorService {
 
     const analysis = await this.analysisModel.create({
       caseId: toObjectIdOrUndefined(dto.caseId),
+      sessionId: session._id,
       analysisType: 'legal-research',
       inputText: dto.query,
       output: answer,
@@ -186,10 +226,16 @@ export class AiOrchestratorService {
       entity: 'ai_analyses',
       entityId: analysis.id,
       actorId,
+      payload: {
+        caseId: dto.caseId,
+        sessionId: session.id,
+        documentCount: documentContext.length,
+      },
     });
 
     return {
       analysisId: analysis.id,
+      sessionId: session.id,
       ...answer,
       groupedResults: grouped,
     };
@@ -268,6 +314,331 @@ export class AiOrchestratorService {
       citations: memo.citations,
       disclaimer,
     };
+  }
+
+  async listAnalyses(
+    query: PaginationQueryDto & {
+      caseId?: string;
+      analysisType?: string;
+      sessionId?: string;
+    },
+    actorId?: string,
+  ) {
+    const page = Number(query.page ?? 1);
+    const limit = Number(query.limit ?? 20);
+    const skip = (page - 1) * limit;
+
+    const filter: Record<string, unknown> = {};
+    if (query.caseId && Types.ObjectId.isValid(query.caseId)) {
+      filter.caseId = new Types.ObjectId(query.caseId);
+    }
+    if (query.sessionId && Types.ObjectId.isValid(query.sessionId)) {
+      filter.sessionId = new Types.ObjectId(query.sessionId);
+    }
+    if ((query.analysisType ?? '').trim()) {
+      filter.analysisType = query.analysisType!.trim();
+    }
+
+    const [items, total] = await Promise.all([
+      this.analysisModel
+        .find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate('caseId', 'caseNumber title caseType')
+        .populate('sessionId', 'status context createdAt')
+        .lean(),
+      this.analysisModel.countDocuments(filter),
+    ]);
+
+    await this.auditService.record({
+      action: 'ai.analyses.list',
+      entity: 'ai_analyses',
+      actorId,
+      payload: { ...filter, page, limit },
+    });
+
+    return { items, total, page, limit };
+  }
+
+  async listSessions(
+    query: PaginationQueryDto & { caseId?: string },
+    actorId?: string,
+  ) {
+    const page = Number(query.page ?? 1);
+    const limit = Number(query.limit ?? 20);
+    const skip = (page - 1) * limit;
+
+    const filter: Record<string, unknown> = {};
+    if (actorId && Types.ObjectId.isValid(actorId)) {
+      filter.userId = new Types.ObjectId(actorId);
+    }
+    if (query.caseId && Types.ObjectId.isValid(query.caseId)) {
+      filter.caseId = new Types.ObjectId(query.caseId);
+    }
+
+    const [items, total] = await Promise.all([
+      this.sessionModel
+        .find(filter)
+        .sort({ updatedAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate('caseId', 'caseNumber title caseType')
+        .lean(),
+      this.sessionModel.countDocuments(filter),
+    ]);
+
+    return { items, total, page, limit };
+  }
+
+  async saveAnalysis(dto: SaveAiAnalysisDto, actorId?: string) {
+    const session = await this.resolveSession(dto.sessionId, actorId, dto.caseId, {
+      mode: 'manual-save',
+    });
+
+    const confidence =
+      typeof dto.confidenceScore === 'number'
+        ? Math.max(0, Math.min(1, Number(dto.confidenceScore)))
+        : 0.5;
+    const disclaimer = this.getDisclaimer();
+
+    const analysis = await this.analysisModel.create({
+      caseId: toObjectIdOrUndefined(dto.caseId),
+      sessionId: session._id,
+      analysisType: dto.analysisType,
+      inputText: dto.inputText,
+      output: dto.output,
+      citations: Array.isArray(dto.citations) ? dto.citations : [],
+      confidenceScore: confidence,
+      disclaimer,
+    });
+
+    await this.auditService.record({
+      action: 'ai.analysis.save',
+      entity: 'ai_analyses',
+      entityId: analysis.id,
+      actorId,
+      payload: {
+        sessionId: session.id,
+        caseId: dto.caseId,
+        analysisType: dto.analysisType,
+      },
+    });
+
+    return {
+      analysisId: analysis.id,
+      sessionId: session.id,
+      disclaimer,
+    };
+  }
+
+  async attachAnalysisToCase(analysisId: string, caseId: string, actorId?: string) {
+    if (!Types.ObjectId.isValid(analysisId)) {
+      throw new Error('Invalid analysis id');
+    }
+    if (!Types.ObjectId.isValid(caseId)) {
+      throw new Error('Invalid case id');
+    }
+
+    const [analysis, caseFile] = await Promise.all([
+      this.analysisModel.findById(analysisId).lean(),
+      this.caseModel.findById(caseId),
+    ]);
+
+    if (!analysis) {
+      throw new Error('AI analysis not found');
+    }
+    if (!caseFile) {
+      throw new Error('Case not found');
+    }
+
+    const currentInsights = (caseFile.aiInsights ?? {}) as Record<string, unknown>;
+    const historyRaw = currentInsights['history'];
+    const history = Array.isArray(historyRaw)
+      ? [...historyRaw]
+      : [];
+
+    history.unshift({
+      analysisId: analysis._id.toString(),
+      analysisType: analysis.analysisType,
+      savedAt: new Date().toISOString(),
+      confidenceScore: analysis.confidenceScore,
+      summary: this.extractSummaryFromOutput(analysis.output),
+      citations: (analysis.citations ?? []).slice(0, 12),
+    });
+
+    const nextInsights: Record<string, unknown> = {
+      ...currentInsights,
+      latestAnalysisId: analysis._id.toString(),
+      latestAnalysisType: analysis.analysisType,
+      latestSavedAt: new Date().toISOString(),
+      latestSummary: this.extractSummaryFromOutput(analysis.output),
+      history: history.slice(0, 30),
+    };
+
+    const suggestedAuthorities = this.extractSuggestedAuthorities(analysis.output);
+    const constitutionIds = suggestedAuthorities
+      .filter((item) => item.sourceType === 'constitution')
+      .map((item) => item.id);
+    const lawIds = suggestedAuthorities
+      .filter((item) => item.sourceType === 'law')
+      .map((item) => item.id);
+    const decisionIds = suggestedAuthorities
+      .filter((item) => item.sourceType === 'decision')
+      .map((item) => item.id);
+
+    const unique = (values: string[]) => Array.from(new Set(values.filter(Boolean)));
+
+    caseFile.aiInsights = nextInsights;
+    caseFile.riskScore = Number((analysis.output as any)?.riskScore ?? caseFile.riskScore ?? 0);
+    caseFile.linkedConstitutionArticleIds = unique([
+      ...(caseFile.linkedConstitutionArticleIds ?? []),
+      ...constitutionIds,
+    ]);
+    caseFile.linkedLawArticleIds = unique([
+      ...(caseFile.linkedLawArticleIds ?? []),
+      ...lawIds,
+    ]);
+    caseFile.linkedDecisionIds = unique([
+      ...(caseFile.linkedDecisionIds ?? []),
+      ...decisionIds,
+    ]);
+
+    await caseFile.save();
+
+    await this.auditService.record({
+      action: 'ai.analysis.attach-case',
+      entity: 'cases',
+      entityId: caseId,
+      actorId,
+      payload: {
+        analysisId,
+        linkedConstitutionCount: constitutionIds.length,
+        linkedLawCount: lawIds.length,
+        linkedDecisionCount: decisionIds.length,
+      },
+    });
+
+    return {
+      attached: true,
+      caseId,
+      analysisId,
+      riskScore: caseFile.riskScore,
+      linkedConstitutionArticleIds: caseFile.linkedConstitutionArticleIds,
+      linkedLawArticleIds: caseFile.linkedLawArticleIds,
+      linkedDecisionIds: caseFile.linkedDecisionIds,
+    };
+  }
+
+  private async resolveSession(
+    sessionId: string | undefined,
+    actorId: string | undefined,
+    caseId: string | undefined,
+    context: Record<string, unknown>,
+  ) {
+    if (sessionId && Types.ObjectId.isValid(sessionId)) {
+      const existing = await this.sessionModel.findById(sessionId);
+      if (existing) {
+        existing.context = { ...(existing.context ?? {}), ...context };
+        existing.status = 'active';
+        if (!existing.caseId && caseId && Types.ObjectId.isValid(caseId)) {
+          existing.caseId = new Types.ObjectId(caseId);
+        }
+        await existing.save();
+        return existing;
+      }
+    }
+
+    return this.sessionModel.create({
+      userId: actorId && Types.ObjectId.isValid(actorId) ? new Types.ObjectId(actorId) : undefined,
+      caseId: caseId && Types.ObjectId.isValid(caseId) ? new Types.ObjectId(caseId) : undefined,
+      status: 'active',
+      context,
+    });
+  }
+
+  private async loadDocumentContext(documentIds: string[], caseId?: string) {
+    const ids = Array.from(
+      new Set(
+        (documentIds ?? [])
+          .map((id) => `${id}`.trim())
+          .filter((id) => Types.ObjectId.isValid(id)),
+      ),
+    );
+
+    if (!ids.length) {
+      return [] as Array<{ id: string; title: string; originalName: string; excerpt: string }>;
+    }
+
+    const filter: Record<string, unknown> = {
+      _id: { $in: ids.map((id) => new Types.ObjectId(id)) },
+    };
+    if (caseId && Types.ObjectId.isValid(caseId)) {
+      filter.caseId = new Types.ObjectId(caseId);
+    }
+
+    const docs = await this.documentModel
+      .find(filter)
+      .select('title originalName extractedText')
+      .limit(50)
+      .lean();
+
+    return docs.map((doc) => ({
+      id: doc._id.toString(),
+      title: (doc.title ?? '').toString(),
+      originalName: (doc.originalName ?? '').toString(),
+      excerpt: (doc.extractedText ?? '').toString().replace(/\s+/g, ' ').slice(0, 420),
+    }));
+  }
+
+  private buildResearchQuery(
+    query: string,
+    documents: Array<{ title: string; originalName: string; excerpt: string }>,
+  ) {
+    if (!documents.length) {
+      return query;
+    }
+
+    const context = documents
+      .slice(0, 12)
+      .map(
+        (doc, index) =>
+          `مستند ${index + 1}: ${doc.title || doc.originalName || '-'}\n${doc.excerpt}`,
+      )
+      .join('\n\n');
+
+    return `${query}\n\nسياق المستندات المرتبطة:\n${context}`;
+  }
+
+  private extractSummaryFromOutput(output: Record<string, unknown>) {
+    const summary = output?.summary;
+    if (typeof summary === 'string' && summary.trim().length > 0) {
+      return summary.trim();
+    }
+
+    const grounded = output?.groundedAnswer;
+    if (typeof grounded === 'string' && grounded.trim().length > 0) {
+      return grounded.trim().slice(0, 350);
+    }
+
+    return '';
+  }
+
+  private extractSuggestedAuthorities(output: Record<string, unknown>) {
+    const raw = output?.suggestedAuthorities;
+    if (!Array.isArray(raw)) {
+      return [] as Array<{ id: string; sourceType: string }>;
+    }
+
+    return raw
+      .map((item) => {
+        const obj = item as Record<string, unknown>;
+        return {
+          id: (obj.id ?? '').toString(),
+          sourceType: (obj.sourceType ?? '').toString(),
+        };
+      })
+      .filter((item) => item.id && item.sourceType);
   }
 
   private inferCaseType(text: string) {

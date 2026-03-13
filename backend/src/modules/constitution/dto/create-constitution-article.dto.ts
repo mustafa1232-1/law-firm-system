@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsArray, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class CreateConstitutionArticleDto {
   @ApiPropertyOptional()
@@ -23,6 +23,11 @@ export class CreateConstitutionArticleDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @IsNumber()
+  articleOrder?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsString()
   title?: string;
 
@@ -39,6 +44,11 @@ export class CreateConstitutionArticleDto {
   @ApiProperty()
   @IsString()
   text: string;
+
+  @ApiPropertyOptional({ isArray: true })
+  @IsOptional()
+  @IsArray()
+  paragraphs?: string[];
 
   @ApiPropertyOptional({ isArray: true })
   @IsOptional()

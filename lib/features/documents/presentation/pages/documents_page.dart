@@ -236,7 +236,7 @@ class _DocumentsPageState extends ConsumerState<DocumentsPage> {
                 children: [
                   Text((result['summary'] ?? '').toString()),
                   const SizedBox(height: 12),
-                  Text('Entities: ${(result['extractedEntities'] ?? {}).toString()}'),
+                  Text('الكيانات: ${(result['extractedEntities'] ?? {}).toString()}'),
                   const SizedBox(height: 12),
                   Text((result['disclaimer'] ?? '').toString()),
                 ],
@@ -320,7 +320,7 @@ class _DocumentsPageState extends ConsumerState<DocumentsPage> {
                                 trailing: OutlinedButton.icon(
                                   onPressed: id.isEmpty ? null : () => _analyzeDocument(id),
                                   icon: const Icon(Icons.auto_awesome_rounded),
-                                  label: const Text('Analyze'),
+                                  label: Text(context.tr('Analyze')),
                                 ),
                               );
                             }).toList(),

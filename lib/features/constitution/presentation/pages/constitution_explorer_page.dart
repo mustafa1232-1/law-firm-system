@@ -1,6 +1,7 @@
 ﻿import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/localization/app_translations.dart';
 import '../../../../core/network/api_helpers.dart';
@@ -43,19 +44,48 @@ class _ConstitutionExplorerPageState extends ConsumerState<ConstitutionExplorerP
     try {
       final dio = ref.read(dioProvider);
       final query = _searchController.text.trim();
-      final response = await dio.get(
-        query.isEmpty ? '/constitution/articles' : '/constitution/search',
-        queryParameters: {
-          if (query.isNotEmpty) 'q': query,
-          'limit': 50,
-        },
+      final endpoint = query.isEmpty ? '/constitution/articles' : '/constitution/search';
+      final baseParams = <String, dynamic>{
+        if (query.isNotEmpty) 'q': query,
+        'limit': 100,
+      };
+
+      final firstResponse = await dio.get(
+        endpoint,
+        queryParameters: baseParams,
         options: Options(headers: authHeaders(ref)),
       );
 
-      final data = (response.data as Map).cast<String, dynamic>();
-      final items = ((data['items'] as List?) ?? const [])
+      final firstData = (firstResponse.data as Map).cast<String, dynamic>();
+      final total = ((firstData['total'] as num?) ?? 0).toInt();
+      final items = ((firstData['items'] as List?) ?? const [])
           .map((entry) => (entry as Map).cast<String, dynamic>())
           .toList();
+
+      if (query.isEmpty && total > items.length) {
+        var page = 2;
+        while (items.length < total) {
+          final pageResponse = await dio.get(
+            endpoint,
+            queryParameters: {
+              ...baseParams,
+              'page': page,
+            },
+            options: Options(headers: authHeaders(ref)),
+          );
+
+          final pageData = (pageResponse.data as Map).cast<String, dynamic>();
+          final pageItems = ((pageData['items'] as List?) ?? const [])
+              .map((entry) => (entry as Map).cast<String, dynamic>())
+              .toList();
+
+          if (pageItems.isEmpty) {
+            break;
+          }
+          items.addAll(pageItems);
+          page += 1;
+        }
+      }
 
       if (!mounted) {
         return;
@@ -73,64 +103,8 @@ class _ConstitutionExplorerPageState extends ConsumerState<ConstitutionExplorerP
     }
   }
 
-  Future<void> _openArticle(String id) async {
-    try {
-      final dio = ref.read(dioProvider);
-      final response = await dio.get(
-        '/constitution/articles/$id',
-        options: Options(headers: authHeaders(ref)),
-      );
-
-      final article = (response.data as Map).cast<String, dynamic>();
-      if (!mounted) {
-        return;
-      }
-
-      await showDialog<void>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text('المادة ${article['articleNumber'] ?? '-'}'),
-          content: SizedBox(
-            width: 680,
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if ((article['title'] ?? '').toString().isNotEmpty)
-                    Text(
-                      (article['title'] ?? '').toString(),
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                  const SizedBox(height: 8),
-                  Text((article['text'] ?? '').toString()),
-                  const SizedBox(height: 12),
-                  Text('الفصل: ${(article['chapter'] ?? '-').toString()}'),
-                  Text('القسم: ${(article['section'] ?? '-').toString()}'),
-                  const SizedBox(height: 10),
-                  Text(
-                    'مخرجات AI المتعلقة بالمادة هي اقتراحات أولية وتحتاج مراجعة قانونية بشرية.',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text(context.tr('Close')),
-            ),
-          ],
-        ),
-      );
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(parseApiError(error))),
-      );
-    }
+  void _openArticle(String id) {
+    context.go('/constitution/articles/$id');
   }
 
   @override
@@ -176,6 +150,7 @@ class _ConstitutionExplorerPageState extends ConsumerState<ConstitutionExplorerP
                         : Column(
                             children: _items.map((item) {
                               final id = (item['_id'] ?? '').toString();
+                              final text = (item['text'] ?? '').toString();
                               return ListTile(
                                 contentPadding: EdgeInsets.zero,
                                 onTap: id.isEmpty ? null : () => _openArticle(id),
@@ -183,7 +158,9 @@ class _ConstitutionExplorerPageState extends ConsumerState<ConstitutionExplorerP
                                 title: Text(
                                   'المادة ${(item['articleNumber'] ?? '-').toString()} - ${(item['title'] ?? '').toString()}',
                                 ),
-                                subtitle: Text((item['text'] ?? '').toString()),
+                                subtitle: Text(
+                                  text.length > 220 ? '${text.substring(0, 220)}...' : text,
+                                ),
                                 isThreeLine: true,
                                 trailing: const Icon(Icons.open_in_new_rounded),
                               );

@@ -25,7 +25,15 @@ export class ConstitutionService {
 
   async create(dto: CreateConstitutionArticleDto, actorId?: string) {
     const normalizedText = normalizeArabic(dto.text);
-    const article = await this.articleModel.create({ ...dto, normalizedText });
+    const article = await this.articleModel.create({
+      ...dto,
+      articleOrder: dto.articleOrder ?? this.toArticleOrder(dto.articleNumber),
+      paragraphs:
+        Array.isArray(dto.paragraphs) && dto.paragraphs.length
+          ? dto.paragraphs
+          : this.extractParagraphs(dto.text),
+      normalizedText,
+    });
     await this.auditService.record({
       action: 'constitution.article.create',
       entity: 'constitution_articles',
@@ -41,7 +49,7 @@ export class ConstitutionService {
     const [items, total] = await Promise.all([
       this.articleModel
         .find()
-        .sort({ articleNumber: 1 })
+        .sort({ articleOrder: 1, articleNumber: 1 })
         .skip(skip)
         .limit(limit)
         .lean(),
@@ -81,7 +89,12 @@ export class ConstitutionService {
     };
 
     const [items, total] = await Promise.all([
-      this.articleModel.find(filter).skip(skip).limit(limit).lean(),
+      this.articleModel
+        .find(filter)
+        .sort({ articleOrder: 1, articleNumber: 1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
       this.articleModel.countDocuments(filter),
     ]);
 
@@ -103,10 +116,32 @@ export class ConstitutionService {
     return article;
   }
 
+  async findByArticleNumber(articleNumber: string) {
+    const normalized = articleNumber.trim();
+    const article = await this.articleModel
+      .findOne({
+        articleNumber: normalized,
+      })
+      .lean();
+
+    if (!article) {
+      throw new NotFoundException('Constitution article not found');
+    }
+
+    return article;
+  }
+
   async update(id: string, dto: UpdateConstitutionArticleDto, actorId?: string) {
     const payload: Record<string, unknown> = { ...dto };
     if (dto.text) {
       payload.normalizedText = normalizeArabic(dto.text);
+      payload.paragraphs =
+        Array.isArray(dto.paragraphs) && dto.paragraphs.length
+          ? dto.paragraphs
+          : this.extractParagraphs(dto.text);
+    }
+    if (dto.articleNumber) {
+      payload.articleOrder = this.toArticleOrder(dto.articleNumber);
     }
     const article = await this.articleModel
       .findByIdAndUpdate(id, payload, { new: true })
@@ -200,10 +235,46 @@ export class ConstitutionService {
     await this.articleModel.insertMany(
       seed.map((item) => ({
         ...item,
+        articleOrder: this.toArticleOrder(item.articleNumber),
+        paragraphs: this.extractParagraphs(item.text),
         normalizedText: normalizeArabic(item.text),
       })),
     );
 
     return { seeded: true, count: seed.length };
+  }
+
+  private toArticleOrder(articleNumber: string) {
+    const normalized = `${articleNumber ?? ''}`;
+    const numeric = Number(normalized.replace(/[^\d]/g, ''));
+    if (Number.isFinite(numeric) && numeric > 0) {
+      return numeric;
+    }
+    return 0;
+  }
+
+  private extractParagraphs(text: string) {
+    const value = `${text ?? ''}`.trim();
+    if (!value) {
+      return [] as string[];
+    }
+
+    const byItems = value
+      .split(
+        RegExp(
+          '(?=\\b(?:اولا|أولا|اولاً|أولاً|ثانيا|ثانياً|ثالثا|ثالثاً|رابعا|رابعاً|خامسا|خامساً|سادسا|سادساً|سابعا|سابعاً|ثامنا|ثامناً|تاسعا|تاسعاً|عاشرا|عاشراً)\\b)',
+        ),
+      )
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+
+    if (byItems.length > 1) {
+      return byItems;
+    }
+
+    return value
+      .split(/(?<=[\.؛])\s+/)
+      .map((entry) => entry.trim())
+      .filter(Boolean);
   }
 }

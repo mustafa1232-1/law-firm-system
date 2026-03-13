@@ -27,6 +27,15 @@ export class LawsService {
     private readonly auditService: AuditService,
   ) {}
 
+  private toArticleOrder(articleNumber: string, articleOrder?: number) {
+    if (typeof articleOrder === 'number' && Number.isFinite(articleOrder) && articleOrder >= 0) {
+      return articleOrder;
+    }
+
+    const numeric = Number(`${articleNumber ?? ''}`.replace(/[^\d]/g, ''));
+    return Number.isFinite(numeric) && numeric >= 0 ? numeric : 0;
+  }
+
   async createLaw(dto: CreateLawDto, actorId?: string) {
     const law = await this.lawModel.create(dto);
     await this.auditService.record({
@@ -61,6 +70,7 @@ export class LawsService {
     const article = await this.articleModel.create({
       ...dto,
       lawId: new Types.ObjectId(dto.lawId),
+      articleOrder: this.toArticleOrder(dto.articleNumber, dto.articleOrder),
       normalizedText: normalizeArabic(dto.text),
     });
 
@@ -74,17 +84,51 @@ export class LawsService {
     return article;
   }
 
+  async findAll(query: PaginationQueryDto, q?: string) {
+    const { page, limit } = query;
+    const skip = (page - 1) * limit;
+    const terms = buildSearchTerms(q);
+
+    const filter = terms.rawQuery
+      ? {
+          $or: [
+            { title: { $regex: terms.escapedRawQuery, $options: 'i' } },
+            { legalDomain: { $regex: terms.escapedRawQuery, $options: 'i' } },
+            { lawNumber: { $regex: terms.escapedRawQuery, $options: 'i' } },
+            ...buildTokenRegexConditions('title', terms.rawTokens),
+            ...buildTokenRegexConditions('legalDomain', terms.rawTokens),
+            ...buildTokenRegexConditions('lawNumber', terms.rawTokens),
+            ...buildTokenRegexConditions('keywords', terms.rawTokens),
+          ],
+        }
+      : {};
+
+    const [items, total] = await Promise.all([
+      this.lawModel
+        .find(filter)
+        .sort({ year: -1, lawNumber: 1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      this.lawModel.countDocuments(filter),
+    ]);
+
+    return { items, total, page, limit };
+  }
+
   async search(q: string, query: PaginationQueryDto) {
     const terms = buildSearchTerms(q);
     const rawQuery = terms.rawQuery;
     const { page, limit } = query;
 
     if (!rawQuery) {
+      const lawsPage = await this.findAll(query);
       return {
         query: rawQuery,
-        laws: [],
+        laws: lawsPage.items,
         articles: [],
-        note: 'يرجى إدخال عبارة بحث.',
+        totalLaws: lawsPage.total,
+        note: 'تم عرض القوانين المتاحة. يمكن إدخال عبارة بحث لتضييق النتائج.',
       };
     }
 
@@ -95,9 +139,12 @@ export class LawsService {
         .find({
           $or: [
             { title: { $regex: terms.escapedRawQuery, $options: 'i' } },
-            { category: { $regex: terms.escapedRawQuery, $options: 'i' } },
+            { legalDomain: { $regex: terms.escapedRawQuery, $options: 'i' } },
+            { lawNumber: { $regex: terms.escapedRawQuery, $options: 'i' } },
             ...buildTokenRegexConditions('title', terms.rawTokens),
-            ...buildTokenRegexConditions('category', terms.rawTokens),
+            ...buildTokenRegexConditions('legalDomain', terms.rawTokens),
+            ...buildTokenRegexConditions('lawNumber', terms.rawTokens),
+            ...buildTokenRegexConditions('keywords', terms.rawTokens),
           ],
         })
         .skip(skip)
@@ -108,8 +155,11 @@ export class LawsService {
           $or: [
             { normalizedText: { $regex: terms.escapedNormalizedQuery, $options: 'i' } },
             { text: { $regex: terms.escapedRawQuery, $options: 'i' } },
+            { articleNumber: { $regex: terms.escapedRawQuery, $options: 'i' } },
             ...buildTokenRegexConditions('normalizedText', terms.normalizedTokens),
             ...buildTokenRegexConditions('text', terms.rawTokens),
+            ...buildTokenRegexConditions('articleNumber', terms.rawTokens),
+            ...buildTokenRegexConditions('keywords', terms.rawTokens),
           ],
         })
         .populate('lawId', 'title lawNumber year legalDomain')
@@ -148,14 +198,37 @@ export class LawsService {
   async findLawArticles(id: string, query: PaginationQueryDto) {
     const { page, limit } = query;
     const skip = (page - 1) * limit;
+    const lawObjectId = new Types.ObjectId(id);
+
     const [items, total] = await Promise.all([
       this.articleModel
-        .find({ lawId: new Types.ObjectId(id) })
-        .sort({ articleNumber: 1 })
-        .skip(skip)
-        .limit(limit)
-        .lean(),
-      this.articleModel.countDocuments({ lawId: new Types.ObjectId(id) }),
+        .aggregate([
+          { $match: { lawId: lawObjectId } },
+          {
+            $addFields: {
+              articleOrderSort: {
+                $cond: [
+                  { $gt: [{ $ifNull: ['$articleOrder', 0] }, 0] },
+                  '$articleOrder',
+                  {
+                    $convert: {
+                      input: '$articleNumber',
+                      to: 'int',
+                      onError: 0,
+                      onNull: 0,
+                    },
+                  },
+                ],
+              },
+            },
+          },
+          { $sort: { articleOrderSort: 1, articleNumber: 1 } },
+          { $skip: skip },
+          { $limit: limit },
+          { $project: { articleOrderSort: 0 } },
+        ])
+        .exec(),
+      this.articleModel.countDocuments({ lawId: lawObjectId }),
     ]);
 
     return { items, total, page, limit };

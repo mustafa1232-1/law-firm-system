@@ -35,6 +35,8 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
 
   Map<String, dynamic>? _result;
   String? _error;
+  String? _sessionId;
+  String? _analysisId;
 
   @override
   void initState() {
@@ -212,6 +214,7 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
         data: {
           'query': query,
           'caseId': _selectedCaseId,
+          'sessionId': _sessionId,
           'documentIds': _selectedDocumentIds.toList(),
           'searchConstitution': _searchConstitution,
           'searchLaws': _searchLaws,
@@ -225,7 +228,16 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
         return;
       }
 
-      setState(() => _result = (response.data as Map).cast<String, dynamic>());
+      final payload = (response.data as Map).cast<String, dynamic>();
+      setState(() {
+        _result = payload;
+        _analysisId = (payload['analysisId'] ?? '').toString().trim().isEmpty
+            ? _analysisId
+            : (payload['analysisId'] ?? '').toString();
+        _sessionId = (payload['sessionId'] ?? '').toString().trim().isEmpty
+            ? _sessionId
+            : (payload['sessionId'] ?? '').toString();
+      });
     } catch (error) {
       if (!mounted) {
         return;
@@ -294,7 +306,7 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
     }
   }
 
-  void _saveAnalysisLocally() {
+  Future<void> _saveAnalysis() async {
     if (_result == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(context.tr('Run analysis first to save results.'))),
@@ -302,9 +314,92 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(context.tr('Analysis has been saved in this session.'))),
-    );
+    setState(() => _loading = true);
+    try {
+      final dio = ref.read(dioProvider);
+      final payload = await dio.post(
+        '/ai/analyses/save',
+        data: {
+          'sessionId': _sessionId,
+          'caseId': _selectedCaseId,
+          'analysisType': 'legal-research',
+          'inputText': _queryController.text.trim(),
+          'output': _result,
+          'citations': (_result?['suggestedAuthorities'] as List?) ?? const [],
+          'confidenceScore': (_result?['confidence'] as num?)?.toDouble() ?? 0.5,
+        },
+        options: Options(headers: authHeaders(ref)),
+      );
+
+      final data = (payload.data as Map).cast<String, dynamic>();
+      setState(() {
+        _analysisId = (data['analysisId'] ?? '').toString();
+        _sessionId = (data['sessionId'] ?? _sessionId).toString();
+      });
+
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تم حفظ التحليل في قاعدة البيانات بنجاح.')),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(parseApiError(error))),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _loading = false);
+      }
+    }
+  }
+
+  Future<void> _attachAnalysisToCase() async {
+    if ((_analysisId ?? '').isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('شغّل التحليل أولًا أو احفظه ثم أعد المحاولة.')),
+      );
+      return;
+    }
+    if ((_selectedCaseId ?? '').isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('اختر القضية المرتبطة أولًا.')),
+      );
+      return;
+    }
+
+    setState(() => _loading = true);
+    try {
+      final dio = ref.read(dioProvider);
+      await dio.post(
+        '/ai/analyses/$_analysisId/attach-case',
+        data: {
+          'caseId': _selectedCaseId,
+        },
+        options: Options(headers: authHeaders(ref)),
+      );
+
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تم ربط التحليل بالقضية وتحديث ملف القضية.')),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(parseApiError(error))),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _loading = false);
+      }
+    }
   }
 
   @override
@@ -448,17 +543,20 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
                   ],
                 ),
                 const SizedBox(height: 10),
-                Row(
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
                   children: [
-                    Expanded(
+                    SizedBox(
+                      width: 220,
                       child: OutlinedButton.icon(
-                        onPressed: _loading ? null : _saveAnalysisLocally,
+                        onPressed: _loading ? null : _saveAnalysis,
                         icon: const Icon(Icons.save_alt_rounded),
                         label: Text(context.tr('Save Analysis')),
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
+                    SizedBox(
+                      width: 220,
                       child: ElevatedButton.icon(
                         onPressed: _loading ? null : _runAnalysis,
                         icon: _loading
@@ -471,12 +569,20 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
                         label: Text(context.tr('Run Analysis')),
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
+                    SizedBox(
+                      width: 220,
                       child: ElevatedButton.icon(
                         onPressed: _loading ? null : _convertToMemo,
                         icon: const Icon(Icons.article_rounded),
                         label: Text(context.tr('Convert to Memo')),
+                      ),
+                    ),
+                    SizedBox(
+                      width: 220,
+                      child: OutlinedButton.icon(
+                        onPressed: _loading ? null : _attachAnalysisToCase,
+                        icon: const Icon(Icons.link_rounded),
+                        label: const Text('إرفاق بالقضية'),
                       ),
                     ),
                   ],

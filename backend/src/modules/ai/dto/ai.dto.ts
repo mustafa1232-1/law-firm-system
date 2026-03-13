@@ -1,5 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsArray, IsBoolean, IsOptional, IsString } from 'class-validator';
+import {
+  IsArray,
+  IsBoolean,
+  IsNumber,
+  IsObject,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 
 export class CaseAnalysisDto {
   @ApiPropertyOptional()
@@ -31,6 +38,16 @@ export class LegalResearchDto {
   @IsOptional()
   @IsString()
   caseId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  sessionId?: string;
+
+  @ApiPropertyOptional({ isArray: true })
+  @IsOptional()
+  @IsArray()
+  documentIds?: string[];
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -77,4 +94,44 @@ export class MemoDraftDto {
   @IsOptional()
   @IsString()
   caseId?: string;
+}
+
+export class SaveAiAnalysisDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  sessionId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  caseId?: string;
+
+  @ApiProperty({ description: 'analysis type, ex: legal-research, case-analysis' })
+  @IsString()
+  analysisType: string;
+
+  @ApiProperty()
+  @IsString()
+  inputText: string;
+
+  @ApiProperty({ description: 'raw analysis payload to persist' })
+  @IsObject()
+  output: Record<string, unknown>;
+
+  @ApiPropertyOptional({ isArray: true, description: 'citations payload' })
+  @IsOptional()
+  @IsArray()
+  citations?: Array<Record<string, unknown>>;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  confidenceScore?: number;
+}
+
+export class AttachAiAnalysisToCaseDto {
+  @ApiProperty()
+  @IsString()
+  caseId: string;
 }

@@ -12,6 +12,7 @@ import 'package:lexiq_iraq/features/cases/presentation/pages/details.dart';
 import 'package:lexiq_iraq/features/cases/presentation/pages/cases_page.dart';
 import 'package:lexiq_iraq/features/cases/presentation/pages/create_case_wizard_page.dart';
 import 'package:lexiq_iraq/features/clients/presentation/pages/clients_page.dart';
+import 'package:lexiq_iraq/features/constitution/presentation/pages/constitution_article_reader_page.dart';
 import 'package:lexiq_iraq/features/constitution/presentation/pages/constitution_explorer_page.dart';
 import 'package:lexiq_iraq/features/dashboard/presentation/pages/dashboard_page.dart';
 import 'package:lexiq_iraq/features/dashboard/presentation/pages/splash_page.dart';
@@ -19,6 +20,7 @@ import 'package:lexiq_iraq/features/decisions/presentation/pages/decisions_explo
 import 'package:lexiq_iraq/features/documents/presentation/pages/documents_page.dart';
 import 'package:lexiq_iraq/features/hearings/presentation/pages/hearings_calendar_page.dart';
 import 'package:lexiq_iraq/features/lawyer_hub/presentation/pages/hub_profile.dart';
+import 'package:lexiq_iraq/features/laws/presentation/pages/law_reader_page.dart';
 import 'package:lexiq_iraq/features/laws/presentation/pages/laws_explorer_page.dart';
 import 'package:lexiq_iraq/features/notifications/presentation/pages/notifications_page.dart';
 import 'package:lexiq_iraq/features/research/presentation/pages/research_workspace_page.dart';
@@ -66,7 +68,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: '/constitution',
             builder: (context, state) => const ConstitutionExplorerPage(),
           ),
+          GoRoute(
+            path: '/constitution/articles/:id',
+            builder: (context, state) => ConstitutionArticleReaderPage(
+              articleId: state.pathParameters['id']!,
+            ),
+          ),
           GoRoute(path: '/laws', builder: (context, state) => const LawsExplorerPage()),
+          GoRoute(
+            path: '/laws/:id',
+            builder: (context, state) => LawReaderPage(
+              lawId: state.pathParameters['id']!,
+            ),
+          ),
           GoRoute(
             path: '/decisions',
             builder: (context, state) => const DecisionsExplorerPage(),
@@ -130,7 +144,9 @@ String _routeTitle(String path) {
   if (path.startsWith('/documents')) return 'Documents / Archive';
   if (path.startsWith('/billing')) return 'Billing & Fees';
   if (path.startsWith('/research')) return 'Research Workspace';
+  if (path.startsWith('/constitution/articles/')) return 'Constitution Article Reader';
   if (path.startsWith('/constitution')) return 'Constitution Explorer';
+  if (path.startsWith('/laws/')) return 'Law Reader';
   if (path.startsWith('/laws')) return 'Iraqi Laws Explorer';
   if (path.startsWith('/decisions')) return 'Judicial Decisions Explorer';
   if (path.startsWith('/ai-workspace')) return 'AI Legal Workspace';

@@ -148,7 +148,7 @@ class _TasksPageState extends ConsumerState<TasksPage> {
                         .map(
                           (priority) => DropdownMenuItem(
                             value: priority,
-                            child: Text(priority),
+                            child: Text(_priorityLabel(priority)),
                           ),
                         )
                         .toList(),
@@ -319,7 +319,7 @@ class _TasksPageState extends ConsumerState<TasksPage> {
             children: [
               FilterChip(
                 selected: _statusFilter.isEmpty,
-                label: const Text('all'),
+                label: Text(context.tr('all')),
                 onSelected: (_) {
                   setState(() => _statusFilter = '');
                   _loadData();
@@ -328,7 +328,7 @@ class _TasksPageState extends ConsumerState<TasksPage> {
               ..._statusOptions.map(
                 (status) => FilterChip(
                   selected: _statusFilter == status,
-                  label: Text(status),
+                  label: Text(_statusLabel(status)),
                   onSelected: (_) {
                     setState(() => _statusFilter = status);
                     _loadData();
@@ -362,7 +362,7 @@ class _TasksPageState extends ConsumerState<TasksPage> {
                         leading: const Icon(Icons.task_alt_rounded),
                         title: Text((task['title'] ?? '-').toString()),
                         subtitle: Text(
-                          'القضية: ${(caseData['caseNumber'] ?? '-').toString()} ${(caseData['title'] ?? '').toString()}\nالأولوية: ${(task['priority'] ?? '-').toString()} | الاستحقاق: $dueLabel\n${(task['description'] ?? '').toString()}',
+                          'القضية: ${(caseData['caseNumber'] ?? '-').toString()} ${(caseData['title'] ?? '').toString()}\nالأولوية: ${_priorityLabel((task['priority'] ?? '-').toString())} | الاستحقاق: $dueLabel\n${(task['description'] ?? '').toString()}',
                         ),
                         isThreeLine: true,
                         trailing: taskId == null
@@ -375,7 +375,7 @@ class _TasksPageState extends ConsumerState<TasksPage> {
                                     .map(
                                       (value) => DropdownMenuItem(
                                         value: value,
-                                        child: Text(value),
+                                        child: Text(_statusLabel(value)),
                                       ),
                                     )
                                     .toList(),
@@ -401,5 +401,35 @@ class _TasksPageState extends ConsumerState<TasksPage> {
       return null;
     }
     return id.toString();
+  }
+
+  String _statusLabel(String value) {
+    switch (value) {
+      case 'open':
+        return 'مفتوحة';
+      case 'in_progress':
+        return 'قيد التنفيذ';
+      case 'done':
+        return 'منجزة';
+      case 'cancelled':
+        return 'ملغاة';
+      default:
+        return value;
+    }
+  }
+
+  String _priorityLabel(String value) {
+    switch (value) {
+      case 'low':
+        return 'منخفضة';
+      case 'medium':
+        return 'متوسطة';
+      case 'high':
+        return 'عالية';
+      case 'urgent':
+        return 'عاجلة';
+      default:
+        return value;
+    }
   }
 }

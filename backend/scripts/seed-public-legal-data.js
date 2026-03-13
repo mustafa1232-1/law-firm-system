@@ -17,6 +17,37 @@ function normalizeArabic(input) {
     .toLowerCase();
 }
 
+function toArticleOrder(articleNumber) {
+  const value = `${articleNumber ?? ''}`;
+  const numeric = Number(value.replace(/[^\d]/g, ''));
+  return Number.isFinite(numeric) && numeric > 0 ? numeric : 0;
+}
+
+function extractParagraphs(text) {
+  const value = `${text ?? ''}`.trim();
+  if (!value) {
+    return [];
+  }
+
+  const ordinalSplitRegex = RegExp(
+    '(?=\\b(?:اولا|أولا|اولاً|أولاً|ثانيا|ثانياً|ثالثا|ثالثاً|رابعا|رابعاً|خامسا|خامساً|سادسا|سادساً|سابعا|سابعاً|ثامنا|ثامناً|تاسعا|تاسعاً|عاشرا|عاشراً)\\b)',
+  );
+
+  const chunks = value
+    .split(ordinalSplitRegex)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+  if (chunks.length > 1) {
+    return chunks;
+  }
+
+  return value
+    .split(/(?<=[\.؛])\s+/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
 function readJson(relativePath) {
   const abs = path.join(__dirname, '..', relativePath);
   return JSON.parse(fs.readFileSync(abs, 'utf8'));
@@ -57,6 +88,11 @@ async function main() {
 
   const constitutionDocs = constitutionSeed.map((item) => ({
     ...item,
+    articleOrder: item.articleOrder ?? toArticleOrder(item.articleNumber),
+    paragraphs:
+      Array.isArray(item.paragraphs) && item.paragraphs.length
+        ? item.paragraphs
+        : extractParagraphs(item.text),
     normalizedText: normalizeArabic(item.text),
     linkedLawArticleIds: item.linkedLawArticleIds ?? [],
     linkedDecisionIds: item.linkedDecisionIds ?? [],
@@ -81,15 +117,25 @@ async function main() {
     const insertedLaw = await lawDocumentsCollection.insertOne(lawDoc);
     const lawId = insertedLaw.insertedId;
 
-    const lawArticles = (lawSeed.articles ?? []).map((article) => ({
-      lawId,
-      articleNumber: article.articleNumber,
-      text: article.text,
-      normalizedText: normalizeArabic(article.text),
-      keywords: article.keywords ?? [],
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    }));
+    const lawArticles = (lawSeed.articles ?? []).map((article) => {
+      const parsedOrder = Number(article.articleOrder);
+      const articleOrder =
+        Number.isFinite(parsedOrder) && parsedOrder > 0
+          ? parsedOrder
+          : toArticleOrder(article.articleNumber);
+
+      return {
+        lawId,
+        articleNumber: article.articleNumber,
+        articleOrder,
+        text: article.text,
+        normalizedText: normalizeArabic(article.text),
+        paragraphs: article.paragraphs ?? [],
+        keywords: article.keywords ?? [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+    });
 
     if (lawArticles.length) {
       await lawArticlesCollection.insertMany(lawArticles, { ordered: false });

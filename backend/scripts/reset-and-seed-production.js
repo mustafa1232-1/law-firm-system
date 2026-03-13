@@ -18,6 +18,37 @@ function normalizeArabic(input) {
     .toLowerCase();
 }
 
+function toArticleOrder(articleNumber) {
+  const value = `${articleNumber ?? ''}`;
+  const numeric = Number(value.replace(/[^\d]/g, ''));
+  return Number.isFinite(numeric) && numeric > 0 ? numeric : 0;
+}
+
+function extractParagraphs(text) {
+  const value = `${text ?? ''}`.trim();
+  if (!value) {
+    return [];
+  }
+
+  const chunks = value
+    .split(
+      RegExp(
+        '(?=\\b(?:اولا|أولا|اولاً|أولاً|ثانيا|ثانياً|ثالثا|ثالثاً|رابعا|رابعاً|خامسا|خامساً|سادسا|سادساً|سابعا|سابعاً|ثامنا|ثامناً|تاسعا|تاسعاً|عاشرا|عاشراً)\\b)',
+      ),
+    )
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+  if (chunks.length > 1) {
+    return chunks;
+  }
+
+  return value
+    .split(/(?<=[\.؛])\s+/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
 function readJson(fileName) {
   const abs = path.join(__dirname, '..', 'data', 'public', fileName);
   return JSON.parse(fs.readFileSync(abs, 'utf8'));
@@ -37,6 +68,11 @@ async function seedLegalData(db) {
 
   const constitutionDocs = constitutionSeed.map((item) => ({
     ...item,
+    articleOrder: item.articleOrder ?? toArticleOrder(item.articleNumber),
+    paragraphs:
+      Array.isArray(item.paragraphs) && item.paragraphs.length
+        ? item.paragraphs
+        : extractParagraphs(item.text),
     normalizedText: normalizeArabic(item.text ?? ''),
     linkedLawArticleIds: item.linkedLawArticleIds ?? [],
     linkedDecisionIds: item.linkedDecisionIds ?? [],

@@ -9,6 +9,9 @@
     "start": "node dist/main.js",
     "dev": "ts-node-dev --respawn --transpile-only src/main.ts",
     "seed:public-data": "node scripts/seed-public-legal-data.js",
+    "sync:constitution": "node scripts/sync-iraqi-constitution.js",
+    "verify:constitution": "node scripts/verify-constitution-seed.js",
+    "sanitize:seeds": "node scripts/sanitize-seed-arabic.js",
     "reset:production": "node scripts/reset-and-seed-production.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint ."

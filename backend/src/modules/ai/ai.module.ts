@@ -11,6 +11,10 @@ import {
   JudicialDecision,
   JudicialDecisionSchema,
 } from '../decisions/schemas/judicial-decision.schema';
+import {
+  DocumentFile,
+  DocumentFileSchema,
+} from '../documents/schemas/document.schema';
 import { LawArticle, LawArticleSchema } from '../laws/schemas/law-article.schema';
 import { AiController } from './ai.controller';
 import { AiService } from './ai.service';
@@ -44,6 +48,7 @@ import { RetrievalService } from './services/retrieval.service';
       { name: ConstitutionArticle.name, schema: ConstitutionArticleSchema },
       { name: LawArticle.name, schema: LawArticleSchema },
       { name: JudicialDecision.name, schema: JudicialDecisionSchema },
+      { name: DocumentFile.name, schema: DocumentFileSchema },
     ]),
   ],
   controllers: [AiController],

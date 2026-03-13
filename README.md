@@ -66,6 +66,11 @@ Implemented modules:
 - `POST /api/v1/ai/legal-research`
 - `POST /api/v1/ai/argument-builder`
 - `POST /api/v1/ai/memo-draft`
+- `POST /api/v1/ai/analyses/save`
+- `POST /api/v1/ai/analyses/:id/attach-case`
+- `GET /api/v1/ai/analyses`
+- `GET /api/v1/ai/sessions`
+- `GET /api/v1/constitution/article-number/:articleNumber`
 - `GET /api/v1/health`
 
 Swagger:
@@ -103,6 +108,8 @@ flutter run -d chrome \
 ```bash
 # Backend
 cd backend && npm run build
+cd backend && npm run sync:constitution
+cd backend && npm run verify:constitution
 cd backend && npm run seed:public-data
 cd backend && npm run reset:production
 
@@ -156,10 +163,18 @@ SEED_REPLACE=true npm run seed:public-data
 
 Current seeded legal corpus includes:
 
-- Iraqi Constitution full text (articles 1..144), sourced from: `https://www.sjc.iq/view.77/`
+- Iraqi Constitution full text (articles 1..144)
+  - Searchable extraction source: `https://www.sjc.iq/view.77/`
+  - Official PDF reference: `https://mofa.gov.iq/wp-content/uploads/sites/85/2019/11/%D8%AF%D8%B3%D8%AA%D9%88%D8%B1-%D8%AC%D9%85%D9%87%D9%88%D8%B1%D9%8A%D8%A9-%D8%A7%D9%84%D8%B9%D8%B1%D8%A7%D9%82.pdf`
+- Constitution records include article ordering and extracted paragraph chunks for full-article reading views
 - Curated Iraqi law documents and indexed law articles
 - Expanded curated judicial decision records for search and retrieval
 - Iraqi courts directory (seeded from publicly available OSM courthouse data) with searchable location metadata
+
+Constitution import/encoding safety:
+
+- `npm run sync:constitution` rebuilds `backend/data/public/constitution_articles.seed.json` with strict 1..144 validation.
+- `npm run verify:constitution` fails if any article is missing, empty, or has broken encoding markers.
 
 ## Production reset and super admin
 

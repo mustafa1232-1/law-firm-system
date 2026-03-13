@@ -156,7 +156,7 @@ class _TopBar extends ConsumerWidget {
                   value: 'profile',
                   enabled: false,
                   child: Text(
-                    session?.user.email ?? 'User',
+                    session?.user.email ?? context.tr('User'),
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ),
@@ -165,9 +165,9 @@ class _TopBar extends ConsumerWidget {
                   child: Text(context.tr('Settings')),
                 ),
                 const PopupMenuDivider(),
-                const PopupMenuItem<String>(
+                PopupMenuItem<String>(
                   value: 'logout',
-                  child: Text('Logout'),
+                  child: Text(context.tr('Logout')),
                 ),
               ],
             ),

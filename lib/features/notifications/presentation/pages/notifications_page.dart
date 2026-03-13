@@ -106,15 +106,15 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                   DropdownButtonFormField<String>(
                     initialValue: level,
                     decoration: const InputDecoration(labelText: 'المستوى'),
-                    items: const [
-                      DropdownMenuItem(value: 'info', child: Text('info')),
+                    items: [
+                      DropdownMenuItem(value: 'info', child: Text(context.tr('info'))),
                       DropdownMenuItem(
                         value: 'warning',
-                        child: Text('warning'),
+                        child: Text(context.tr('warning')),
                       ),
                       DropdownMenuItem(
                         value: 'critical',
-                        child: Text('critical'),
+                        child: Text(context.tr('critical')),
                       ),
                     ],
                     onChanged: (value) =>
@@ -243,7 +243,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                 ElevatedButton.icon(
                   onPressed: _showCreateNotificationDialog,
                   icon: const Icon(Icons.add_alert_rounded),
-                  label: const Text('New Notification'),
+                  label: Text(context.tr('New Notification')),
                 ),
               ],
             ),
@@ -291,12 +291,12 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                           ),
                           isThreeLine: true,
                           trailing: isRead
-                              ? const Text('Read')
+                              ? Text(context.tr('Read'))
                               : TextButton(
                                   onPressed: id.isEmpty
                                       ? null
                                       : () => _markAsRead(id),
-                                  child: const Text('Mark read'),
+                                  child: Text(context.tr('Mark read')),
                                 ),
                         ),
                       );

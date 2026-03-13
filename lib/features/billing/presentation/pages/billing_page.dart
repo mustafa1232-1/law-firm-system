@@ -502,7 +502,7 @@ class _BillingPageState extends ConsumerState<BillingPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Invoices (${_invoices.length})',
+                          'الفواتير (${_invoices.length})',
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
                         const SizedBox(height: 8),
@@ -528,7 +528,7 @@ class _BillingPageState extends ConsumerState<BillingPage> {
                                 '${(invoice['invoiceNumber'] ?? '-').toString()} | ${(invoice['amount'] ?? '-').toString()} ${(invoice['currency'] ?? '').toString()}',
                               ),
                               subtitle: Text(
-                                'العميل: ${(client['fullName'] ?? '-').toString()}\nالقضية: ${(caseData['caseNumber'] ?? '-').toString()} ${(caseData['title'] ?? '').toString()}\nالحالة: $status',
+                                'العميل: ${(client['fullName'] ?? '-').toString()}\nالقضية: ${(caseData['caseNumber'] ?? '-').toString()} ${(caseData['title'] ?? '').toString()}\nالحالة: ${_invoiceStatusLabel(status)}',
                               ),
                               isThreeLine: true,
                               trailing: status == 'paid'
@@ -539,7 +539,7 @@ class _BillingPageState extends ConsumerState<BillingPage> {
                                   : OutlinedButton(
                                       onPressed: () =>
                                           _showCreatePaymentDialog(invoice),
-                                      child: const Text('Pay'),
+                                      child: Text(context.tr('Pay')),
                                     ),
                             );
                           }),
@@ -554,7 +554,7 @@ class _BillingPageState extends ConsumerState<BillingPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Payments (${_payments.length})',
+                          'الدفعات (${_payments.length})',
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
                         const SizedBox(height: 8),
@@ -573,7 +573,7 @@ class _BillingPageState extends ConsumerState<BillingPage> {
                                 (payment['amount'] ?? '-').toString(),
                               ),
                               subtitle: Text(
-                                'فاتورة: ${(invoice['invoiceNumber'] ?? '-').toString()} | الحالة: ${(invoice['status'] ?? '-').toString()}\n${(payment['paymentDate'] ?? '').toString().split('T').first}',
+                                'فاتورة: ${(invoice['invoiceNumber'] ?? '-').toString()} | الحالة: ${_invoiceStatusLabel((invoice['status'] ?? '-').toString())}\n${(payment['paymentDate'] ?? '').toString().split('T').first}',
                               ),
                             );
                           }),
@@ -594,5 +594,20 @@ class _BillingPageState extends ConsumerState<BillingPage> {
       return null;
     }
     return id.toString();
+  }
+
+  String _invoiceStatusLabel(String status) {
+    switch (status) {
+      case 'paid':
+        return 'مدفوعة';
+      case 'partial':
+        return 'مدفوعة جزئياً';
+      case 'overdue':
+        return 'متأخرة';
+      case 'unpaid':
+        return 'غير مدفوعة';
+      default:
+        return status;
+    }
   }
 }

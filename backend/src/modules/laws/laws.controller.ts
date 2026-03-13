@@ -21,8 +21,13 @@ import { LawsService } from './laws.service';
 export class LawsController {
   constructor(private readonly lawsService: LawsService) {}
 
+  @Get()
+  findAll(@Query() query: PaginationQueryDto, @Query('q') q?: string) {
+    return this.lawsService.findAll(query, q);
+  }
+
   @Get('search')
-  @ApiQuery({ name: 'q', required: true })
+  @ApiQuery({ name: 'q', required: false })
   search(@Query('q') q: string, @Query() query: PaginationQueryDto) {
     return this.lawsService.search(q, query);
   }

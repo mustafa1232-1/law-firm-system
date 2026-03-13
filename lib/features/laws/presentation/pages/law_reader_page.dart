@@ -1,4 +1,4 @@
-﻿import 'package:dio/dio.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -38,6 +38,34 @@ class _LawReaderPageState extends ConsumerState<LawReaderPage> {
     _loadLaw();
   }
 
+  Future<List<Map<String, dynamic>>> _fetchAllLawArticles(Dio dio) async {
+    const pageSize = 150;
+    var page = 1;
+    final items = <Map<String, dynamic>>[];
+
+    while (true) {
+      final response = await dio.get(
+        '/laws/${widget.lawId}/articles',
+        queryParameters: {'page': page, 'limit': pageSize},
+        options: Options(headers: authHeaders(ref)),
+      );
+
+      final payload = (response.data as Map).cast<String, dynamic>();
+      final pageItems = ((payload['items'] as List?) ?? const [])
+          .map((entry) => (entry as Map).cast<String, dynamic>())
+          .toList();
+      final total = (payload['total'] as num?)?.toInt() ?? 0;
+
+      items.addAll(pageItems);
+      if (pageItems.length < pageSize || items.length >= total) {
+        break;
+      }
+      page += 1;
+    }
+
+    return items;
+  }
+
   Future<void> _loadLaw() async {
     setState(() {
       _loading = true;
@@ -46,26 +74,20 @@ class _LawReaderPageState extends ConsumerState<LawReaderPage> {
 
     try {
       final dio = ref.read(dioProvider);
-      final responses = await Future.wait([
-        dio.get('/laws/${widget.lawId}', options: Options(headers: authHeaders(ref))),
-        dio.get(
-          '/laws/${widget.lawId}/articles',
-          queryParameters: const {'limit': 500},
-          options: Options(headers: authHeaders(ref)),
-        ),
-      ]);
-
-      final law = (responses[0].data as Map).cast<String, dynamic>();
-      final articles = ((((responses[1].data as Map).cast<String, dynamic>())['items']
-                  as List?) ??
-              const [])
-          .map((entry) => (entry as Map).cast<String, dynamic>())
-          .toList();
+      final lawResponse = await dio.get(
+        '/laws/${widget.lawId}',
+        options: Options(headers: authHeaders(ref)),
+      );
+      final law = (lawResponse.data as Map).cast<String, dynamic>();
+      final articles = await _fetchAllLawArticles(dio);
 
       Map<String, dynamic>? selected;
-      if (widget.initialArticleNumber != null && widget.initialArticleNumber!.isNotEmpty) {
+      if (widget.initialArticleNumber != null &&
+          widget.initialArticleNumber!.isNotEmpty) {
         selected = articles.firstWhere(
-          (item) => (item['articleNumber'] ?? '').toString() == widget.initialArticleNumber,
+          (item) =>
+              (item['articleNumber'] ?? '').toString() ==
+              widget.initialArticleNumber,
           orElse: () => articles.isNotEmpty ? articles.first : <String, dynamic>{},
         );
         if (selected.isEmpty) {
@@ -142,110 +164,162 @@ class _LawReaderPageState extends ConsumerState<LawReaderPage> {
     }
   }
 
+  List<String> _resolveParagraphs(Map<String, dynamic>? selected) {
+    if (selected == null) {
+      return const [];
+    }
+
+    final raw = (selected['paragraphs'] as List?)
+            ?.map((entry) => entry.toString().trim())
+            .where((entry) => entry.isNotEmpty)
+            .toList() ??
+        const [];
+
+    if (raw.isNotEmpty) {
+      return raw;
+    }
+
+    final text = (selected['text'] ?? '').toString().trim();
+    if (text.isEmpty) {
+      return const [];
+    }
+
+    return text
+        .split(RegExp(r'\n+'))
+        .map((entry) => entry.trim())
+        .where((entry) => entry.isNotEmpty)
+        .toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     final law = _law;
     final selected = _selectedArticle;
     final isWide = MediaQuery.sizeOf(context).width >= 1200;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SectionHeader(
-            title: (law?['title'] ?? 'قارئ القانون').toString(),
-            subtitle: 'صفحة قراءة قانونية كاملة مع شرح مبسّط لكل مادة',
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: _loading ? null : _loadLaw,
-                  icon: const Icon(Icons.refresh_rounded),
-                  label: const Text('تحديث'),
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton.icon(
-                  onPressed: _explaining || selected == null
-                      ? null
-                      : _explainSelectedArticle,
-                  icon: _explaining
-                      ? const SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.psychology_alt_rounded),
-                  label: const Text('شرح المادة'),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          if (_loading)
-            const Center(child: CircularProgressIndicator())
-          else if (_error != null)
-            GlassPanel(
-              child: Text(
-                _error!,
-                style: const TextStyle(color: LexiqColors.crimsonAlert),
-              ),
-            )
-          else if (law == null)
-            const GlassPanel(child: Text('تعذر تحميل بيانات القانون.'))
-          else ...[
-            GlassPanel(
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 8,
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SectionHeader(
+              title: (law?['title'] ?? 'قارئ القانون').toString(),
+              subtitle: 'عرض نصوص مواد القانون كاملة مع التفريعات',
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Chip(label: Text('رقم القانون: ${(law['lawNumber'] ?? '-').toString()}')),
-                  Chip(label: Text('السنة: ${(law['year'] ?? '-').toString()}')),
-                  Chip(label: Text('الجهة: ${(law['issuingBody'] ?? '-').toString()}')),
-                  Chip(label: Text('المجال: ${(law['legalDomain'] ?? '-').toString()}')),
+                  OutlinedButton.icon(
+                    onPressed: _loading ? null : _loadLaw,
+                    icon: const Icon(Icons.refresh_rounded),
+                    label: const Text('تحديث'),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton.icon(
+                    onPressed: _explaining || selected == null
+                        ? null
+                        : _explainSelectedArticle,
+                    icon: _explaining
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.psychology_alt_rounded),
+                    label: const Text('شرح المادة'),
+                  ),
                 ],
               ),
             ),
             const SizedBox(height: 12),
-            if (isWide)
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(flex: 2, child: _articlesPanel(context)),
-                  const SizedBox(width: 12),
-                  Expanded(flex: 5, child: _readerPanel(context, selected)),
-                ],
-              )
-            else ...[
-              _articlesPanel(context),
-              const SizedBox(height: 12),
-              _readerPanel(context, selected),
-            ],
-            const SizedBox(height: 12),
-            if (_explanation != null)
+            if (_loading)
+              const Center(child: CircularProgressIndicator())
+            else if (_error != null)
               GlassPanel(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: Text(
+                  _error!,
+                  style: const TextStyle(color: LexiqColors.crimsonAlert),
+                ),
+              )
+            else if (law == null)
+              const GlassPanel(child: Text('تعذر تحميل بيانات القانون.'))
+            else ...[
+              GlassPanel(
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
                   children: [
-                    Text('شرح المادة (AI)', style: Theme.of(context).textTheme.titleLarge),
-                    const SizedBox(height: 8),
-                    Text((_explanation?['summary'] ?? '').toString()),
-                    const SizedBox(height: 8),
-                    Text((_explanation?['groundedAnswer'] ?? '').toString()),
-                    const SizedBox(height: 10),
-                    Text(
-                      ((_explanation?['disclaimer'] ??
-                              'هذه المخرجات أولية وتحتاج مراجعة محامٍ بشري.') as String)
-                          .trim(),
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: LexiqColors.brassGold,
-                          ),
-                    ),
+                    Chip(label: Text('رقم القانون: ${(law['lawNumber'] ?? '-').toString()}')),
+                    Chip(label: Text('السنة: ${(law['year'] ?? '-').toString()}')),
+                    Chip(label: Text('الجهة: ${(law['issuingBody'] ?? '-').toString()}')),
+                    Chip(label: Text('المجال: ${(law['legalDomain'] ?? '-').toString()}')),
+                    if ((law['sourceName'] ?? '').toString().trim().isNotEmpty)
+                      Chip(label: Text('المصدر: ${(law['sourceName'] ?? '-').toString()}')),
                   ],
                 ),
               ),
+              if ((law['sourceUrl'] ?? '').toString().trim().isNotEmpty) ...[
+                const SizedBox(height: 8),
+                GlassPanel(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'رابط المرجع',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 6),
+                      SelectableText((law['sourceUrl'] ?? '').toString()),
+                    ],
+                  ),
+                ),
+              ],
+              const SizedBox(height: 12),
+              if (isWide)
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(flex: 2, child: _articlesPanel(context)),
+                    const SizedBox(width: 12),
+                    Expanded(flex: 5, child: _readerPanel(context, selected)),
+                  ],
+                )
+              else ...[
+                _articlesPanel(context),
+                const SizedBox(height: 12),
+                _readerPanel(context, selected),
+              ],
+              const SizedBox(height: 12),
+              if (_explanation != null)
+                GlassPanel(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'شرح المادة (AI)',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 8),
+                      Text((_explanation?['summary'] ?? '').toString()),
+                      const SizedBox(height: 8),
+                      Text((_explanation?['groundedAnswer'] ?? '').toString()),
+                      const SizedBox(height: 10),
+                      Text(
+                        ((_explanation?['disclaimer'] ??
+                                    'هذه المخرجات أولية وتحتاج مراجعة محامٍ بشري.')
+                                as String)
+                            .trim(),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: LexiqColors.brassGold,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -255,19 +329,22 @@ class _LawReaderPageState extends ConsumerState<LawReaderPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('مواد القانون (${_articles.length})', style: Theme.of(context).textTheme.titleLarge),
+          Text(
+            'مواد القانون (${_articles.length})',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
           const SizedBox(height: 10),
           if (_articles.isEmpty)
             const Text('لا توجد مواد مفهرسة لهذا القانون.')
           else
             SizedBox(
-              height: 640,
+              height: 680,
               child: ListView.separated(
                 itemCount: _articles.length,
                 separatorBuilder: (_, _) => const SizedBox(height: 6),
                 itemBuilder: (context, index) {
                   final item = _articles[index];
-                  final selected =
+                  final isSelected =
                       item['_id']?.toString() == _selectedArticle?['_id']?.toString();
                   return InkWell(
                     onTap: () => setState(() {
@@ -280,17 +357,24 @@ class _LawReaderPageState extends ConsumerState<LawReaderPage> {
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: selected
+                          color: isSelected
                               ? LexiqColors.imperialBlue
                               : LexiqColors.slateGray.withValues(alpha: 0.22),
                         ),
-                        color: selected
+                        color: isSelected
                             ? LexiqColors.imperialBlue.withValues(alpha: 0.12)
                             : Colors.transparent,
                       ),
-                      child: Text(
-                        'المادة ${(item['articleNumber'] ?? '-').toString()}',
-                        style: Theme.of(context).textTheme.titleMedium,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'المادة ${(item['articleNumber'] ?? '-').toString()}',
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                          ),
+                          const Icon(Icons.chevron_left_rounded),
+                        ],
                       ),
                     ),
                   );
@@ -303,6 +387,8 @@ class _LawReaderPageState extends ConsumerState<LawReaderPage> {
   }
 
   Widget _readerPanel(BuildContext context, Map<String, dynamic>? selected) {
+    final paragraphs = _resolveParagraphs(selected);
+
     return GlassPanel(
       child: selected == null
           ? const Text('اختر مادة من القائمة لعرض النص الكامل.')
@@ -314,10 +400,32 @@ class _LawReaderPageState extends ConsumerState<LawReaderPage> {
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
                 const SizedBox(height: 10),
-                Text(
-                  (selected['text'] ?? '').toString(),
-                  style: Theme.of(context).textTheme.bodyLarge,
-                ),
+                if (paragraphs.isEmpty)
+                  Text(
+                    (selected['text'] ?? '').toString(),
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  )
+                else
+                  ...paragraphs.asMap().entries.map(
+                        (entry) => Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(10),
+                              color: LexiqColors.obsidianBlack.withValues(alpha: 0.32),
+                              border: Border.all(
+                                color: LexiqColors.slateGray.withValues(alpha: 0.2),
+                              ),
+                            ),
+                            child: Text(
+                              entry.value,
+                              style: Theme.of(context).textTheme.bodyLarge,
+                            ),
+                          ),
+                        ),
+                      ),
               ],
             ),
     );

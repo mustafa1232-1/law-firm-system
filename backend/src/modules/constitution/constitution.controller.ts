@@ -31,6 +31,11 @@ export class ConstitutionController {
     return this.constitutionService.findOne(id);
   }
 
+  @Get('article-number/:articleNumber')
+  findByArticleNumber(@Param('articleNumber') articleNumber: string) {
+    return this.constitutionService.findByArticleNumber(articleNumber);
+  }
+
   @Get('search')
   @ApiQuery({ name: 'q', required: true })
   search(@Query('q') q: string, @Query() query: PaginationQueryDto) {

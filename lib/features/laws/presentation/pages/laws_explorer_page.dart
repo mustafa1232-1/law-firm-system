@@ -1,12 +1,14 @@
-﻿import 'package:dio/dio.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
-import '../../../../core/localization/app_translations.dart';
 import '../../../../core/network/api_helpers.dart';
 import '../../../../core/network/dio_client.dart';
 import '../../../../shared/widgets/glass_panel.dart';
 import '../../../../shared/widgets/section_header.dart';
+import '../../../../theme/lexiq_colors.dart';
 
 class LawsExplorerPage extends ConsumerStatefulWidget {
   const LawsExplorerPage({super.key});
@@ -16,17 +18,39 @@ class LawsExplorerPage extends ConsumerStatefulWidget {
 }
 
 class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
+  static const _featuredReferences = <_LawReference>[
+    _LawReference(
+      title: 'Iraqi Civil Code No. 40 of 1951',
+      sourceUrl:
+          'http://jafbase.fr/docAsie/Irak/code%20civil%20irakien%201951.pdf',
+      lawNumber: '40',
+    ),
+    _LawReference(
+      title: 'Iraqi Penal Code No. 111 of 1969',
+      sourceUrl:
+          'https://www.rwi.uzh.ch/dam/jcr:00000000-0c03-6a0c-ffff-ffff96be3560/penalcode1969.pdf',
+      lawNumber: '111',
+    ),
+    _LawReference(
+      title:
+          'Law of Discipline of State and Public Sector Employees No. 14 of 1991',
+      sourceUrl: 'https://www.moj.gov.iq/upload/pdf/4466.pdf',
+      lawNumber: '14',
+    ),
+  ];
+
   final _searchController = TextEditingController();
 
   bool _loading = false;
   String? _error;
+  String _selectedCategory = 'All';
   List<Map<String, dynamic>> _laws = const [];
   List<Map<String, dynamic>> _articles = const [];
 
   @override
   void initState() {
     super.initState();
-    _search();
+    _loadInitialLaws();
   }
 
   @override
@@ -35,7 +59,7 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
     super.dispose();
   }
 
-  Future<void> _search() async {
+  Future<void> _loadInitialLaws() async {
     setState(() {
       _loading = true;
       _error = null;
@@ -43,10 +67,54 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
 
     try {
       final dio = ref.read(dioProvider);
-      final query = _searchController.text.trim();
+      final response = await dio.get(
+        '/laws',
+        queryParameters: const {'limit': 100, 'page': 1},
+        options: Options(headers: authHeaders(ref)),
+      );
+
+      final data = (response.data as Map).cast<String, dynamic>();
+      final laws = ((data['items'] as List?) ?? const [])
+          .map((entry) => (entry as Map).cast<String, dynamic>())
+          .toList();
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _laws = laws;
+        _articles = const [];
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _error = parseApiError(error));
+    } finally {
+      if (mounted) {
+        setState(() => _loading = false);
+      }
+    }
+  }
+
+  Future<void> _search() async {
+    final query = _searchController.text.trim();
+    if (query.isEmpty) {
+      await _loadInitialLaws();
+      return;
+    }
+
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    try {
+      final dio = ref.read(dioProvider);
       final response = await dio.get(
         '/laws/search',
-        queryParameters: {'q': query.isEmpty ? 'قانون' : query, 'limit': 30},
+        queryParameters: {'q': query, 'limit': 100, 'page': 1},
         options: Options(headers: authHeaders(ref)),
       );
 
@@ -78,77 +146,94 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
     }
   }
 
-  Future<void> _openLaw(String lawId) async {
-    try {
-      final dio = ref.read(dioProvider);
-      final lawResponse = await dio.get('/laws/$lawId', options: Options(headers: authHeaders(ref)));
-      final articlesResponse = await dio.get(
-        '/laws/$lawId/articles',
-        queryParameters: const {'limit': 100},
-        options: Options(headers: authHeaders(ref)),
-      );
+  void _openLaw(String lawId) {
+    context.go('/laws/$lawId');
+  }
 
-      final law = (lawResponse.data as Map).cast<String, dynamic>();
-      final lawArticles = ((((articlesResponse.data as Map).cast<String, dynamic>())['items'] as List?) ?? const [])
-          .map((entry) => (entry as Map).cast<String, dynamic>())
-          .toList();
-
-      if (!mounted) {
-        return;
-      }
-
-      await showDialog<void>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text((law['title'] ?? 'قانون').toString()),
-          content: SizedBox(
-            width: 760,
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('رقم القانون: ${(law['lawNumber'] ?? '-').toString()} / ${(law['year'] ?? '-').toString()}'),
-                  const SizedBox(height: 8),
-                  Text('الجهة المصدرة: ${(law['issuingBody'] ?? '-').toString()}'),
-                  Text('المجال: ${(law['legalDomain'] ?? '-').toString()}'),
-                  const SizedBox(height: 12),
-                  const Text('المواد'),
-                  const SizedBox(height: 8),
-                  if (lawArticles.isEmpty)
-                    const Text('لا توجد مواد مرتبطة.')
-                  else
-                    ...lawArticles.map(
-                      (article) => Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: Text(
-                          'م ${article['articleNumber']}: ${(article['text'] ?? '').toString()}',
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text(context.tr('Close')),
-            ),
-          ],
-        ),
-      );
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(parseApiError(error))),
-      );
+  Future<void> _copyUrl(String url) async {
+    await Clipboard.setData(ClipboardData(text: url));
+    if (!mounted) {
+      return;
     }
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Reference URL copied')));
+  }
+
+  String _categoryOfLaw(Map<String, dynamic> law) {
+    final domain = (law['legalDomain'] ?? '').toString().trim();
+    if (domain.isEmpty) {
+      return 'Other';
+    }
+    return domain;
+  }
+
+  String? _lawId(Map<String, dynamic> law) {
+    final id = law['_id'] ?? law['id'];
+    if (id == null) {
+      return null;
+    }
+    return id.toString();
+  }
+
+  List<Map<String, dynamic>> _filteredLaws() {
+    if (_selectedCategory == 'All') {
+      return _laws;
+    }
+    return _laws
+        .where((law) => _categoryOfLaw(law) == _selectedCategory)
+        .toList();
+  }
+
+  List<Map<String, dynamic>> _filteredArticles(
+    List<Map<String, dynamic>> filteredLaws,
+  ) {
+    if (_selectedCategory == 'All') {
+      return _articles;
+    }
+
+    final lawIds = filteredLaws.map(_lawId).whereType<String>().toSet();
+    if (lawIds.isEmpty) {
+      return const [];
+    }
+
+    return _articles.where((article) {
+      final lawRef = article['lawId'];
+      if (lawRef is Map) {
+        final refId = (lawRef['_id'] ?? lawRef['id'])?.toString();
+        return refId != null && lawIds.contains(refId);
+      }
+      if (lawRef is String) {
+        return lawIds.contains(lawRef);
+      }
+      return false;
+    }).toList();
+  }
+
+  List<String> _availableCategories() {
+    final values = <String>{'All'};
+    for (final law in _laws) {
+      values.add(_categoryOfLaw(law));
+    }
+    final sorted = values.toList()..sort();
+    return sorted;
+  }
+
+  Map<String, dynamic>? _findLawByNumber(String lawNumber) {
+    for (final law in _laws) {
+      if ((law['lawNumber'] ?? '').toString() == lawNumber) {
+        return law;
+      }
+    }
+    return null;
   }
 
   @override
   Widget build(BuildContext context) {
+    final filteredLaws = _filteredLaws();
+    final filteredArticles = _filteredArticles(filteredLaws);
+    final categories = _availableCategories();
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(18),
       child: Column(
@@ -156,7 +241,7 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
         children: [
           const SectionHeader(
             title: 'Iraqi Laws Explorer',
-            subtitle: 'Law documents, articles, amendments, and legal classification',
+            subtitle: 'Browse law documents and indexed legal articles',
           ),
           const SizedBox(height: 12),
           Row(
@@ -166,7 +251,7 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
                   controller: _searchController,
                   onSubmitted: (_) => _search(),
                   decoration: const InputDecoration(
-                    hintText: 'ابحث في القوانين والمواد',
+                    hintText: 'Search laws or legal text...',
                     prefixIcon: Icon(Icons.search_rounded),
                   ),
                 ),
@@ -175,9 +260,100 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
               ElevatedButton.icon(
                 onPressed: _loading ? null : _search,
                 icon: const Icon(Icons.search_rounded),
-                label: Text(context.tr('Browse Laws')),
+                label: const Text('Search'),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                onPressed: _loading ? null : _loadInitialLaws,
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Reload'),
               ),
             ],
+          ),
+          const SizedBox(height: 12),
+          GlassPanel(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Law Categories',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: categories
+                      .map(
+                        (category) => ChoiceChip(
+                          label: Text(category),
+                          selected: _selectedCategory == category,
+                          onSelected: (_) =>
+                              setState(() => _selectedCategory = category),
+                        ),
+                      )
+                      .toList(),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          GlassPanel(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Official References',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 8),
+                ..._featuredReferences.map((reference) {
+                  final linkedLaw = _findLawByNumber(reference.lawNumber);
+                  final linkedLawId = linkedLaw == null
+                      ? null
+                      : _lawId(linkedLaw);
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: LexiqColors.slateGray.withValues(alpha: 0.25),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          reference.title,
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                        const SizedBox(height: 4),
+                        SelectableText(reference.sourceUrl),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          children: [
+                            OutlinedButton.icon(
+                              onPressed: () => _copyUrl(reference.sourceUrl),
+                              icon: const Icon(Icons.copy_all_rounded),
+                              label: const Text('Copy URL'),
+                            ),
+                            if (linkedLawId != null)
+                              ElevatedButton.icon(
+                                onPressed: () => _openLaw(linkedLawId),
+                                icon: const Icon(Icons.menu_book_rounded),
+                                label: const Text('Open in App'),
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+              ],
+            ),
           ),
           const SizedBox(height: 12),
           if (_loading)
@@ -193,20 +369,30 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('القوانين (${_laws.length})', style: Theme.of(context).textTheme.titleMedium),
+                        Text(
+                          'Laws (${filteredLaws.length})',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
                         const SizedBox(height: 8),
-                        if (_laws.isEmpty)
-                          const Text('لا توجد قوانين مطابقة.')
+                        if (filteredLaws.isEmpty)
+                          const Text(
+                            'No laws matched the current filter/search.',
+                          )
                         else
-                          ..._laws.map((law) {
-                            final lawId = (law['_id'] ?? '').toString();
+                          ...filteredLaws.map((law) {
+                            final lawId = _lawId(law);
+                            final category = _categoryOfLaw(law);
                             return ListTile(
                               contentPadding: EdgeInsets.zero,
-                              onTap: lawId.isEmpty ? null : () => _openLaw(lawId),
+                              onTap: lawId == null
+                                  ? null
+                                  : () => _openLaw(lawId),
                               title: Text((law['title'] ?? '-').toString()),
                               subtitle: Text(
-                                'رقم ${(law['lawNumber'] ?? '-').toString()} / ${(law['year'] ?? '-').toString()}',
+                                'No. ${(law['lawNumber'] ?? '-').toString()} / ${(law['year'] ?? '-').toString()}\n'
+                                'Category: $category',
                               ),
+                              isThreeLine: true,
                               trailing: const Icon(Icons.open_in_new_rounded),
                             );
                           }),
@@ -220,20 +406,32 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('المواد (${_articles.length})', style: Theme.of(context).textTheme.titleMedium),
+                        Text(
+                          'Articles (${filteredArticles.length})',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
                         const SizedBox(height: 8),
-                        if (_articles.isEmpty)
-                          const Text('لا توجد مواد مطابقة.')
+                        if (filteredArticles.isEmpty)
+                          const Text('No indexed articles for this result set.')
                         else
-                          ..._articles.map(
-                            (article) => ListTile(
+                          ...filteredArticles.map((article) {
+                            final text = (article['text'] ?? '').toString();
+                            final lawRef = article['lawId'];
+                            final lawTitle = lawRef is Map
+                                ? (lawRef['title'] ?? '').toString()
+                                : '';
+                            return ListTile(
                               contentPadding: EdgeInsets.zero,
                               leading: const Icon(Icons.article_outlined),
-                              title: Text('المادة ${(article['articleNumber'] ?? '-').toString()}'),
-                              subtitle: Text((article['text'] ?? '').toString()),
+                              title: Text(
+                                'Article ${(article['articleNumber'] ?? '-').toString()}',
+                              ),
+                              subtitle: Text(
+                                '${lawTitle.isEmpty ? '' : '$lawTitle\n'}$text',
+                              ),
                               isThreeLine: true,
-                            ),
-                          ),
+                            );
+                          }),
                       ],
                     ),
                   ),
@@ -244,4 +442,16 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
       ),
     );
   }
+}
+
+class _LawReference {
+  const _LawReference({
+    required this.title,
+    required this.sourceUrl,
+    required this.lawNumber,
+  });
+
+  final String title;
+  final String sourceUrl;
+  final String lawNumber;
 }

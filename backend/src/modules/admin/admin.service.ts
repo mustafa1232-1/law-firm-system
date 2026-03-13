@@ -95,6 +95,11 @@ export class AdminService {
 
     const constitutionDocs = constitutionSeed.map((item) => ({
       ...item,
+      articleOrder: item.articleOrder ?? this.toArticleOrder(item.articleNumber),
+      paragraphs:
+        Array.isArray(item.paragraphs) && item.paragraphs.length
+          ? item.paragraphs
+          : this.extractParagraphs(item.text ?? ''),
       normalizedText: normalizeArabic(item.text ?? ''),
       linkedLawArticleIds: item.linkedLawArticleIds ?? [],
       linkedDecisionIds: item.linkedDecisionIds ?? [],
@@ -415,5 +420,36 @@ export class AdminService {
     const absPath = path.join(process.cwd(), 'data', 'public', fileName);
     const raw = fs.readFileSync(absPath, 'utf8');
     return JSON.parse(raw) as T;
+  }
+
+  private toArticleOrder(articleNumber: string) {
+    const value = `${articleNumber ?? ''}`;
+    const numeric = Number(value.replace(/[^\d]/g, ''));
+    return Number.isFinite(numeric) && numeric > 0 ? numeric : 0;
+  }
+
+  private extractParagraphs(text: string) {
+    const value = `${text ?? ''}`.trim();
+    if (!value) {
+      return [] as string[];
+    }
+
+    const chunks = value
+      .split(
+        RegExp(
+          '(?=\\b(?:اولا|أولا|اولاً|أولاً|ثانيا|ثانياً|ثالثا|ثالثاً|رابعا|رابعاً|خامسا|خامساً|سادسا|سادساً|سابعا|سابعاً|ثامنا|ثامناً|تاسعا|تاسعاً|عاشرا|عاشراً)\\b)',
+        ),
+      )
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+
+    if (chunks.length > 1) {
+      return chunks;
+    }
+
+    return value
+      .split(/(?<=[\.؛])\s+/)
+      .map((entry) => entry.trim())
+      .filter(Boolean);
   }
 }

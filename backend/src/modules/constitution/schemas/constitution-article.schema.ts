@@ -21,6 +21,9 @@ export class ConstitutionArticle {
   @Prop({ required: true })
   articleNumber: string;
 
+  @Prop({ required: true, default: 0 })
+  articleOrder: number;
+
   @Prop({ required: false })
   title?: string;
 
@@ -32,6 +35,9 @@ export class ConstitutionArticle {
 
   @Prop({ required: true })
   text: string;
+
+  @Prop({ type: [String], default: [] })
+  paragraphs: string[];
 
   @Prop({ required: true })
   normalizedText: string;
@@ -49,4 +55,5 @@ export class ConstitutionArticle {
 export const ConstitutionArticleSchema =
   SchemaFactory.createForClass(ConstitutionArticle);
 ConstitutionArticleSchema.index({ articleNumber: 1 }, { unique: true });
+ConstitutionArticleSchema.index({ articleOrder: 1 });
 ConstitutionArticleSchema.index({ text: 'text', title: 'text', keywords: 'text' });

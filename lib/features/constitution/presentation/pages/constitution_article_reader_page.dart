@@ -110,7 +110,13 @@ class _ConstitutionArticleReaderPageState
   Widget build(BuildContext context) {
     final article = _article;
     final text = (article?['text'] ?? '').toString();
-    final paragraphs = _extractParagraphs(text);
+    final apiParagraphs = ((article?['paragraphs'] as List?) ?? const [])
+        .map((entry) => entry.toString())
+        .where((entry) => entry.trim().isNotEmpty)
+        .toList();
+    final paragraphs = apiParagraphs.isNotEmpty
+        ? apiParagraphs
+        : _extractParagraphs(text);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(18),
