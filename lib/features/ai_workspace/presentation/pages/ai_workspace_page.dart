@@ -498,6 +498,110 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
         _cases.any((entry) => entry['_id']?.toString() == _selectedCaseId)
         ? _selectedCaseId
         : null;
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final isCompact = screenWidth < 920;
+    final actionButtonWidth = isCompact
+        ? (screenWidth - 86).clamp(200.0, 440.0).toDouble()
+        : 220.0;
+
+    final resultsPanel = GlassPanel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            context.tr('Results'),
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          if (_error != null)
+            Text(_error!)
+          else if (_result == null)
+            Text(context.tr('Citation-aware grounded answer appears here.'))
+          else ...[
+            Text((_result?['summary'] ?? '').toString()),
+            const SizedBox(height: 8),
+            Text((_result?['groundedAnswer'] ?? '').toString()),
+            const SizedBox(height: 12),
+            Text(
+              context.tr(
+                'AI output is preliminary and must be reviewed by a licensed lawyer.',
+              ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: LexiqColors.brassGold),
+            ),
+          ],
+        ],
+      ),
+    );
+
+    final insightsPanel = Column(
+      children: [
+        GlassPanel(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                context.tr('Confidence'),
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 8),
+              LinearProgressIndicator(value: confidence.clamp(0, 1)),
+              const SizedBox(height: 8),
+              Text('${(confidence * 100).toStringAsFixed(0)}%'),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        GlassPanel(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                context.tr('Suggested Authorities'),
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 8),
+              if (suggestedAuthorities.isEmpty)
+                Text(context.tr('No suggested authorities yet.'))
+              else
+                ...suggestedAuthorities.map((item) {
+                  final citation = (item['citation'] ?? '-').toString();
+                  final sourceType = (item['sourceType'] ?? '-').toString();
+                  return _authority(context, item, '$citation ($sourceType)');
+                }),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        GlassPanel(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                context.tr('Extracted Issues'),
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 8),
+              if (extractedIssues.isEmpty)
+                Text(context.tr('No extracted issues yet.'))
+              else
+                ...extractedIssues.map((issue) => Text('• $issue')),
+              const SizedBox(height: 12),
+              Text(
+                context.tr('Proposed Questions'),
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 8),
+              if (proposedQuestions.isEmpty)
+                Text(context.tr('No proposed questions yet.'))
+              else
+                ...proposedQuestions.map((question) => Text('• $question')),
+            ],
+          ),
+        ),
+      ],
+    );
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(18),
@@ -522,65 +626,118 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
                   ),
                 ),
                 const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        initialValue: selectedCaseValue,
-                        items: _cases
-                            .map(
-                              (item) => DropdownMenuItem<String>(
-                                value: item['_id']?.toString(),
-                                child: Text(
-                                  '${(item['caseNumber'] ?? '-').toString()} - ${(item['title'] ?? '-').toString()}',
-                                  overflow: TextOverflow.ellipsis,
+                if (isCompact) ...[
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedCaseValue,
+                    items: _cases
+                        .map(
+                          (item) => DropdownMenuItem<String>(
+                            value: item['_id']?.toString(),
+                            child: Text(
+                              '${(item['caseNumber'] ?? '-').toString()} - ${(item['title'] ?? '-').toString()}',
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: _loadingCases
+                        ? null
+                        : (value) async {
+                            setState(() => _selectedCaseId = value);
+                            if (value != null && value.isNotEmpty) {
+                              await _loadDocumentsForCase(value);
+                            } else {
+                              setState(() {
+                                _documents = const [];
+                                _selectedDocumentIds.clear();
+                              });
+                            }
+                          },
+                    decoration: InputDecoration(
+                      labelText: _loadingCases
+                          ? 'جاري تحميل القضايا...'
+                          : 'القضية المرتبطة',
+                      prefixIcon: const Icon(Icons.balance_rounded),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  InkWell(
+                    onTap: _loadingDocuments ? null : _pickDocuments,
+                    borderRadius: BorderRadius.circular(12),
+                    child: InputDecorator(
+                      decoration: InputDecoration(
+                        labelText: _loadingDocuments
+                            ? 'جاري تحميل المستندات...'
+                            : 'المستندات المرتبطة',
+                        prefixIcon: const Icon(Icons.description_rounded),
+                      ),
+                      child: Text(
+                        _selectedDocumentIds.isEmpty
+                            ? 'اختر المستندات من القضية'
+                            : 'تم اختيار ${_selectedDocumentIds.length} مستند',
+                      ),
+                    ),
+                  ),
+                ] else
+                  Row(
+                    children: [
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          initialValue: selectedCaseValue,
+                          items: _cases
+                              .map(
+                                (item) => DropdownMenuItem<String>(
+                                  value: item['_id']?.toString(),
+                                  child: Text(
+                                    '${(item['caseNumber'] ?? '-').toString()} - ${(item['title'] ?? '-').toString()}',
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: _loadingCases
-                            ? null
-                            : (value) async {
-                                setState(() => _selectedCaseId = value);
-                                if (value != null && value.isNotEmpty) {
-                                  await _loadDocumentsForCase(value);
-                                } else {
-                                  setState(() {
-                                    _documents = const [];
-                                    _selectedDocumentIds.clear();
-                                  });
-                                }
-                              },
-                        decoration: InputDecoration(
-                          labelText: _loadingCases
-                              ? 'جاري تحميل القضايا...'
-                              : 'القضية المرتبطة',
-                          prefixIcon: const Icon(Icons.balance_rounded),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: InkWell(
-                        onTap: _loadingDocuments ? null : _pickDocuments,
-                        borderRadius: BorderRadius.circular(12),
-                        child: InputDecorator(
+                              )
+                              .toList(),
+                          onChanged: _loadingCases
+                              ? null
+                              : (value) async {
+                                  setState(() => _selectedCaseId = value);
+                                  if (value != null && value.isNotEmpty) {
+                                    await _loadDocumentsForCase(value);
+                                  } else {
+                                    setState(() {
+                                      _documents = const [];
+                                      _selectedDocumentIds.clear();
+                                    });
+                                  }
+                                },
                           decoration: InputDecoration(
-                            labelText: _loadingDocuments
-                                ? 'جاري تحميل المستندات...'
-                                : 'المستندات المرتبطة',
-                            prefixIcon: const Icon(Icons.description_rounded),
-                          ),
-                          child: Text(
-                            _selectedDocumentIds.isEmpty
-                                ? 'اختر المستندات من القضية'
-                                : 'تم اختيار ${_selectedDocumentIds.length} مستند',
+                            labelText: _loadingCases
+                                ? 'جاري تحميل القضايا...'
+                                : 'القضية المرتبطة',
+                            prefixIcon: const Icon(Icons.balance_rounded),
                           ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: InkWell(
+                          onTap: _loadingDocuments ? null : _pickDocuments,
+                          borderRadius: BorderRadius.circular(12),
+                          child: InputDecorator(
+                            decoration: InputDecoration(
+                              labelText: _loadingDocuments
+                                  ? 'جاري تحميل المستندات...'
+                                  : 'المستندات المرتبطة',
+                              prefixIcon: const Icon(Icons.description_rounded),
+                            ),
+                            child: Text(
+                              _selectedDocumentIds.isEmpty
+                                  ? 'اختر المستندات من القضية'
+                                  : 'تم اختيار ${_selectedDocumentIds.length} مستند',
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 if (_selectedDocumentIds.isNotEmpty) ...[
                   const SizedBox(height: 10),
                   Wrap(
@@ -635,7 +792,7 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
                   runSpacing: 10,
                   children: [
                     SizedBox(
-                      width: 220,
+                      width: actionButtonWidth,
                       child: OutlinedButton.icon(
                         onPressed: _loading ? null : _saveAnalysis,
                         icon: const Icon(Icons.save_alt_rounded),
@@ -643,7 +800,7 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
                       ),
                     ),
                     SizedBox(
-                      width: 220,
+                      width: actionButtonWidth,
                       child: ElevatedButton.icon(
                         onPressed: _loading ? null : _runAnalysis,
                         icon: _loading
@@ -659,7 +816,7 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
                       ),
                     ),
                     SizedBox(
-                      width: 220,
+                      width: actionButtonWidth,
                       child: ElevatedButton.icon(
                         onPressed: _loading ? null : _convertToMemo,
                         icon: const Icon(Icons.article_rounded),
@@ -667,7 +824,7 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
                       ),
                     ),
                     SizedBox(
-                      width: 220,
+                      width: actionButtonWidth,
                       child: OutlinedButton.icon(
                         onPressed: _loading ? null : _attachAnalysisToCase,
                         icon: const Icon(Icons.link_rounded),
@@ -675,7 +832,7 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
                       ),
                     ),
                     SizedBox(
-                      width: 220,
+                      width: actionButtonWidth,
                       child: OutlinedButton.icon(
                         onPressed: _loading
                             ? null
@@ -685,7 +842,7 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
                       ),
                     ),
                     SizedBox(
-                      width: 220,
+                      width: actionButtonWidth,
                       child: OutlinedButton.icon(
                         onPressed: _loading
                             ? null
@@ -700,127 +857,19 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
             ),
           ),
           const SizedBox(height: 12),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                flex: 2,
-                child: GlassPanel(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        context.tr('Results'),
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 8),
-                      if (_error != null)
-                        Text(_error!)
-                      else if (_result == null)
-                        Text(
-                          context.tr(
-                            'Citation-aware grounded answer appears here.',
-                          ),
-                        )
-                      else ...[
-                        Text((_result?['summary'] ?? '').toString()),
-                        const SizedBox(height: 8),
-                        Text((_result?['groundedAnswer'] ?? '').toString()),
-                        const SizedBox(height: 12),
-                        Text(
-                          context.tr(
-                            'AI output is preliminary and must be reviewed by a licensed lawyer.',
-                          ),
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: LexiqColors.brassGold),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  children: [
-                    GlassPanel(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            context.tr('Confidence'),
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          const SizedBox(height: 8),
-                          LinearProgressIndicator(
-                            value: confidence.clamp(0, 1),
-                          ),
-                          const SizedBox(height: 8),
-                          Text('${(confidence * 100).toStringAsFixed(0)}%'),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    GlassPanel(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            context.tr('Suggested Authorities'),
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          const SizedBox(height: 8),
-                          if (suggestedAuthorities.isEmpty)
-                            Text(context.tr('No suggested authorities yet.'))
-                          else
-                            ...suggestedAuthorities.map((item) {
-                              final citation = (item['citation'] ?? '-')
-                                  .toString();
-                              final sourceType = (item['sourceType'] ?? '-')
-                                  .toString();
-                              return _authority(
-                                context,
-                                item,
-                                '$citation ($sourceType)',
-                              );
-                            }),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    GlassPanel(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            context.tr('Extracted Issues'),
-                            style: const TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                          const SizedBox(height: 8),
-                          if (extractedIssues.isEmpty)
-                            Text(context.tr('No extracted issues yet.'))
-                          else
-                            ...extractedIssues.map((issue) => Text('• $issue')),
-                          const SizedBox(height: 12),
-                          Text(
-                            context.tr('Proposed Questions'),
-                            style: const TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                          const SizedBox(height: 8),
-                          if (proposedQuestions.isEmpty)
-                            Text(context.tr('No proposed questions yet.'))
-                          else
-                            ...proposedQuestions.map(
-                              (question) => Text('• $question'),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+          if (isCompact) ...[
+            resultsPanel,
+            const SizedBox(height: 12),
+            insightsPanel,
+          ] else
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(flex: 2, child: resultsPanel),
+                const SizedBox(width: 12),
+                Expanded(child: insightsPanel),
+              ],
+            ),
         ],
       ),
     );

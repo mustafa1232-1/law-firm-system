@@ -1503,64 +1503,78 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
   Widget _buildSummaryPanel(BuildContext context) {
     final total = _total;
     final selectedType = _canonicalCaseType(_selectedCaseType);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxWidth = constraints.maxWidth;
+        final summaryCardWidth = switch (maxWidth) {
+          < 560 => maxWidth,
+          < 1000 => (maxWidth - 10) / 2,
+          _ => 220.0,
+        };
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          _loc(
-            context,
-            'عداد القرارات حسب نوع القضية (اضغط على النوع للعرض)',
-            'Decision counters by case type (tap a type to view)',
-          ),
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
-        const SizedBox(height: 10),
-        Wrap(
-          spacing: 10,
-          runSpacing: 10,
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _SummaryCard(
-              title: _selectedCourtLevel == 'appellate'
-                  ? _loc(
-                      context,
-                      'كل الأنواع (استئنافي)',
-                      'All Types (Appellate)',
-                    )
-                  : _loc(context, 'كل الأنواع', 'All Types'),
-              value: '$total',
-              icon: Icons.gavel_rounded,
-              color: LexiqColors.imperialBlue,
-              selected: selectedType == _caseTypes.first,
-              onTap: () => setState(() => _selectedCaseType = _caseTypes.first),
+            Text(
+              _loc(
+                context,
+                'عداد القرارات حسب نوع القضية (اضغط على النوع للعرض)',
+                'Decision counters by case type (tap a type to view)',
+              ),
+              style: Theme.of(context).textTheme.titleMedium,
             ),
-            ..._summaryItems.map((entry) {
-              final rawType = _canonicalCaseType(
-                (entry['caseType'] ?? 'other').toString(),
-              );
-              final caseType = _localizeCaseType(context, rawType);
-              final count = (entry['count'] ?? 0).toString();
-              final selected = selectedType == rawType;
-              return _SummaryCard(
-                title: caseType,
-                value: count,
-                icon: Icons.folder_special_rounded,
-                color: selected
-                    ? LexiqColors.imperialBlue
-                    : LexiqColors.brassGold,
-                selected: selected,
-                onTap: () => setState(() => _selectedCaseType = rawType),
-              );
-            }),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                _SummaryCard(
+                  width: summaryCardWidth,
+                  title: _selectedCourtLevel == 'appellate'
+                      ? _loc(
+                          context,
+                          'كل الأنواع (استئنافي)',
+                          'All Types (Appellate)',
+                        )
+                      : _loc(context, 'كل الأنواع', 'All Types'),
+                  value: '$total',
+                  icon: Icons.gavel_rounded,
+                  color: LexiqColors.imperialBlue,
+                  selected: selectedType == _caseTypes.first,
+                  onTap: () =>
+                      setState(() => _selectedCaseType = _caseTypes.first),
+                ),
+                ..._summaryItems.map((entry) {
+                  final rawType = _canonicalCaseType(
+                    (entry['caseType'] ?? 'other').toString(),
+                  );
+                  final caseType = _localizeCaseType(context, rawType);
+                  final count = (entry['count'] ?? 0).toString();
+                  final selected = selectedType == rawType;
+                  return _SummaryCard(
+                    width: summaryCardWidth,
+                    title: caseType,
+                    value: count,
+                    icon: Icons.folder_special_rounded,
+                    color: selected
+                        ? LexiqColors.imperialBlue
+                        : LexiqColors.brassGold,
+                    selected: selected,
+                    onTap: () => setState(() => _selectedCaseType = rawType),
+                  );
+                }),
+              ],
+            ),
           ],
-        ),
-      ],
+        );
+      },
     );
   }
 }
 
 class _SummaryCard extends StatelessWidget {
   const _SummaryCard({
+    required this.width,
     required this.title,
     required this.value,
     required this.icon,
@@ -1569,6 +1583,7 @@ class _SummaryCard extends StatelessWidget {
     this.onTap,
   });
 
+  final double width;
   final String title;
   final String value;
   final IconData icon;
@@ -1581,7 +1596,7 @@ class _SummaryCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: SizedBox(
-        width: 220,
+        width: width,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
           decoration: BoxDecoration(
