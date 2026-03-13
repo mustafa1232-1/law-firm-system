@@ -22,24 +22,32 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
   final _searchController = TextEditingController();
 
   bool _loading = false;
+  bool _loadingMore = false;
   String? _error;
   String? _note;
-  String _selectedCategory = 'الكل';
+  String _selectedCategory = 'Ø§Ù„ÙƒÙ„';
   _ResultsTab _activeTab = _ResultsTab.laws;
+  bool _searchMode = false;
+  String _activeQuery = '';
+  bool _hasMore = false;
+  int _page = 1;
 
   int _totalLaws = 0;
   int _totalArticles = 0;
 
   List<Map<String, dynamic>> _laws = const [];
   List<Map<String, dynamic>> _articles = const [];
+  final Map<String, _LawsSearchCacheEntry> _cache = {};
+
+  static const int _pageSize = 30;
 
   static const _smartSearchExamples = <String>[
-    'المادة 1',
-    'تعويض الضرر',
-    'الاختصاص القضائي',
-    'قانون 40',
-    'الإثبات',
-    'العقد والالتزام',
+    'Ø§Ù„Ù…Ø§Ø¯Ø© 1',
+    'ØªØ¹ÙˆÙŠØ¶ Ø§Ù„Ø¶Ø±Ø±',
+    'Ø§Ù„Ø§Ø®ØªØµØ§Øµ Ø§Ù„Ù‚Ø¶Ø§Ø¦ÙŠ',
+    'Ù‚Ø§Ù†ÙˆÙ† 40',
+    'Ø§Ù„Ø¥Ø«Ø¨Ø§Øª',
+    'Ø§Ù„Ø¹Ù‚Ø¯ ÙˆØ§Ù„Ø§Ù„ØªØ²Ø§Ù…',
   ];
 
   @override
@@ -55,47 +63,7 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
   }
 
   Future<void> _loadInitialLaws() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-      _note = null;
-    });
-
-    try {
-      final dio = ref.read(dioProvider);
-      final response = await dio.get(
-        '/laws',
-        queryParameters: const {'limit': 30, 'page': 1},
-        options: Options(headers: authHeaders(ref)),
-      );
-
-      final data = (response.data as Map).cast<String, dynamic>();
-      final laws = ((data['items'] as List?) ?? const [])
-          .map((entry) => (entry as Map).cast<String, dynamic>())
-          .toList();
-
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _laws = laws;
-        _articles = const [];
-        _totalLaws = (data['total'] as num?)?.toInt() ?? laws.length;
-        _totalArticles = 0;
-        _activeTab = _ResultsTab.laws;
-        _note = 'اكتب كلمة أو رقم مادة أو رقم قانون للبحث الذكي.';
-      });
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      setState(() => _error = parseApiError(error));
-    } finally {
-      if (mounted) {
-        setState(() => _loading = false);
-      }
-    }
+    await _fetchBrowse(page: 1, append: false);
   }
 
   Future<void> _search() async {
@@ -105,17 +73,151 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
       return;
     }
 
+    await _fetchSearch(query: query, page: 1, append: false);
+  }
+
+  Future<void> _loadMore() async {
+    if (_loading || _loadingMore || !_hasMore) {
+      return;
+    }
+
+    if (_searchMode) {
+      await _fetchSearch(query: _activeQuery, page: _page + 1, append: true);
+      return;
+    }
+
+    await _fetchBrowse(page: _page + 1, append: true);
+  }
+
+  Future<void> _fetchBrowse({
+    required int page,
+    required bool append,
+    bool force = false,
+  }) async {
+    final key = _cacheKey(mode: 'browse', query: '', page: page);
+
+    if (!force) {
+      final cached = _cache[key];
+      if (cached != null) {
+        _applyBrowsePayload(
+          laws: cached.laws,
+          totalLaws: cached.totalLaws,
+          page: page,
+          append: append,
+          note: cached.note,
+        );
+        return;
+      }
+    }
+
+    if (!mounted) {
+      return;
+    }
+
     setState(() {
-      _loading = true;
-      _error = null;
-      _note = null;
+      if (append) {
+        _loadingMore = true;
+      } else {
+        _loading = true;
+        _error = null;
+        _note = null;
+      }
+    });
+
+    try {
+      final dio = ref.read(dioProvider);
+      final response = await dio.get(
+        '/laws',
+        queryParameters: {'limit': _pageSize, 'page': page},
+        options: Options(headers: authHeaders(ref)),
+      );
+
+      final data = (response.data as Map).cast<String, dynamic>();
+      final laws = ((data['items'] as List?) ?? const [])
+          .map((entry) => (entry as Map).cast<String, dynamic>())
+          .toList();
+      final totalLaws = (data['total'] as num?)?.toInt() ?? laws.length;
+      const note = 'اكتب كلمة أو رقم مادة أو رقم قانون للبحث الذكي.';
+
+      _cache[key] = _LawsSearchCacheEntry(
+        laws: laws,
+        articles: const [],
+        totalLaws: totalLaws,
+        totalArticles: 0,
+        note: note,
+      );
+
+      _applyBrowsePayload(
+        laws: laws,
+        totalLaws: totalLaws,
+        page: page,
+        append: append,
+        note: note,
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _error = parseApiError(error));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _loadingMore = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _fetchSearch({
+    required String query,
+    required int page,
+    required bool append,
+    bool force = false,
+  }) async {
+    final normalizedQuery = query.trim();
+    final key = _cacheKey(mode: 'search', query: normalizedQuery, page: page);
+
+    if (!force) {
+      final cached = _cache[key];
+      if (cached != null) {
+        _applySearchPayload(
+          laws: cached.laws,
+          articles: cached.articles,
+          totalLaws: cached.totalLaws,
+          totalArticles: cached.totalArticles,
+          page: page,
+          append: append,
+          query: normalizedQuery,
+          note: cached.note,
+        );
+        return;
+      }
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      if (append) {
+        _loadingMore = true;
+      } else {
+        _loading = true;
+        _error = null;
+        _note = null;
+      }
     });
 
     try {
       final dio = ref.read(dioProvider);
       final response = await dio.get(
         '/laws/search',
-        queryParameters: {'q': query, 'limit': 40, 'page': 1},
+        queryParameters: {
+          'q': normalizedQuery,
+          'limit': _pageSize,
+          'page': page,
+        },
         options: Options(headers: authHeaders(ref)),
       );
 
@@ -126,25 +228,29 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
       final articles = ((data['articles'] as List?) ?? const [])
           .map((entry) => (entry as Map).cast<String, dynamic>())
           .toList();
+      final totalLaws = (data['totalLaws'] as num?)?.toInt() ?? laws.length;
+      final totalArticles =
+          (data['totalArticles'] as num?)?.toInt() ?? articles.length;
+      final note = (data['note'] ?? '').toString().trim();
 
-      if (!mounted) {
-        return;
-      }
+      _cache[key] = _LawsSearchCacheEntry(
+        laws: laws,
+        articles: articles,
+        totalLaws: totalLaws,
+        totalArticles: totalArticles,
+        note: note,
+      );
 
-      setState(() {
-        _laws = laws;
-        _articles = articles;
-        _totalLaws = (data['totalLaws'] as num?)?.toInt() ?? laws.length;
-        _totalArticles =
-            (data['totalArticles'] as num?)?.toInt() ?? articles.length;
-        _note = (data['note'] ?? '').toString().trim();
-
-        if (laws.isNotEmpty) {
-          _activeTab = _ResultsTab.laws;
-        } else if (articles.isNotEmpty) {
-          _activeTab = _ResultsTab.articles;
-        }
-      });
+      _applySearchPayload(
+        laws: laws,
+        articles: articles,
+        totalLaws: totalLaws,
+        totalArticles: totalArticles,
+        page: page,
+        append: append,
+        query: normalizedQuery,
+        note: note,
+      );
     } catch (error) {
       if (!mounted) {
         return;
@@ -152,9 +258,117 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
       setState(() => _error = parseApiError(error));
     } finally {
       if (mounted) {
-        setState(() => _loading = false);
+        setState(() {
+          _loading = false;
+          _loadingMore = false;
+        });
       }
     }
+  }
+
+  void _applyBrowsePayload({
+    required List<Map<String, dynamic>> laws,
+    required int totalLaws,
+    required int page,
+    required bool append,
+    required String note,
+  }) {
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _laws = append ? _mergeUniqueById(_laws, laws) : laws;
+      _articles = const [];
+      _totalLaws = totalLaws;
+      _totalArticles = 0;
+      _searchMode = false;
+      _activeQuery = '';
+      _page = page;
+      _hasMore = _laws.length < _totalLaws;
+      _activeTab = _ResultsTab.laws;
+      _note = note;
+    });
+  }
+
+  void _applySearchPayload({
+    required List<Map<String, dynamic>> laws,
+    required List<Map<String, dynamic>> articles,
+    required int totalLaws,
+    required int totalArticles,
+    required int page,
+    required bool append,
+    required String query,
+    required String note,
+  }) {
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _laws = append ? _mergeUniqueById(_laws, laws) : laws;
+      _articles = append ? _mergeUniqueById(_articles, articles) : articles;
+      _totalLaws = totalLaws;
+      _totalArticles = totalArticles;
+      _searchMode = true;
+      _activeQuery = query;
+      _page = page;
+      _hasMore = _laws.length < _totalLaws || _articles.length < _totalArticles;
+      _note = note;
+
+      if (!append) {
+        if (_laws.isNotEmpty) {
+          _activeTab = _ResultsTab.laws;
+        } else if (_articles.isNotEmpty) {
+          _activeTab = _ResultsTab.articles;
+        }
+      }
+    });
+  }
+
+  String _cacheKey({
+    required String mode,
+    required String query,
+    required int page,
+  }) {
+    final normalized = query.trim().toLowerCase();
+    return '$mode|$normalized|$page';
+  }
+
+  List<Map<String, dynamic>> _mergeUniqueById(
+    List<Map<String, dynamic>> current,
+    List<Map<String, dynamic>> incoming,
+  ) {
+    final map = <String, Map<String, dynamic>>{};
+
+    for (final item in current) {
+      map[_idForMap(item)] = item;
+    }
+    for (final item in incoming) {
+      map[_idForMap(item)] = item;
+    }
+
+    return map.values.toList();
+  }
+
+  String _idForMap(Map<String, dynamic> item) {
+    final id = (item['_id'] ?? item['id'])?.toString();
+    if (id != null && id.trim().isNotEmpty) {
+      return id;
+    }
+
+    final articleNo = (item['articleNumber'] ?? '').toString();
+    final lawRef = item['lawId'];
+    if (lawRef is Map) {
+      final lawId = (lawRef['_id'] ?? lawRef['id'] ?? '').toString();
+      return 'article:$lawId:$articleNo';
+    }
+    if (lawRef is String && lawRef.trim().isNotEmpty) {
+      return 'article:$lawRef:$articleNo';
+    }
+
+    final title = (item['title'] ?? '').toString();
+    return '$title::$articleNo::${item.hashCode}';
   }
 
   void _openLaw(String lawId) {
@@ -184,7 +398,7 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
   String _categoryOfLaw(Map<String, dynamic> law) {
     final domain = (law['legalDomain'] ?? '').toString().trim();
     if (domain.isEmpty) {
-      return 'غير مصنف';
+      return 'ØºÙŠØ± Ù…ØµÙ†Ù';
     }
     return domain;
   }
@@ -198,7 +412,7 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
   }
 
   List<Map<String, dynamic>> _filteredLaws() {
-    if (_selectedCategory == 'الكل') {
+    if (_selectedCategory == 'Ø§Ù„ÙƒÙ„') {
       return _laws;
     }
     return _laws
@@ -209,7 +423,7 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
   List<Map<String, dynamic>> _filteredArticles(
     List<Map<String, dynamic>> filteredLaws,
   ) {
-    if (_selectedCategory == 'الكل') {
+    if (_selectedCategory == 'Ø§Ù„ÙƒÙ„') {
       return _articles;
     }
 
@@ -232,7 +446,7 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
   }
 
   List<String> _availableCategories() {
-    final values = <String>{'الكل'};
+    final values = <String>{'Ø§Ù„ÙƒÙ„'};
     for (final law in _laws) {
       values.add(_categoryOfLaw(law));
     }
@@ -277,9 +491,28 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
               subtitle:
                   'Law documents, articles, amendments, and legal classification',
               trailing: OutlinedButton.icon(
-                onPressed: _loading ? null : _loadInitialLaws,
+                onPressed: _loading
+                    ? null
+                    : () async {
+                        final query = _searchController.text.trim();
+                        _cache.clear();
+                        if (query.isEmpty) {
+                          await _fetchBrowse(
+                            page: 1,
+                            append: false,
+                            force: true,
+                          );
+                        } else {
+                          await _fetchSearch(
+                            query: query,
+                            page: 1,
+                            append: false,
+                            force: true,
+                          );
+                        }
+                      },
                 icon: const Icon(Icons.refresh_rounded),
-                label: const Text('تحديث'),
+                label: const Text('ØªØ­Ø¯ÙŠØ«'),
               ),
             ),
             const SizedBox(height: 12),
@@ -307,6 +540,10 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
               _buildLawsResultPanel(context, filteredLaws)
             else
               _buildArticlesResultPanel(context, filteredArticles),
+            if (!_loading && _error == null && _hasMore) ...[
+              const SizedBox(height: 12),
+              _buildLoadMorePanel(),
+            ],
           ],
         ),
       ),
@@ -340,12 +577,12 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'بحث قانوني ذكي',
+                      'Ø¨Ø­Ø« Ù‚Ø§Ù†ÙˆÙ†ÙŠ Ø°ÙƒÙŠ',
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                     const SizedBox(height: 3),
                     Text(
-                      'ابحث بكلمة أو رقم مادة أو رقم قانون، مع نتائج منظمة بين القوانين والمواد.',
+                      'Ø§Ø¨Ø­Ø« Ø¨ÙƒÙ„Ù…Ø© Ø£Ùˆ Ø±Ù‚Ù… Ù…Ø§Ø¯Ø© Ø£Ùˆ Ø±Ù‚Ù… Ù‚Ø§Ù†ÙˆÙ†ØŒ Ù…Ø¹ Ù†ØªØ§Ø¦Ø¬ Ù…Ù†Ø¸Ù…Ø© Ø¨ÙŠÙ† Ø§Ù„Ù‚ÙˆØ§Ù†ÙŠÙ† ÙˆØ§Ù„Ù…ÙˆØ§Ø¯.',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: LexiqColors.slateGray,
                       ),
@@ -362,7 +599,7 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
               onSubmitted: (_) => _search(),
               textInputAction: TextInputAction.search,
               decoration: InputDecoration(
-                hintText: 'اكتب عبارة البحث القانونية',
+                hintText: 'Ø§ÙƒØªØ¨ Ø¹Ø¨Ø§Ø±Ø© Ø§Ù„Ø¨Ø­Ø« Ø§Ù„Ù‚Ø§Ù†ÙˆÙ†ÙŠØ©',
                 prefixIcon: const Icon(Icons.search_rounded),
                 suffixIcon: _searchController.text.trim().isEmpty
                     ? null
@@ -382,7 +619,7 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
               child: ElevatedButton.icon(
                 onPressed: _loading ? null : _search,
                 icon: const Icon(Icons.auto_awesome_rounded),
-                label: const Text('بحث ذكي'),
+                label: const Text('Ø¨Ø­Ø« Ø°ÙƒÙŠ'),
               ),
             ),
             const SizedBox(height: 8),
@@ -397,7 +634,7 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
                         _loadInitialLaws();
                       },
                 icon: const Icon(Icons.restart_alt_rounded),
-                label: const Text('إعادة ضبط'),
+                label: const Text('Ø¥Ø¹Ø§Ø¯Ø© Ø¶Ø¨Ø·'),
               ),
             ),
           ] else
@@ -409,7 +646,8 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
                     onSubmitted: (_) => _search(),
                     textInputAction: TextInputAction.search,
                     decoration: InputDecoration(
-                      hintText: 'اكتب عبارة البحث القانونية',
+                      hintText:
+                          'Ø§ÙƒØªØ¨ Ø¹Ø¨Ø§Ø±Ø© Ø§Ù„Ø¨Ø­Ø« Ø§Ù„Ù‚Ø§Ù†ÙˆÙ†ÙŠØ©',
                       prefixIcon: const Icon(Icons.search_rounded),
                       suffixIcon: _searchController.text.trim().isEmpty
                           ? null
@@ -428,7 +666,7 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
                 ElevatedButton.icon(
                   onPressed: _loading ? null : _search,
                   icon: const Icon(Icons.auto_awesome_rounded),
-                  label: const Text('بحث ذكي'),
+                  label: const Text('Ø¨Ø­Ø« Ø°ÙƒÙŠ'),
                 ),
                 const SizedBox(width: 8),
                 OutlinedButton.icon(
@@ -440,13 +678,13 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
                           _loadInitialLaws();
                         },
                   icon: const Icon(Icons.restart_alt_rounded),
-                  label: const Text('إعادة ضبط'),
+                  label: const Text('Ø¥Ø¹Ø§Ø¯Ø© Ø¶Ø¨Ø·'),
                 ),
               ],
             ),
           const SizedBox(height: 12),
           Text(
-            'أمثلة بحث سريعة',
+            'Ø£Ù…Ø«Ù„Ø© Ø¨Ø­Ø« Ø³Ø±ÙŠØ¹Ø©',
             style: Theme.of(
               context,
             ).textTheme.titleSmall?.copyWith(color: LexiqColors.brassGold),
@@ -496,6 +734,27 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
     );
   }
 
+  Widget _buildLoadMorePanel() {
+    return GlassPanel(
+      child: Center(
+        child: SizedBox(
+          width: 240,
+          child: ElevatedButton.icon(
+            onPressed: _loadingMore ? null : _loadMore,
+            icon: _loadingMore
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.expand_more_rounded),
+            label: Text(_loadingMore ? 'جاري تحميل المزيد...' : 'تحميل المزيد'),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildStatsPanel(
     BuildContext context, {
     required List<Map<String, dynamic>> filteredLaws,
@@ -503,25 +762,25 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
   }) {
     final stats = <({String label, String value, IconData icon, Color color})>[
       (
-        label: 'إجمالي القوانين',
+        label: 'Ø¥Ø¬Ù…Ø§Ù„ÙŠ Ø§Ù„Ù‚ÙˆØ§Ù†ÙŠÙ†',
         value: _totalLaws.toString(),
         icon: Icons.gavel_rounded,
         color: LexiqColors.imperialBlue,
       ),
       (
-        label: 'القوانين المعروضة',
+        label: 'Ø§Ù„Ù‚ÙˆØ§Ù†ÙŠÙ† Ø§Ù„Ù…Ø¹Ø±ÙˆØ¶Ø©',
         value: filteredLaws.length.toString(),
         icon: Icons.view_agenda_rounded,
         color: LexiqColors.brassGold,
       ),
       (
-        label: 'إجمالي المواد',
+        label: 'Ø¥Ø¬Ù…Ø§Ù„ÙŠ Ø§Ù„Ù…ÙˆØ§Ø¯',
         value: _totalArticles.toString(),
         icon: Icons.article_rounded,
         color: LexiqColors.emeraldJustice,
       ),
       (
-        label: 'المواد المعروضة',
+        label: 'Ø§Ù„Ù…ÙˆØ§Ø¯ Ø§Ù„Ù…Ø¹Ø±ÙˆØ¶Ø©',
         value: filteredArticles.length.toString(),
         icon: Icons.tune_rounded,
         color: LexiqColors.slateGray,
@@ -550,7 +809,7 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'تصفية حسب التصنيف',
+            'ØªØµÙÙŠØ© Ø­Ø³Ø¨ Ø§Ù„ØªØµÙ†ÙŠÙ',
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 8),
@@ -585,7 +844,7 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
             child: _ResultTabButton(
               selected: _activeTab == _ResultsTab.laws,
               icon: Icons.menu_book_rounded,
-              title: 'القوانين',
+              title: 'Ø§Ù„Ù‚ÙˆØ§Ù†ÙŠÙ†',
               count: lawsCount,
               onTap: () => setState(() => _activeTab = _ResultsTab.laws),
             ),
@@ -595,7 +854,7 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
             child: _ResultTabButton(
               selected: _activeTab == _ResultsTab.articles,
               icon: Icons.description_rounded,
-              title: 'المواد',
+              title: 'Ø§Ù„Ù…ÙˆØ§Ø¯',
               count: articlesCount,
               onTap: () => setState(() => _activeTab = _ResultsTab.articles),
             ),
@@ -614,7 +873,7 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
             children: [
               CircularProgressIndicator(),
               SizedBox(height: 10),
-              Text('جاري تحميل النتائج القانونية...'),
+              Text('Ø¬Ø§Ø±ÙŠ ØªØ­Ù…ÙŠÙ„ Ø§Ù„Ù†ØªØ§Ø¦Ø¬ Ø§Ù„Ù‚Ø§Ù†ÙˆÙ†ÙŠØ©...'),
             ],
           ),
         ),
@@ -650,11 +909,15 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('نتائج القوانين', style: Theme.of(context).textTheme.titleLarge),
+          Text(
+            'Ù†ØªØ§Ø¦Ø¬ Ø§Ù„Ù‚ÙˆØ§Ù†ÙŠÙ†',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
           const SizedBox(height: 10),
           if (laws.isEmpty)
             const _EmptyResultsMessage(
-              message: 'لا توجد قوانين مطابقة لمعايير البحث الحالية.',
+              message:
+                  'Ù„Ø§ ØªÙˆØ¬Ø¯ Ù‚ÙˆØ§Ù†ÙŠÙ† Ù…Ø·Ø§Ø¨Ù‚Ø© Ù„Ù…Ø¹Ø§ÙŠÙŠØ± Ø§Ù„Ø¨Ø­Ø« Ø§Ù„Ø­Ø§Ù„ÙŠØ©.',
             )
           else
             ListView.separated(
@@ -697,7 +960,7 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
                                 ? null
                                 : () => _openLaw(lawId),
                             icon: const Icon(Icons.arrow_outward_rounded),
-                            tooltip: 'فتح القانون',
+                            tooltip: 'ÙØªØ­ Ø§Ù„Ù‚Ø§Ù†ÙˆÙ†',
                           ),
                         ],
                       ),
@@ -709,11 +972,11 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
                           _MetaChip(
                             icon: Icons.numbers_rounded,
                             text:
-                                'القانون ${(law['lawNumber'] ?? '-').toString()}',
+                                'Ø§Ù„Ù‚Ø§Ù†ÙˆÙ† ${(law['lawNumber'] ?? '-').toString()}',
                           ),
                           _MetaChip(
                             icon: Icons.calendar_today_rounded,
-                            text: 'سنة ${(law['year'] ?? '-').toString()}',
+                            text: 'Ø³Ù†Ø© ${(law['year'] ?? '-').toString()}',
                           ),
                           _MetaChip(
                             icon: Icons.account_tree_rounded,
@@ -722,14 +985,14 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
                           if (score.isNotEmpty)
                             _MetaChip(
                               icon: Icons.insights_rounded,
-                              text: 'درجة $score',
+                              text: 'Ø¯Ø±Ø¬Ø© $score',
                             ),
                         ],
                       ),
                       if (reason.isNotEmpty) ...[
                         const SizedBox(height: 10),
                         Text(
-                          'سبب الصلة: $reason',
+                          'Ø³Ø¨Ø¨ Ø§Ù„ØµÙ„Ø©: $reason',
                           style: Theme.of(context).textTheme.bodyMedium
                               ?.copyWith(color: LexiqColors.slateGray),
                         ),
@@ -742,7 +1005,9 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
                               ? null
                               : () => _openLaw(lawId),
                           icon: const Icon(Icons.menu_book_rounded),
-                          label: const Text('فتح النص الكامل للقانون'),
+                          label: const Text(
+                            'ÙØªØ­ Ø§Ù„Ù†Øµ Ø§Ù„ÙƒØ§Ù…Ù„ Ù„Ù„Ù‚Ø§Ù†ÙˆÙ†',
+                          ),
                         ),
                       ),
                     ],
@@ -763,11 +1028,15 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('نتائج المواد', style: Theme.of(context).textTheme.titleLarge),
+          Text(
+            'Ù†ØªØ§Ø¦Ø¬ Ø§Ù„Ù…ÙˆØ§Ø¯',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
           const SizedBox(height: 10),
           if (articles.isEmpty)
             const _EmptyResultsMessage(
-              message: 'لا توجد مواد مطابقة لمعايير البحث الحالية.',
+              message:
+                  'Ù„Ø§ ØªÙˆØ¬Ø¯ Ù…ÙˆØ§Ø¯ Ù…Ø·Ø§Ø¨Ù‚Ø© Ù„Ù…Ø¹Ø§ÙŠÙŠØ± Ø§Ù„Ø¨Ø­Ø« Ø§Ù„Ø­Ø§Ù„ÙŠØ©.',
             )
           else
             ListView.separated(
@@ -815,7 +1084,7 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
                                 ),
                               ),
                               child: Text(
-                                'المادة ${(article['articleNumber'] ?? '-').toString()}',
+                                'Ø§Ù„Ù…Ø§Ø¯Ø© ${(article['articleNumber'] ?? '-').toString()}',
                                 style: Theme.of(context).textTheme.labelLarge,
                               ),
                             ),
@@ -823,7 +1092,7 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
                             if (score.isNotEmpty)
                               _MetaChip(
                                 icon: Icons.auto_graph_rounded,
-                                text: 'درجة $score',
+                                text: 'Ø¯Ø±Ø¬Ø© $score',
                               ),
                             const Spacer(),
                             const Icon(Icons.open_in_new_rounded),
@@ -845,7 +1114,7 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
                         if (reason.isNotEmpty) ...[
                           const SizedBox(height: 10),
                           Text(
-                            'سبب الصلة: $reason',
+                            'Ø³Ø¨Ø¨ Ø§Ù„ØµÙ„Ø©: $reason',
                             style: Theme.of(context).textTheme.bodySmall
                                 ?.copyWith(color: LexiqColors.slateGray),
                           ),
@@ -1032,4 +1301,20 @@ class _EmptyResultsMessage extends StatelessWidget {
       ),
     );
   }
+}
+
+class _LawsSearchCacheEntry {
+  const _LawsSearchCacheEntry({
+    required this.laws,
+    required this.articles,
+    required this.totalLaws,
+    required this.totalArticles,
+    required this.note,
+  });
+
+  final List<Map<String, dynamic>> laws;
+  final List<Map<String, dynamic>> articles;
+  final int totalLaws;
+  final int totalArticles;
+  final String note;
 }

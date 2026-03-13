@@ -81,11 +81,31 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     final options = Options(headers: authHeaders(ref));
 
     final responses = await Future.wait([
-      dio.get('/cases', queryParameters: const {'limit': 250}, options: options),
-      dio.get('/hearings', queryParameters: const {'limit': 250}, options: options),
-      dio.get('/tasks', queryParameters: const {'limit': 250}, options: options),
-      dio.get('/billing/payments', queryParameters: const {'limit': 250}, options: options),
-      dio.get('/notifications', queryParameters: const {'limit': 250}, options: options),
+      dio.get(
+        '/cases',
+        queryParameters: const {'limit': 250},
+        options: options,
+      ),
+      dio.get(
+        '/hearings',
+        queryParameters: const {'limit': 250},
+        options: options,
+      ),
+      dio.get(
+        '/tasks',
+        queryParameters: const {'limit': 250},
+        options: options,
+      ),
+      dio.get(
+        '/billing/payments',
+        queryParameters: const {'limit': 250},
+        options: options,
+      ),
+      dio.get(
+        '/notifications',
+        queryParameters: const {'limit': 250},
+        options: options,
+      ),
     ]);
 
     final cases = _extractItems(responses[0].data);
@@ -94,8 +114,8 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     final payments = _extractItems(responses[3].data);
     final notifications = responses[4].data is List
         ? ((responses[4].data as List)
-            .map((entry) => (entry as Map).cast<String, dynamic>())
-            .toList())
+              .map((entry) => (entry as Map).cast<String, dynamic>())
+              .toList())
         : _extractItems(responses[4].data);
 
     final now = DateTime.now();
@@ -135,13 +155,14 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
 
     final caseTypeMap = <String, int>{};
     for (final item in cases) {
-      final type = (item['caseType'] ?? 'أخرى').toString();
+      final type = (item['caseType'] ?? 'Ã˜Â£Ã˜Â®Ã˜Â±Ã™â€°').toString();
       caseTypeMap[type] = (caseTypeMap[type] ?? 0) + 1;
     }
-    final caseTypeDistribution = caseTypeMap.entries
-        .map((entry) => {'caseType': entry.key, 'count': entry.value})
-        .toList()
-      ..sort((a, b) => (b['count'] as int).compareTo(a['count'] as int));
+    final caseTypeDistribution =
+        caseTypeMap.entries
+            .map((entry) => {'caseType': entry.key, 'count': entry.value})
+            .toList()
+          ..sort((a, b) => (b['count'] as int).compareTo(a['count'] as int));
 
     final upcomingHearings = [...hearings]
       ..sort((a, b) {
@@ -152,72 +173,101 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
         );
       });
 
-    final urgentTasks = tasks.where((item) {
-      final status = (item['status'] ?? '').toString().toLowerCase();
-      final priority = (item['priority'] ?? '').toString().toLowerCase();
-      if (status == 'done' || status == 'cancelled') {
-        return false;
-      }
-      return priority == 'high' || priority == 'urgent';
-    }).toList()
-      ..sort((a, b) {
-        final aDate = DateTime.tryParse((a['dueDate'] ?? '').toString());
-        final bDate = DateTime.tryParse((b['dueDate'] ?? '').toString());
-        return (aDate ?? DateTime(now.year + 10)).compareTo(
-          bDate ?? DateTime(now.year + 10),
-        );
-      });
+    final urgentTasks =
+        tasks.where((item) {
+          final status = (item['status'] ?? '').toString().toLowerCase();
+          final priority = (item['priority'] ?? '').toString().toLowerCase();
+          if (status == 'done' || status == 'cancelled') {
+            return false;
+          }
+          return priority == 'high' || priority == 'urgent';
+        }).toList()..sort((a, b) {
+          final aDate = DateTime.tryParse((a['dueDate'] ?? '').toString());
+          final bDate = DateTime.tryParse((b['dueDate'] ?? '').toString());
+          return (aDate ?? DateTime(now.year + 10)).compareTo(
+            bDate ?? DateTime(now.year + 10),
+          );
+        });
 
     final alerts = notifications
         .where((item) => item['isRead'] != true)
         .map(
           (item) => {
             'type': 'notification',
-            'title': (item['title'] ?? 'تنبيه').toString(),
+            'title': (item['title'] ?? 'Ã˜ÂªÃ™â€ Ã˜Â¨Ã™Å Ã™â€¡').toString(),
             'subtitle': (item['message'] ?? '').toString(),
             'level': (item['level'] ?? 'info').toString(),
           },
         )
         .toList();
 
-    final openCases = cases
-        .where((item) {
-          final status = (item['status'] ?? '').toString().toLowerCase();
-          return status != 'closed' && status != 'archived';
-        })
-        .toList();
-    final closedCases = cases
-        .where((item) {
-          final status = (item['status'] ?? '').toString().toLowerCase();
-          return status == 'closed' || status == 'archived';
-        })
-        .toList();
+    final openCases = cases.where((item) {
+      final status = (item['status'] ?? '').toString().toLowerCase();
+      return status != 'closed' && status != 'archived';
+    }).toList();
+    final closedCases = cases.where((item) {
+      final status = (item['status'] ?? '').toString().toLowerCase();
+      return status == 'closed' || status == 'archived';
+    }).toList();
 
-    num outstandingOf(Map<String, dynamic> item) => (item['outstandingAmount'] as num?) ?? 0;
-    final openWithDebt = openCases.where((item) => outstandingOf(item) > 0).length;
-    final openFullyPaid = openCases.where((item) => outstandingOf(item) <= 0).length;
-    final closedWithDebt = closedCases.where((item) => outstandingOf(item) > 0).length;
-    final closedFullyPaid = closedCases.where((item) => outstandingOf(item) <= 0).length;
+    num outstandingOf(Map<String, dynamic> item) =>
+        (item['outstandingAmount'] as num?) ?? 0;
+    final openWithDebt = openCases
+        .where((item) => outstandingOf(item) > 0)
+        .length;
+    final openFullyPaid = openCases
+        .where((item) => outstandingOf(item) <= 0)
+        .length;
+    final closedWithDebt = closedCases
+        .where((item) => outstandingOf(item) > 0)
+        .length;
+    final closedFullyPaid = closedCases
+        .where((item) => outstandingOf(item) <= 0)
+        .length;
     final wonCases = cases
-        .where((item) => (item['outcome'] ?? '').toString().toLowerCase() == 'won')
+        .where(
+          (item) => (item['outcome'] ?? '').toString().toLowerCase() == 'won',
+        )
         .length;
     final lostCases = cases
-        .where((item) => (item['outcome'] ?? '').toString().toLowerCase() == 'lost')
+        .where(
+          (item) => (item['outcome'] ?? '').toString().toLowerCase() == 'lost',
+        )
         .length;
     final totalOutstanding = cases.fold<double>(
       0,
-      (sum, item) => sum + ((item['outstandingAmount'] as num?)?.toDouble() ?? 0),
+      (sum, item) =>
+          sum + ((item['outstandingAmount'] as num?)?.toDouble() ?? 0),
     );
+    final totalContractValue = cases.fold<double>(
+      0,
+      (sum, item) => sum + ((item['contractAmount'] as num?)?.toDouble() ?? 0),
+    );
+    final totalPaidAmount = cases.fold<double>(
+      0,
+      (sum, item) => sum + ((item['paidAmount'] as num?)?.toDouble() ?? 0),
+    );
+    final resolvedCases = wonCases + lostCases;
+    final winRatePercent = resolvedCases > 0
+        ? (wonCases / resolvedCases) * 100
+        : 0;
+    final collectionRatePercent = totalContractValue > 0
+        ? (totalPaidAmount / totalContractValue) * 100
+        : 0;
 
     return {
       'kpis': {
+        'totalCases': cases.length,
         'activeCases': activeCases,
         'hearingsThisWeek': hearingsThisWeek,
         'overdueTasks': overdueTasks,
         'billingCollected': billingCollected,
         'paymentsCount': payments.length,
+        'resolvedCases': resolvedCases,
       },
       'financeCaseIndicators': {
+        'openCasesCount': openCases.length,
+        'closedCasesCount': closedCases.length,
         'openWithDebt': openWithDebt,
         'openFullyPaid': openFullyPaid,
         'closedWithDebt': closedWithDebt,
@@ -225,50 +275,72 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
         'wonCases': wonCases,
         'lostCases': lostCases,
         'totalOutstanding': totalOutstanding,
+        'totalContractValue': totalContractValue,
+        'totalPaidAmount': totalPaidAmount,
+        'collectionRatePercent': collectionRatePercent,
+        'winRatePercent': winRatePercent,
       },
       'caseTypeDistribution': caseTypeDistribution.take(10).toList(),
       'lawyerAgenda': upcomingHearings
-          .where((hearing) => DateTime.tryParse((hearing['hearingDate'] ?? '').toString()) != null)
+          .where(
+            (hearing) =>
+                DateTime.tryParse((hearing['hearingDate'] ?? '').toString()) !=
+                null,
+          )
           .take(12)
           .map((hearing) {
-        final hearingDate = DateTime.parse((hearing['hearingDate'] ?? '').toString());
-        return {
-          'hearingDate': hearingDate.toIso8601String(),
-          'case': hearing['caseId'],
-          'court': hearing['court'],
-          'courtGovernorate': hearing['courtGovernorate'],
-          'courtCity': hearing['courtCity'],
-          'courtDistrict': hearing['courtDistrict'],
-          'courtArea': hearing['courtArea'],
-          'courtLocationDescription': hearing['courtLocationDescription'],
-          'room': hearing['room'],
-          'judge': hearing['judge'],
-          'nextReminder': _buildNextReminder(hearingDate, now),
-        };
-      }).toList(),
+            final hearingDate = DateTime.parse(
+              (hearing['hearingDate'] ?? '').toString(),
+            );
+            return {
+              'hearingDate': hearingDate.toIso8601String(),
+              'case': hearing['caseId'],
+              'court': hearing['court'],
+              'courtGovernorate': hearing['courtGovernorate'],
+              'courtCity': hearing['courtCity'],
+              'courtDistrict': hearing['courtDistrict'],
+              'courtArea': hearing['courtArea'],
+              'courtLocationDescription': hearing['courtLocationDescription'],
+              'room': hearing['room'],
+              'judge': hearing['judge'],
+              'nextReminder': _buildNextReminder(hearingDate, now),
+            };
+          })
+          .toList(),
       'upcomingHearings': upcomingHearings.take(8).toList(),
       'urgentTasks': urgentTasks.take(8).toList(),
       'alerts': alerts.take(10).toList(),
     };
   }
 
-  static Map<String, dynamic>? _buildNextReminder(DateTime hearingDate, DateTime now) {
+  static Map<String, dynamic>? _buildNextReminder(
+    DateTime hearingDate,
+    DateTime now,
+  ) {
     final checkpoints = <Map<String, dynamic>>[
       {
-        'label': 'قبل يوم',
-        'remindAt': hearingDate.subtract(const Duration(hours: 24)).toIso8601String(),
+        'label': 'Ã™â€šÃ˜Â¨Ã™â€ž Ã™Å Ã™Ë†Ã™â€¦',
+        'remindAt': hearingDate
+            .subtract(const Duration(hours: 24))
+            .toIso8601String(),
       },
       {
-        'label': 'قبل 6 ساعات',
-        'remindAt': hearingDate.subtract(const Duration(hours: 6)).toIso8601String(),
+        'label': 'Ã™â€šÃ˜Â¨Ã™â€ž 6 Ã˜Â³Ã˜Â§Ã˜Â¹Ã˜Â§Ã˜Âª',
+        'remindAt': hearingDate
+            .subtract(const Duration(hours: 6))
+            .toIso8601String(),
       },
       {
-        'label': 'قبل ساعتين',
-        'remindAt': hearingDate.subtract(const Duration(hours: 2)).toIso8601String(),
+        'label': 'Ã™â€šÃ˜Â¨Ã™â€ž Ã˜Â³Ã˜Â§Ã˜Â¹Ã˜ÂªÃ™Å Ã™â€ ',
+        'remindAt': hearingDate
+            .subtract(const Duration(hours: 2))
+            .toIso8601String(),
       },
       {
-        'label': 'قبل ساعة',
-        'remindAt': hearingDate.subtract(const Duration(hours: 1)).toIso8601String(),
+        'label': 'Ã™â€šÃ˜Â¨Ã™â€ž Ã˜Â³Ã˜Â§Ã˜Â¹Ã˜Â©',
+        'remindAt': hearingDate
+            .subtract(const Duration(hours: 1))
+            .toIso8601String(),
       },
     ];
 
@@ -301,21 +373,21 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     final crossAxisCount = width >= 1320
         ? 4
         : width >= 980
-            ? 2
-            : 1;
+        ? 2
+        : 1;
 
     final kpis =
         (_summary?['kpis'] as Map?)?.cast<String, dynamic>() ?? const {};
     final financeIndicators =
-        (_summary?['financeCaseIndicators'] as Map?)?.cast<String, dynamic>() ?? const {};
+        (_summary?['financeCaseIndicators'] as Map?)?.cast<String, dynamic>() ??
+        const {};
     final upcomingHearings =
         ((_summary?['upcomingHearings'] as List?) ?? const [])
             .map((entry) => (entry as Map).cast<String, dynamic>())
             .toList();
-    final lawyerAgenda =
-        ((_summary?['lawyerAgenda'] as List?) ?? const [])
-            .map((entry) => (entry as Map).cast<String, dynamic>())
-            .toList();
+    final lawyerAgenda = ((_summary?['lawyerAgenda'] as List?) ?? const [])
+        .map((entry) => (entry as Map).cast<String, dynamic>())
+        .toList();
     final urgentTasks = ((_summary?['urgentTasks'] as List?) ?? const [])
         .map((entry) => (entry as Map).cast<String, dynamic>())
         .toList();
@@ -328,33 +400,56 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             .toList();
 
     final activeCases = ((kpis['activeCases'] ?? 0) as num).toInt();
+    final totalCases = ((kpis['totalCases'] ?? 0) as num).toInt();
+    final resolvedCases = ((kpis['resolvedCases'] ?? 0) as num).toInt();
     final hearingsThisWeek = ((kpis['hearingsThisWeek'] ?? 0) as num).toInt();
     final overdueTasks = ((kpis['overdueTasks'] ?? 0) as num).toInt();
-    final billingCollected = ((kpis['billingCollected'] ?? 0) as num).toDouble();
+    final billingCollected = ((kpis['billingCollected'] ?? 0) as num)
+        .toDouble();
     final paymentsCount = ((kpis['paymentsCount'] ?? 0) as num).toInt();
+    final winRate = ((financeIndicators['winRatePercent'] ?? 0) as num)
+        .toDouble();
+    final collectionRate =
+        ((financeIndicators['collectionRatePercent'] ?? 0) as num).toDouble();
 
     final cards = <Widget>[
       MetricCard(
         title: 'Active Cases',
         value: activeCases.toString(),
-        delta: '$activeCases ملفًا قيد العمل',
+        delta:
+            '$activeCases Ã™â€¦Ã™â€žÃ™ÂÃ™â€¹Ã˜Â§ Ã™â€šÃ™Å Ã˜Â¯ Ã˜Â§Ã™â€žÃ˜Â¹Ã™â€¦Ã™â€ž',
       ),
       MetricCard(
         title: 'Hearings This Week',
         value: hearingsThisWeek.toString(),
-        delta: '$hearingsThisWeek جلسة هذا الأسبوع',
+        delta:
+            '$hearingsThisWeek Ã˜Â¬Ã™â€žÃ˜Â³Ã˜Â© Ã™â€¡Ã˜Â°Ã˜Â§ Ã˜Â§Ã™â€žÃ˜Â£Ã˜Â³Ã˜Â¨Ã™Ë†Ã˜Â¹',
         positive: true,
       ),
       MetricCard(
         title: 'Overdue Tasks',
         value: overdueTasks.toString(),
-        delta: overdueTasks == 0 ? 'لا توجد مهام متأخرة' : 'تحتاج متابعة عاجلة',
+        delta: overdueTasks == 0
+            ? 'Ã™â€žÃ˜Â§ Ã˜ÂªÃ™Ë†Ã˜Â¬Ã˜Â¯ Ã™â€¦Ã™â€¡Ã˜Â§Ã™â€¦ Ã™â€¦Ã˜ÂªÃ˜Â£Ã˜Â®Ã˜Â±Ã˜Â©'
+            : 'Ã˜ÂªÃ˜Â­Ã˜ÂªÃ˜Â§Ã˜Â¬ Ã™â€¦Ã˜ÂªÃ˜Â§Ã˜Â¨Ã˜Â¹Ã˜Â© Ã˜Â¹Ã˜Â§Ã˜Â¬Ã™â€žÃ˜Â©',
         positive: overdueTasks == 0,
       ),
       MetricCard(
         title: 'Billing Collected',
         value: 'IQD ${billingCollected.toStringAsFixed(0)}',
-        delta: '$paymentsCount دفعة مسجلة',
+        delta: '$paymentsCount Ã˜Â¯Ã™ÂÃ˜Â¹Ã˜Â© Ã™â€¦Ã˜Â³Ã˜Â¬Ã™â€žÃ˜Â©',
+      ),
+      MetricCard(
+        title: 'Case Win Rate',
+        value: '${winRate.toStringAsFixed(1)}%',
+        delta: '$resolvedCases Ù‚Ø¶ÙŠØ© Ù…Ø­Ø³ÙˆÙ…Ø©',
+        positive: winRate >= 50,
+      ),
+      MetricCard(
+        title: 'Collection Rate',
+        value: '${collectionRate.toStringAsFixed(1)}%',
+        delta: '$totalCases Ø¥Ø¬Ù…Ø§Ù„ÙŠ Ø§Ù„Ù‚Ø¶Ø§ÙŠØ§',
+        positive: collectionRate >= 70,
       ),
     ];
 
@@ -365,11 +460,12 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
         children: [
           SectionHeader(
             title: 'Executive Legal Dashboard',
-            subtitle: 'Firm operations, litigation activity, and intelligence insights',
+            subtitle:
+                'Firm operations, litigation activity, and intelligence insights',
             trailing: IconButton(
               onPressed: _loading ? null : _loadDashboard,
               icon: const Icon(Icons.refresh_rounded),
-              tooltip: 'تحديث',
+              tooltip: 'Ã˜ÂªÃ˜Â­Ã˜Â¯Ã™Å Ã˜Â«',
             ),
           ),
           const SizedBox(height: 14),
@@ -386,18 +482,22 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'مفكرة المحامي',
+                  'Ã™â€¦Ã™ÂÃ™Æ’Ã˜Â±Ã˜Â© Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â­Ã˜Â§Ã™â€¦Ã™Å ',
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  'تنبيهات الجلسات والمرافعات مع المحكمة والموقع ونقطة التذكير القادمة.',
+                  'Ã˜ÂªÃ™â€ Ã˜Â¨Ã™Å Ã™â€¡Ã˜Â§Ã˜Âª Ã˜Â§Ã™â€žÃ˜Â¬Ã™â€žÃ˜Â³Ã˜Â§Ã˜Âª Ã™Ë†Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â±Ã˜Â§Ã™ÂÃ˜Â¹Ã˜Â§Ã˜Âª Ã™â€¦Ã˜Â¹ Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â­Ã™Æ’Ã™â€¦Ã˜Â© Ã™Ë†Ã˜Â§Ã™â€žÃ™â€¦Ã™Ë†Ã™â€šÃ˜Â¹ Ã™Ë†Ã™â€ Ã™â€šÃ˜Â·Ã˜Â© Ã˜Â§Ã™â€žÃ˜ÂªÃ˜Â°Ã™Æ’Ã™Å Ã˜Â± Ã˜Â§Ã™â€žÃ™â€šÃ˜Â§Ã˜Â¯Ã™â€¦Ã˜Â©.',
                 ),
                 const SizedBox(height: 10),
                 if (lawyerAgenda.isEmpty)
-                  const Text('لا توجد جلسات قادمة ضمن مفكرة المحامي.')
+                  const Text(
+                    'Ã™â€žÃ˜Â§ Ã˜ÂªÃ™Ë†Ã˜Â¬Ã˜Â¯ Ã˜Â¬Ã™â€žÃ˜Â³Ã˜Â§Ã˜Âª Ã™â€šÃ˜Â§Ã˜Â¯Ã™â€¦Ã˜Â© Ã˜Â¶Ã™â€¦Ã™â€  Ã™â€¦Ã™ÂÃ™Æ’Ã˜Â±Ã˜Â© Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â­Ã˜Â§Ã™â€¦Ã™Å .',
+                  )
                 else
-                  ...lawyerAgenda.take(8).map(
+                  ...lawyerAgenda
+                      .take(8)
+                      .map(
                         (item) => Padding(
                           padding: const EdgeInsets.only(bottom: 10),
                           child: _agendaTile(item),
@@ -430,7 +530,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'مؤشرات القضايا المالية والنتائج',
+                  'Ã™â€¦Ã˜Â¤Ã˜Â´Ã˜Â±Ã˜Â§Ã˜Âª Ã˜Â§Ã™â€žÃ™â€šÃ˜Â¶Ã˜Â§Ã™Å Ã˜Â§ Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â§Ã™â€žÃ™Å Ã˜Â© Ã™Ë†Ã˜Â§Ã™â€žÃ™â€ Ã˜ÂªÃ˜Â§Ã˜Â¦Ã˜Â¬',
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: 10),
@@ -439,37 +539,49 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                   runSpacing: 10,
                   children: [
                     _indicatorChip(
-                      'مفتوحة عليها ديون',
-                      ((financeIndicators['openWithDebt'] ?? 0) as num).toInt().toString(),
+                      'Ã™â€¦Ã™ÂÃ˜ÂªÃ™Ë†Ã˜Â­Ã˜Â© Ã˜Â¹Ã™â€žÃ™Å Ã™â€¡Ã˜Â§ Ã˜Â¯Ã™Å Ã™Ë†Ã™â€ ',
+                      ((financeIndicators['openWithDebt'] ?? 0) as num)
+                          .toInt()
+                          .toString(),
                       LexiqColors.crimsonAlert,
                     ),
                     _indicatorChip(
-                      'مفتوحة مسددة بالكامل',
-                      ((financeIndicators['openFullyPaid'] ?? 0) as num).toInt().toString(),
+                      'Ã™â€¦Ã™ÂÃ˜ÂªÃ™Ë†Ã˜Â­Ã˜Â© Ã™â€¦Ã˜Â³Ã˜Â¯Ã˜Â¯Ã˜Â© Ã˜Â¨Ã˜Â§Ã™â€žÃ™Æ’Ã˜Â§Ã™â€¦Ã™â€ž',
+                      ((financeIndicators['openFullyPaid'] ?? 0) as num)
+                          .toInt()
+                          .toString(),
                       LexiqColors.emeraldJustice,
                     ),
                     _indicatorChip(
-                      'مغلقة عليها ديون',
-                      ((financeIndicators['closedWithDebt'] ?? 0) as num).toInt().toString(),
+                      'Ã™â€¦Ã˜ÂºÃ™â€žÃ™â€šÃ˜Â© Ã˜Â¹Ã™â€žÃ™Å Ã™â€¡Ã˜Â§ Ã˜Â¯Ã™Å Ã™Ë†Ã™â€ ',
+                      ((financeIndicators['closedWithDebt'] ?? 0) as num)
+                          .toInt()
+                          .toString(),
                       LexiqColors.brassGold,
                     ),
                     _indicatorChip(
-                      'مغلقة مسددة بالكامل',
-                      ((financeIndicators['closedFullyPaid'] ?? 0) as num).toInt().toString(),
+                      'Ã™â€¦Ã˜ÂºÃ™â€žÃ™â€šÃ˜Â© Ã™â€¦Ã˜Â³Ã˜Â¯Ã˜Â¯Ã˜Â© Ã˜Â¨Ã˜Â§Ã™â€žÃ™Æ’Ã˜Â§Ã™â€¦Ã™â€ž',
+                      ((financeIndicators['closedFullyPaid'] ?? 0) as num)
+                          .toInt()
+                          .toString(),
                       LexiqColors.imperialBlue,
                     ),
                     _indicatorChip(
-                      'قضايا رابحة',
-                      ((financeIndicators['wonCases'] ?? 0) as num).toInt().toString(),
+                      'Ã™â€šÃ˜Â¶Ã˜Â§Ã™Å Ã˜Â§ Ã˜Â±Ã˜Â§Ã˜Â¨Ã˜Â­Ã˜Â©',
+                      ((financeIndicators['wonCases'] ?? 0) as num)
+                          .toInt()
+                          .toString(),
                       LexiqColors.emeraldJustice,
                     ),
                     _indicatorChip(
-                      'قضايا خاسرة',
-                      ((financeIndicators['lostCases'] ?? 0) as num).toInt().toString(),
+                      'Ã™â€šÃ˜Â¶Ã˜Â§Ã™Å Ã˜Â§ Ã˜Â®Ã˜Â§Ã˜Â³Ã˜Â±Ã˜Â©',
+                      ((financeIndicators['lostCases'] ?? 0) as num)
+                          .toInt()
+                          .toString(),
                       LexiqColors.crimsonAlert,
                     ),
                     _indicatorChip(
-                      'إجمالي المديونية',
+                      'Ã˜Â¥Ã˜Â¬Ã™â€¦Ã˜Â§Ã™â€žÃ™Å  Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â¯Ã™Å Ã™Ë†Ã™â€ Ã™Å Ã˜Â©',
                       'IQD ${((financeIndicators['totalOutstanding'] ?? 0) as num).toStringAsFixed(0)}',
                       LexiqColors.brassGold,
                     ),
@@ -498,13 +610,19 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                             ),
                             const SizedBox(height: 10),
                             if (upcomingHearings.isEmpty)
-                              const Text('لا توجد جلسات قادمة.')
+                              const Text(
+                                'Ã™â€žÃ˜Â§ Ã˜ÂªÃ™Ë†Ã˜Â¬Ã˜Â¯ Ã˜Â¬Ã™â€žÃ˜Â³Ã˜Â§Ã˜Âª Ã™â€šÃ˜Â§Ã˜Â¯Ã™â€¦Ã˜Â©.',
+                              )
                             else
                               ...upcomingHearings.map((item) {
-                                final caseTitle = ((item['caseId'] as Map?)?['title'] ?? 'جلسة')
-                                    .toString();
+                                final caseTitle =
+                                    ((item['caseId'] as Map?)?['title'] ??
+                                            'Ã˜Â¬Ã™â€žÃ˜Â³Ã˜Â©')
+                                        .toString();
                                 return Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 7),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 7,
+                                  ),
                                   child: Row(
                                     children: [
                                       Container(
@@ -519,7 +637,9 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                                       Expanded(child: Text(caseTitle)),
                                       Text(
                                         _dateTimeShort(item['hearingDate']),
-                                        style: Theme.of(context).textTheme.bodySmall,
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.bodySmall,
                                       ),
                                     ],
                                   ),
@@ -534,19 +654,24 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'المهام العاجلة',
+                              'Ã˜Â§Ã™â€žÃ™â€¦Ã™â€¡Ã˜Â§Ã™â€¦ Ã˜Â§Ã™â€žÃ˜Â¹Ã˜Â§Ã˜Â¬Ã™â€žÃ˜Â©',
                               style: Theme.of(context).textTheme.titleMedium,
                             ),
                             const SizedBox(height: 10),
                             if (urgentTasks.isEmpty)
-                              const Text('لا توجد مهام عاجلة حاليًا.')
+                              const Text(
+                                'Ã™â€žÃ˜Â§ Ã˜ÂªÃ™Ë†Ã˜Â¬Ã˜Â¯ Ã™â€¦Ã™â€¡Ã˜Â§Ã™â€¦ Ã˜Â¹Ã˜Â§Ã˜Â¬Ã™â€žÃ˜Â© Ã˜Â­Ã˜Â§Ã™â€žÃ™Å Ã™â€¹Ã˜Â§.',
+                              )
                             else
                               ...urgentTasks.map((item) {
                                 return Padding(
                                   padding: const EdgeInsets.only(bottom: 8),
                                   child: Row(
                                     children: [
-                                      const Icon(Icons.priority_high_rounded, size: 18),
+                                      const Icon(
+                                        Icons.priority_high_rounded,
+                                        size: 18,
+                                      ),
                                       const SizedBox(width: 6),
                                       Expanded(
                                         child: Text(
@@ -577,16 +702,21 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                             ),
                             const SizedBox(height: 10),
                             if (alerts.isEmpty)
-                              const Text('لا توجد تنبيهات حاليًا.')
+                              const Text(
+                                'Ã™â€žÃ˜Â§ Ã˜ÂªÃ™Ë†Ã˜Â¬Ã˜Â¯ Ã˜ÂªÃ™â€ Ã˜Â¨Ã™Å Ã™â€¡Ã˜Â§Ã˜Âª Ã˜Â­Ã˜Â§Ã™â€žÃ™Å Ã™â€¹Ã˜Â§.',
+                              )
                             else
                               ...alerts.map(
                                 (alert) => Padding(
                                   padding: const EdgeInsets.only(bottom: 10),
                                   child: _alertTile(
                                     context,
-                                    (alert['title'] ?? 'تنبيه').toString(),
+                                    (alert['title'] ?? 'Ã˜ÂªÃ™â€ Ã˜Â¨Ã™Å Ã™â€¡')
+                                        .toString(),
                                     (alert['subtitle'] ?? '').toString(),
-                                    _alertColor((alert['level'] ?? 'info').toString()),
+                                    _alertColor(
+                                      (alert['level'] ?? 'info').toString(),
+                                    ),
                                   ),
                                 ),
                               ),
@@ -599,16 +729,21 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'توزيع أنواع القضايا',
+                              'Ã˜ÂªÃ™Ë†Ã˜Â²Ã™Å Ã˜Â¹ Ã˜Â£Ã™â€ Ã™Ë†Ã˜Â§Ã˜Â¹ Ã˜Â§Ã™â€žÃ™â€šÃ˜Â¶Ã˜Â§Ã™Å Ã˜Â§',
                               style: Theme.of(context).textTheme.titleMedium,
                             ),
                             const SizedBox(height: 10),
                             if (caseTypeDistribution.isEmpty)
-                              const Text('لا توجد بيانات كافية.')
+                              const Text(
+                                'Ã™â€žÃ˜Â§ Ã˜ÂªÃ™Ë†Ã˜Â¬Ã˜Â¯ Ã˜Â¨Ã™Å Ã˜Â§Ã™â€ Ã˜Â§Ã˜Âª Ã™Æ’Ã˜Â§Ã™ÂÃ™Å Ã˜Â©.',
+                              )
                             else
                               ...caseTypeDistribution.map((entry) {
-                                final caseType = (entry['caseType'] ?? 'أخرى').toString();
-                                final count = ((entry['count'] ?? 0) as num).toInt();
+                                final caseType =
+                                    (entry['caseType'] ?? 'Ã˜Â£Ã˜Â®Ã˜Â±Ã™â€°')
+                                        .toString();
+                                final count = ((entry['count'] ?? 0) as num)
+                                    .toInt();
                                 return Padding(
                                   padding: const EdgeInsets.only(bottom: 8),
                                   child: Row(
@@ -634,7 +769,8 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
 
   Widget _agendaTile(Map<String, dynamic> item) {
     final hearingDate = _dateTimeShort(item['hearingDate']);
-    final caseData = (item['case'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final caseData =
+        (item['case'] as Map?)?.cast<String, dynamic>() ?? const {};
     final caseLabel = [
       (caseData['caseNumber'] ?? '').toString(),
       (caseData['title'] ?? '').toString(),
@@ -647,33 +783,44 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       (item['courtArea'] ?? '').toString(),
     ].where((e) => e.trim().isNotEmpty).join(' - ');
     final locationDetails = (item['courtLocationDescription'] ?? '').toString();
-    final nextReminder = (item['nextReminder'] as Map?)?.cast<String, dynamic>();
+    final nextReminder = (item['nextReminder'] as Map?)
+        ?.cast<String, dynamic>();
     final reminderLabel = nextReminder == null
-        ? 'تم تجاوز جميع نقاط التنبيه'
+        ? 'Ã˜ÂªÃ™â€¦ Ã˜ÂªÃ˜Â¬Ã˜Â§Ã™Ë†Ã˜Â² Ã˜Â¬Ã™â€¦Ã™Å Ã˜Â¹ Ã™â€ Ã™â€šÃ˜Â§Ã˜Â· Ã˜Â§Ã™â€žÃ˜ÂªÃ™â€ Ã˜Â¨Ã™Å Ã™â€¡'
         : '${(nextReminder['label'] ?? '').toString()} - ${_dateTimeShort(nextReminder['remindAt'])}';
 
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: LexiqColors.imperialBlue.withValues(alpha: 0.25)),
+        border: Border.all(
+          color: LexiqColors.imperialBlue.withValues(alpha: 0.25),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(caseLabel.isEmpty ? 'جلسة' : caseLabel),
+          Text(caseLabel.isEmpty ? 'Ã˜Â¬Ã™â€žÃ˜Â³Ã˜Â©' : caseLabel),
           const SizedBox(height: 4),
-          Text('الموعد: $hearingDate'),
-          Text('المحكمة: $court'),
-          if (location.isNotEmpty) Text('الموقع الإداري: $location'),
-          if (locationDetails.trim().isNotEmpty) Text('وصف المكان: $locationDetails'),
+          Text('Ã˜Â§Ã™â€žÃ™â€¦Ã™Ë†Ã˜Â¹Ã˜Â¯: $hearingDate'),
+          Text('Ã˜Â§Ã™â€žÃ™â€¦Ã˜Â­Ã™Æ’Ã™â€¦Ã˜Â©: $court'),
+          if (location.isNotEmpty)
+            Text(
+              'Ã˜Â§Ã™â€žÃ™â€¦Ã™Ë†Ã™â€šÃ˜Â¹ Ã˜Â§Ã™â€žÃ˜Â¥Ã˜Â¯Ã˜Â§Ã˜Â±Ã™Å : $location',
+            ),
+          if (locationDetails.trim().isNotEmpty)
+            Text('Ã™Ë†Ã˜ÂµÃ™Â Ã˜Â§Ã™â€žÃ™â€¦Ã™Æ’Ã˜Â§Ã™â€ : $locationDetails'),
           if ((item['room'] ?? '').toString().isNotEmpty)
-            Text('القاعة: ${(item['room'] ?? '').toString()}'),
+            Text(
+              'Ã˜Â§Ã™â€žÃ™â€šÃ˜Â§Ã˜Â¹Ã˜Â©: ${(item['room'] ?? '').toString()}',
+            ),
           if ((item['judge'] ?? '').toString().isNotEmpty)
-            Text('القاضي: ${(item['judge'] ?? '').toString()}'),
+            Text(
+              'Ã˜Â§Ã™â€žÃ™â€šÃ˜Â§Ã˜Â¶Ã™Å : ${(item['judge'] ?? '').toString()}',
+            ),
           const SizedBox(height: 4),
           Text(
-            'التنبيه القادم: $reminderLabel',
+            'Ã˜Â§Ã™â€žÃ˜ÂªÃ™â€ Ã˜Â¨Ã™Å Ã™â€¡ Ã˜Â§Ã™â€žÃ™â€šÃ˜Â§Ã˜Â¯Ã™â€¦: $reminderLabel',
             style: const TextStyle(color: LexiqColors.emeraldJustice),
           ),
         ],

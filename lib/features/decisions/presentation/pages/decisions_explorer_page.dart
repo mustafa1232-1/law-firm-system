@@ -34,6 +34,8 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
   List<Map<String, dynamic>> _summaryItems = const [];
   int _page = 1;
   int _total = 0;
+  final Map<String, _DecisionPageCacheEntry> _searchCache = {};
+  final Map<String, List<Map<String, dynamic>>> _summaryCache = {};
 
   static const int _pageSize = 30;
 
@@ -75,8 +77,14 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
     super.dispose();
   }
 
-  Future<void> _loadAll() async {
-    await Future.wait([_search(page: 1), _loadCaseTypeSummary()]);
+  Future<void> _loadAll({bool force = false}) async {
+    if (force) {
+      _clearDecisionCaches();
+    }
+    await Future.wait([
+      _search(page: 1, force: force),
+      _loadCaseTypeSummary(force: force),
+    ]);
   }
 
   Map<String, dynamic> _buildSearchQueryParameters() {
@@ -94,7 +102,25 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
     };
   }
 
-  Future<void> _search({int? page}) async {
+  Future<void> _search({int? page, bool force = false}) async {
+    final targetPage = page ?? _page;
+    final key = _searchCacheKey(targetPage);
+    if (!force) {
+      final cached = _searchCache[key];
+      if (cached != null) {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _items = cached.items;
+          _total = cached.total;
+          _page = targetPage;
+          _error = null;
+        });
+        return;
+      }
+    }
+
     setState(() {
       _loading = true;
       _error = null;
@@ -102,7 +128,6 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
 
     try {
       final dio = ref.read(dioProvider);
-      final targetPage = page ?? _page;
       final response = await dio.get(
         '/decisions/search',
         queryParameters: {
@@ -122,6 +147,8 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
         return;
       }
 
+      _searchCache[key] = _DecisionPageCacheEntry(items: items, total: total);
+
       setState(() {
         _items = items;
         _total = total;
@@ -139,7 +166,19 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
     }
   }
 
-  Future<void> _loadCaseTypeSummary() async {
+  Future<void> _loadCaseTypeSummary({bool force = false}) async {
+    final key = _summaryCacheKey();
+    if (!force) {
+      final cached = _summaryCache[key];
+      if (cached != null) {
+        if (!mounted) {
+          return;
+        }
+        setState(() => _summaryItems = cached);
+        return;
+      }
+    }
+
     try {
       final dio = ref.read(dioProvider);
       final response = await dio.get(
@@ -161,6 +200,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
         return;
       }
 
+      _summaryCache[key] = items;
       setState(() => _summaryItems = items);
     } catch (_) {
       if (!mounted) {
@@ -216,7 +256,11 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
         ),
       );
 
-      await Future.wait([_search(page: 1), _loadCaseTypeSummary()]);
+      _clearDecisionCaches();
+      await Future.wait([
+        _search(page: 1, force: true),
+        _loadCaseTypeSummary(force: true),
+      ]);
     } catch (error) {
       if (!mounted) {
         return;
@@ -433,7 +477,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
     fullTextController.dispose();
 
     if (created == true) {
-      await _loadAll();
+      await _loadAll(force: true);
       if (!mounted) {
         return;
       }
@@ -889,6 +933,23 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
     );
   }
 
+  String _searchCacheKey(int page) {
+    final params = _buildSearchQueryParameters();
+    final sorted = params.keys.toList()..sort();
+    final queryKey = sorted.map((key) => '$key=${params[key] ?? ''}').join('&');
+    return '$queryKey|page=$page|limit=$_pageSize';
+  }
+
+  String _summaryCacheKey() {
+    final year = _yearController.text.trim();
+    return 'courtLevel=$_selectedCourtLevel|year=$year';
+  }
+
+  void _clearDecisionCaches() {
+    _searchCache.clear();
+    _summaryCache.clear();
+  }
+
   Map<String, List<Map<String, dynamic>>> _groupItemsByType(
     List<Map<String, dynamic>> items,
   ) {
@@ -975,7 +1036,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
               title: 'مستكشف القرارات القضائية',
               subtitle: 'بحث القرارات وتصنيفها وربطها بالقضايا والمرجعيات',
               trailing: OutlinedButton.icon(
-                onPressed: _loading ? null : _loadAll,
+                onPressed: _loading ? null : () => _loadAll(force: true),
                 icon: const Icon(Icons.refresh_rounded),
                 label: const Text('تحديث'),
               ),
@@ -1183,7 +1244,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
                           _selectedCaseType = _caseTypes.first;
                           _selectedCourtLevel = 'appellate';
                         });
-                        await _loadAll();
+                        await _loadAll(force: true);
                       },
                 icon: const Icon(Icons.restart_alt_rounded),
                 label: const Text('إعادة ضبط'),
@@ -1398,4 +1459,11 @@ class _DecisionGroupPanel extends StatelessWidget {
       }).toList(),
     );
   }
+}
+
+class _DecisionPageCacheEntry {
+  const _DecisionPageCacheEntry({required this.items, required this.total});
+
+  final List<Map<String, dynamic>> items;
+  final int total;
 }

@@ -218,7 +218,17 @@ export class AdminService {
         ]),
       ]);
 
-    const [openWithDebt, openFullyPaid, closedWithDebt, closedFullyPaid, wonCases, lostCases, debtAgg] =
+    const [
+      openWithDebt,
+      openFullyPaid,
+      closedWithDebt,
+      closedFullyPaid,
+      openCasesCount,
+      closedCasesCount,
+      wonCases,
+      lostCases,
+      caseFinancialAgg,
+    ] =
       await Promise.all([
         this.caseModel.countDocuments({
           status: { $nin: ['closed', 'archived'] },
@@ -238,12 +248,20 @@ export class AdminService {
           outstandingAmount: { $lte: 0 },
           paymentStatus: 'paid',
         }),
+        this.caseModel.countDocuments({
+          status: { $nin: ['closed', 'archived'] },
+        }),
+        this.caseModel.countDocuments({
+          status: { $in: ['closed', 'archived'] },
+        }),
         this.caseModel.countDocuments({ outcome: 'won' }),
         this.caseModel.countDocuments({ outcome: 'lost' }),
         this.caseModel.aggregate([
           {
             $group: {
               _id: null,
+              totalContract: { $sum: '$contractAmount' },
+              totalPaid: { $sum: '$paidAmount' },
               totalOutstanding: { $sum: '$outstandingAmount' },
             },
           },
@@ -282,6 +300,14 @@ export class AdminService {
 
     const billingCollected = Number(paymentAgg[0]?.collected ?? 0);
     const paymentsCount = Number(paymentAgg[0]?.paymentsCount ?? 0);
+    const totalContractValue = Number(caseFinancialAgg[0]?.totalContract ?? 0);
+    const totalPaidAmount = Number(caseFinancialAgg[0]?.totalPaid ?? 0);
+    const totalOutstanding = Number(caseFinancialAgg[0]?.totalOutstanding ?? 0);
+    const collectionRatePercent =
+      totalContractValue > 0 ? Math.min((totalPaidAmount / totalContractValue) * 100, 100) : 0;
+    const resolvedCases = wonCases + lostCases;
+    const winRatePercent = resolvedCases > 0 ? (wonCases / resolvedCases) * 100 : 0;
+    const totalCases = openCasesCount + closedCasesCount;
 
     const alerts = [
       ...unreadNotifications.map((item) => ({
@@ -346,20 +372,28 @@ export class AdminService {
     return {
       generatedAt: now,
       kpis: {
+        totalCases,
         activeCases,
         hearingsThisWeek,
         overdueTasks,
         billingCollected,
         paymentsCount,
+        resolvedCases,
       },
       financeCaseIndicators: {
+        openCasesCount,
+        closedCasesCount,
         openWithDebt,
         openFullyPaid,
         closedWithDebt,
         closedFullyPaid,
         wonCases,
         lostCases,
-        totalOutstanding: Number(debtAgg[0]?.totalOutstanding ?? 0),
+        totalOutstanding,
+        totalContractValue,
+        totalPaidAmount,
+        collectionRatePercent,
+        winRatePercent,
       },
       caseTypeDistribution: caseTypeDistribution.map((entry) => ({
         caseType: entry._id ?? 'أخرى',
