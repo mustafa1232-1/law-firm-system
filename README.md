@@ -66,6 +66,7 @@ Implemented modules:
 - `POST /api/v1/ai/legal-research`
 - `POST /api/v1/ai/argument-builder`
 - `POST /api/v1/ai/memo-draft`
+- `POST /api/v1/ai/explain-law-article`
 - `POST /api/v1/ai/analyses/save`
 - `POST /api/v1/ai/analyses/:id/attach-case`
 - `GET /api/v1/ai/analyses`
@@ -150,6 +151,9 @@ Optional:
   - `STORAGE_LOCAL_ROOT=uploads`
   - `STORAGE_PUBLIC_BASE_URL=https://your-domain`
 - `OPENAI_API_KEY`
+- `OPENAI_BASE_URL` (optional, for proxy/custom gateway)
+- `OPENAI_ORGANIZATION` (optional)
+- `OPENAI_PROJECT` (optional)
 - `OPENAI_MODEL`
 - `OPENAI_EMBEDDING_MODEL`
 - `EMBEDDINGS_PROVIDER=openai` (to use OpenAI embeddings)

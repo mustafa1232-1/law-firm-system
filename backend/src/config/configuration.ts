@@ -34,6 +34,9 @@ export default () => ({
   ai: {
     embeddingsProvider: process.env.EMBEDDINGS_PROVIDER ?? 'none',
     openaiApiKey: process.env.OPENAI_API_KEY ?? '',
+    openaiBaseUrl: process.env.OPENAI_BASE_URL ?? '',
+    openaiOrganization: process.env.OPENAI_ORGANIZATION ?? '',
+    openaiProject: process.env.OPENAI_PROJECT ?? '',
     openaiModel: process.env.OPENAI_MODEL ?? 'gpt-4.1-mini',
     openaiEmbeddingModel: process.env.OPENAI_EMBEDDING_MODEL ?? 'text-embedding-3-small',
     disclaimer:

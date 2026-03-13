@@ -8,7 +8,18 @@ export class EmbeddingsService {
 
   constructor(private readonly configService: ConfigService) {
     const apiKey = this.configService.get<string>('ai.openaiApiKey')?.trim();
-    this.client = apiKey ? new OpenAI({ apiKey }) : null;
+    const baseURL = this.configService.get<string>('ai.openaiBaseUrl')?.trim();
+    const organization = this.configService.get<string>('ai.openaiOrganization')?.trim();
+    const project = this.configService.get<string>('ai.openaiProject')?.trim();
+
+    this.client = apiKey
+      ? new OpenAI({
+          apiKey,
+          ...(baseURL ? { baseURL } : {}),
+          ...(organization ? { organization } : {}),
+          ...(project ? { project } : {}),
+        })
+      : null;
   }
 
   async embed(text: string): Promise<number[]> {
