@@ -1,4 +1,4 @@
-import 'package:dio/dio.dart';
+﻿import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -41,9 +41,7 @@ class _CaseDetailsPageState extends ConsumerState<CaseDetailsPage> {
       final dio = ref.read(dioProvider);
       final response = await dio.post(
         '/cases/${widget.caseId}/analyze',
-        data: {
-          'context': (caseItem['summary'] ?? '').toString(),
-        },
+        data: const <String, dynamic>{},
         options: Options(headers: authHeaders(ref)),
       );
       if (!mounted) {
@@ -82,9 +80,19 @@ class _CaseDetailsPageState extends ConsumerState<CaseDetailsPage> {
           final timeline = ((caseItem['timeline'] as List?) ?? const [])
               .map((e) => (e as Map).cast<String, dynamic>())
               .toList();
-          final evidence = ((caseItem['evidenceList'] as List?) ?? const [])
-              .map((e) => e.toString())
-              .toList();
+          final evidence = <String>[
+            ...((caseItem['evidenceList'] as List?) ?? const [])
+                .map((e) => e.toString()),
+            ...((caseItem['evidenceEntries'] as List?) ?? const [])
+                .map((entry) => (entry as Map).cast<String, dynamic>())
+                .map((entry) {
+                  final desc = (entry['description'] ?? '').toString();
+                  final name = (entry['attachmentName'] ?? '').toString();
+                  if (name.isEmpty) return desc;
+                  if (desc.isEmpty) return name;
+                  return '$name | $desc';
+                }),
+          ].where((item) => item.trim().isNotEmpty).toSet().toList();
           final riskScore = (caseItem['riskScore'] as num?)?.toInt() ?? 0;
           final aiInsights = (caseItem['aiInsights'] as Map?)?.cast<String, dynamic>() ?? const {};
           final suggestions = (_analysis?['suggestions'] as Map?)?.cast<String, dynamic>() ?? const {};
@@ -277,3 +285,4 @@ class _CaseDetailsPageState extends ConsumerState<CaseDetailsPage> {
     );
   }
 }
+

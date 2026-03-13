@@ -76,7 +76,6 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
     final fullNameController = TextEditingController();
     final companyController = TextEditingController();
     final phoneController = TextEditingController();
-    final emailController = TextEditingController();
     final addressController = TextEditingController();
     final tagsController = TextEditingController();
 
@@ -103,11 +102,6 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
                 TextField(
                   controller: phoneController,
                   decoration: const InputDecoration(labelText: 'الهاتف'),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: emailController,
-                  decoration: const InputDecoration(labelText: 'البريد الإلكتروني'),
                 ),
                 const SizedBox(height: 10),
                 TextField(
@@ -148,7 +142,6 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
                         ? null
                         : companyController.text.trim(),
                     'phone': phoneController.text.trim().isEmpty ? null : phoneController.text.trim(),
-                    'email': emailController.text.trim().isEmpty ? null : emailController.text.trim(),
                     'address': addressController.text.trim().isEmpty
                         ? null
                         : addressController.text.trim(),
@@ -184,7 +177,6 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
     fullNameController.dispose();
     companyController.dispose();
     phoneController.dispose();
-    emailController.dispose();
     addressController.dispose();
     tagsController.dispose();
 
@@ -266,7 +258,7 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
                   controller: _searchController,
                   onSubmitted: (_) => _loadClients(),
                   decoration: InputDecoration(
-                    hintText: 'ابحث بالاسم أو الشركة أو الهاتف أو البريد',
+                    hintText: 'ابحث بالاسم أو الشركة أو الهاتف',
                     prefixIcon: const Icon(Icons.search_rounded),
                   ),
                 ),
@@ -295,7 +287,8 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
                                 DataColumn(label: Text('الاسم')),
                                 DataColumn(label: Text('الشركة')),
                                 DataColumn(label: Text('الهاتف')),
-                                DataColumn(label: Text('البريد الإلكتروني')),
+                                DataColumn(label: Text('آخر قضية')),
+                                DataColumn(label: Text('نوعها')),
                                 DataColumn(label: Text('وسوم')),
                                 DataColumn(label: Text('إجراءات')),
                               ],
@@ -306,7 +299,8 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
                                     DataCell(Text((client['fullName'] ?? '-').toString())),
                                     DataCell(Text((client['companyName'] ?? '-').toString())),
                                     DataCell(Text((client['phone'] ?? '-').toString())),
-                                    DataCell(Text((client['email'] ?? '-').toString())),
+                                    DataCell(Text((client['latestCaseTitle'] ?? '-').toString())),
+                                    DataCell(Text((client['latestCaseType'] ?? '-').toString())),
                                     DataCell(
                                       Text(
                                         ((client['tags'] as List?) ?? const [])

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AuditModule } from '../audit/audit.module';
+import { CaseFile, CaseSchema } from '../cases/schemas/case.schema';
 import { BillingController } from './billing.controller';
 import { BillingService } from './billing.service';
 import { Invoice, InvoiceSchema } from './schemas/invoice.schema';
@@ -12,6 +13,7 @@ import { Payment, PaymentSchema } from './schemas/payment.schema';
     MongooseModule.forFeature([
       { name: Invoice.name, schema: InvoiceSchema },
       { name: Payment.name, schema: PaymentSchema },
+      { name: CaseFile.name, schema: CaseSchema },
     ]),
   ],
   controllers: [BillingController],

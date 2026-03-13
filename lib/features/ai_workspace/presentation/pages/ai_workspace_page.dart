@@ -1,6 +1,7 @@
 ﻿import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/localization/app_translations.dart';
 import '../../../../core/network/api_helpers.dart';
@@ -18,24 +19,176 @@ class AiWorkspacePage extends ConsumerStatefulWidget {
 
 class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
   final _queryController = TextEditingController();
-  final _caseIdController = TextEditingController();
-  final _documentIdsController = TextEditingController();
 
   bool _searchConstitution = true;
   bool _searchLaws = true;
   bool _searchDecisions = true;
   bool _searchMyKnowledgeOnly = false;
   bool _loading = false;
+  bool _loadingCases = false;
+  bool _loadingDocuments = false;
+
+  String? _selectedCaseId;
+  final Set<String> _selectedDocumentIds = <String>{};
+  List<Map<String, dynamic>> _cases = const [];
+  List<Map<String, dynamic>> _documents = const [];
 
   Map<String, dynamic>? _result;
   String? _error;
 
   @override
+  void initState() {
+    super.initState();
+    _loadCases();
+  }
+
+  @override
   void dispose() {
     _queryController.dispose();
-    _caseIdController.dispose();
-    _documentIdsController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadCases() async {
+    setState(() => _loadingCases = true);
+    try {
+      final dio = ref.read(dioProvider);
+      final response = await dio.get(
+        '/cases',
+        queryParameters: const {'limit': 200},
+        options: Options(headers: authHeaders(ref)),
+      );
+
+      final data = (response.data as Map).cast<String, dynamic>();
+      final items = ((data['items'] as List?) ?? const [])
+          .map((entry) => (entry as Map).cast<String, dynamic>())
+          .toList();
+
+      if (!mounted) {
+        return;
+      }
+
+      final nextCaseId = _selectedCaseId ?? (items.isNotEmpty ? items.first['_id']?.toString() : null);
+
+      setState(() {
+        _cases = items;
+        _selectedCaseId = nextCaseId;
+      });
+
+      if (nextCaseId != null && nextCaseId.isNotEmpty) {
+        await _loadDocumentsForCase(nextCaseId);
+      }
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _error = parseApiError(error));
+    } finally {
+      if (mounted) {
+        setState(() => _loadingCases = false);
+      }
+    }
+  }
+
+  Future<void> _loadDocumentsForCase(String caseId) async {
+    setState(() {
+      _loadingDocuments = true;
+      _selectedDocumentIds.clear();
+    });
+
+    try {
+      final dio = ref.read(dioProvider);
+      final response = await dio.get(
+        '/documents',
+        queryParameters: {
+          'caseId': caseId,
+          'limit': 300,
+        },
+        options: Options(headers: authHeaders(ref)),
+      );
+
+      final data = (response.data as Map).cast<String, dynamic>();
+      final items = ((data['items'] as List?) ?? const [])
+          .map((entry) => (entry as Map).cast<String, dynamic>())
+          .toList();
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() => _documents = items);
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _documents = const []);
+    } finally {
+      if (mounted) {
+        setState(() => _loadingDocuments = false);
+      }
+    }
+  }
+
+  Future<void> _pickDocuments() async {
+    if (_documents.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('لا توجد مستندات مرتبطة بهذه القضية.')),
+      );
+      return;
+    }
+
+    final temp = <String>{..._selectedDocumentIds};
+
+    await showDialog<void>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('اختر المستندات المرتبطة'),
+          content: SizedBox(
+            width: 720,
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: _documents.length,
+              itemBuilder: (context, index) {
+                final item = _documents[index];
+                final id = (item['_id'] ?? '').toString();
+                final selected = temp.contains(id);
+                return CheckboxListTile(
+                  value: selected,
+                  title: Text((item['title'] ?? '-').toString()),
+                  subtitle: Text((item['originalName'] ?? '').toString()),
+                  onChanged: (_) {
+                    setDialogState(() {
+                      if (selected) {
+                        temp.remove(id);
+                      } else {
+                        temp.add(id);
+                      }
+                    });
+                  },
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(context.tr('Close')),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                setState(() {
+                  _selectedDocumentIds
+                    ..clear()
+                    ..addAll(temp);
+                });
+                Navigator.of(context).pop();
+              },
+              child: const Text('اعتماد'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _runAnalysis() async {
@@ -58,7 +211,8 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
         '/ai/legal-research',
         data: {
           'query': query,
-          'caseId': _caseIdController.text.trim().isEmpty ? null : _caseIdController.text.trim(),
+          'caseId': _selectedCaseId,
+          'documentIds': _selectedDocumentIds.toList(),
           'searchConstitution': _searchConstitution,
           'searchLaws': _searchLaws,
           'searchDecisions': _searchDecisions,
@@ -101,7 +255,7 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
         data: {
           'topic': query.split('\n').first,
           'facts': query,
-          'caseId': _caseIdController.text.trim().isEmpty ? null : _caseIdController.text.trim(),
+          'caseId': _selectedCaseId,
         },
         options: Options(headers: authHeaders(ref)),
       );
@@ -169,6 +323,10 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
 
     final confidence = (_result?['confidence'] as num?)?.toDouble() ?? 0;
 
+    final selectedCaseValue = _cases.any((entry) => entry['_id']?.toString() == _selectedCaseId)
+        ? _selectedCaseId
+        : null;
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(18),
       child: Column(
@@ -193,20 +351,75 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
                 Row(
                   children: [
                     Expanded(
-                      child: TextField(
-                        controller: _caseIdController,
-                        decoration: InputDecoration(labelText: context.tr('Attached case ID')),
+                      child: DropdownButtonFormField<String>(
+                        initialValue: selectedCaseValue,
+                        items: _cases
+                            .map(
+                              (item) => DropdownMenuItem<String>(
+                                value: item['_id']?.toString(),
+                                child: Text(
+                                  '${(item['caseNumber'] ?? '-').toString()} - ${(item['title'] ?? '-').toString()}',
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: _loadingCases
+                            ? null
+                            : (value) async {
+                                setState(() => _selectedCaseId = value);
+                                if (value != null && value.isNotEmpty) {
+                                  await _loadDocumentsForCase(value);
+                                } else {
+                                  setState(() {
+                                    _documents = const [];
+                                    _selectedDocumentIds.clear();
+                                  });
+                                }
+                              },
+                        decoration: InputDecoration(
+                          labelText: _loadingCases ? 'جاري تحميل القضايا...' : 'القضية المرتبطة',
+                          prefixIcon: const Icon(Icons.balance_rounded),
+                        ),
                       ),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
-                      child: TextField(
-                        controller: _documentIdsController,
-                        decoration: InputDecoration(labelText: context.tr('Attached document IDs')),
+                      child: InkWell(
+                        onTap: _loadingDocuments ? null : _pickDocuments,
+                        borderRadius: BorderRadius.circular(12),
+                        child: InputDecorator(
+                          decoration: InputDecoration(
+                            labelText: _loadingDocuments
+                                ? 'جاري تحميل المستندات...'
+                                : 'المستندات المرتبطة',
+                            prefixIcon: const Icon(Icons.description_rounded),
+                          ),
+                          child: Text(
+                            _selectedDocumentIds.isEmpty
+                                ? 'اختر المستندات من القضية'
+                                : 'تم اختيار ${_selectedDocumentIds.length} مستند',
+                          ),
+                        ),
                       ),
                     ),
                   ],
                 ),
+                if (_selectedDocumentIds.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: _selectedDocumentIds
+                        .map(
+                          (id) => Chip(
+                            label: Text(id.substring(0, id.length > 8 ? 8 : id.length)),
+                            onDeleted: () => setState(() => _selectedDocumentIds.remove(id)),
+                          ),
+                        )
+                        .toList(),
+                  ),
+                ],
                 const SizedBox(height: 10),
                 Wrap(
                   spacing: 8,
@@ -340,7 +553,11 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
                             ...suggestedAuthorities.map((item) {
                               final citation = (item['citation'] ?? '-').toString();
                               final sourceType = (item['sourceType'] ?? '-').toString();
-                              return _authority(context, '$citation ($sourceType)');
+                              return _authority(
+                                context,
+                                item,
+                                '$citation ($sourceType)',
+                              );
                             }),
                         ],
                       ),
@@ -382,12 +599,23 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
     );
   }
 
-  Widget _authority(BuildContext context, String item) {
+  Widget _authority(
+    BuildContext context,
+    Map<String, dynamic> source,
+    String item,
+  ) {
+    final sourceType = (source['sourceType'] ?? '').toString();
+    final id = (source['id'] ?? '').toString();
+
     return ListTile(
       dense: true,
       contentPadding: EdgeInsets.zero,
       title: Text(item),
-      trailing: const Icon(Icons.push_pin_outlined),
+      subtitle: const Text('اضغط لفتح المرجعية والنص القانوني'),
+      trailing: const Icon(Icons.open_in_new_rounded),
+      onTap: (sourceType.isEmpty || id.isEmpty)
+          ? null
+          : () => context.go('/authority/$sourceType/$id'),
     );
   }
 }

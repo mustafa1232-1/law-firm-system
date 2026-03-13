@@ -2,7 +2,9 @@ import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
+import { ServeStaticModule } from '@nestjs/serve-static';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { join } from 'path';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { FirmsModule } from './modules/firms/firms.module';
@@ -21,6 +23,7 @@ import { IngestModule } from './modules/ingest/ingest.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { HealthModule } from './modules/health/health.module';
+import { CourtsModule } from './modules/courts/courts.module';
 import configuration from './config/configuration';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
@@ -41,6 +44,11 @@ import { LegalTaxonomyModule } from './modules/legal-taxonomy/legal-taxonomy.mod
         uri: configService.get<string>('mongodb.uri'),
         autoIndex: true,
       }),
+    }),
+    ServeStaticModule.forRoot({
+      rootPath: join(process.cwd(), process.env.STORAGE_LOCAL_ROOT ?? 'uploads'),
+      serveRoot: '/storage',
+      exclude: ['/api*', '/docs*'],
     }),
     ThrottlerModule.forRoot({
       throttlers: [
@@ -67,6 +75,7 @@ import { LegalTaxonomyModule } from './modules/legal-taxonomy/legal-taxonomy.mod
     ResearchModule,
     AiModule,
     IngestModule,
+    CourtsModule,
     NotificationsModule,
     LegalTaxonomyModule,
     AdminModule,

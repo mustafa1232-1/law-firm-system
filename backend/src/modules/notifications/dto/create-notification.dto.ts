@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString } from 'class-validator';
+import { IsDateString, IsOptional, IsString } from 'class-validator';
 
 export class CreateNotificationDto {
   @ApiPropertyOptional()
@@ -19,6 +19,16 @@ export class CreateNotificationDto {
   @IsOptional()
   @IsString()
   level?: 'info' | 'warning' | 'critical';
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  scheduledFor?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  reminderKey?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

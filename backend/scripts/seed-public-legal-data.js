@@ -37,10 +37,12 @@ async function main() {
   const lawDocumentsCollection = db.collection('law_documents');
   const lawArticlesCollection = db.collection('law_articles');
   const decisionsCollection = db.collection('judicial_decisions');
+  const courtsCollection = db.collection('courts');
 
   const constitutionSeed = readJson('data/public/constitution_articles.seed.json');
   const lawsSeed = readJson('data/public/laws.seed.json');
   const decisionsSeed = readJson('data/public/judicial_decisions.seed.json');
+  const courtsSeed = readJson('data/public/iraqi_courts.seed.json');
 
   if (replaceData) {
     await Promise.all([
@@ -48,6 +50,7 @@ async function main() {
       lawArticlesCollection.deleteMany({}),
       lawDocumentsCollection.deleteMany({}),
       decisionsCollection.deleteMany({}),
+      courtsCollection.deleteMany({}),
     ]);
     console.log('Existing legal reference data replaced.');
   }
@@ -112,6 +115,20 @@ async function main() {
     await decisionsCollection.insertMany(decisionDocs, { ordered: false });
   }
 
+  const courtDocs = courtsSeed.map((item) => ({
+    ...item,
+    name: item.name ?? item.nameAr ?? item.nameEn ?? 'محكمة غير مسماة',
+    source: item.source ?? 'openstreetmap',
+    sourceType: item.sourceType ?? 'osm_amenity_courthouse',
+    tags: item.tags ?? {},
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  }));
+
+  if (courtDocs.length) {
+    await courtsCollection.insertMany(courtDocs, { ordered: false });
+  }
+
   console.log(
     JSON.stringify(
       {
@@ -120,6 +137,7 @@ async function main() {
         lawDocuments: lawsSeed.length,
         lawArticles: lawsSeed.reduce((acc, item) => acc + (item.articles?.length ?? 0), 0),
         judicialDecisions: decisionDocs.length,
+        courts: courtDocs.length,
       },
       null,
       2,

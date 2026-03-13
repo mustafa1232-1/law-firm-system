@@ -18,6 +18,36 @@ export class CreateHearingDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  courtId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  courtGovernorate?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  courtCity?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  courtDistrict?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  courtArea?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  courtLocationDescription?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   room?: string;
 
   @ApiPropertyOptional()

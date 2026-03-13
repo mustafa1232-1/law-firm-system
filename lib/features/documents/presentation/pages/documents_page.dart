@@ -1,4 +1,5 @@
 ﻿import 'package:dio/dio.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -73,128 +74,128 @@ class _DocumentsPageState extends ConsumerState<DocumentsPage> {
 
   Future<void> _showCreateDocumentDialog() async {
     final titleController = TextEditingController();
-    final originalNameController = TextEditingController();
-    final mimeTypeController = TextEditingController(text: 'application/pdf');
     final caseIdController = TextEditingController();
-    final sizeController = TextEditingController();
     final extractedTextController = TextEditingController();
     final tagsController = TextEditingController();
+    PlatformFile? pickedFile;
 
     final created = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('رفع مستند (Metadata فقط)'),
-        content: SizedBox(
-          width: 560,
-          child: SingleChildScrollView(
-            child: Column(
-              children: [
-                TextField(
-                  controller: titleController,
-                  decoration: const InputDecoration(labelText: 'العنوان *'),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: originalNameController,
-                  decoration: const InputDecoration(labelText: 'اسم الملف الأصلي *'),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: mimeTypeController,
-                  decoration: const InputDecoration(labelText: 'MIME Type *'),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: caseIdController,
-                  decoration: const InputDecoration(labelText: 'Case ID (اختياري)'),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: sizeController,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'الحجم بالبايت (اختياري)'),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: tagsController,
-                  decoration: const InputDecoration(labelText: 'وسوم (مفصولة بفاصلة)'),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: extractedTextController,
-                  maxLines: 5,
-                  decoration: const InputDecoration(labelText: 'نص مستخرج (اختياري)'),
-                ),
-              ],
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('رفع مستند'),
+          content: SizedBox(
+            width: 560,
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      final result = await FilePicker.platform.pickFiles(
+                        allowMultiple: false,
+                        withData: true,
+                      );
+                      if (result == null || result.files.isEmpty) {
+                        return;
+                      }
+                      setDialogState(() => pickedFile = result.files.first);
+                      if (titleController.text.trim().isEmpty) {
+                        titleController.text = pickedFile!.name;
+                      }
+                    },
+                    icon: const Icon(Icons.attach_file_rounded),
+                    label: Text(
+                      pickedFile == null ? 'اختيار ملف' : pickedFile!.name,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: titleController,
+                    decoration: const InputDecoration(labelText: 'العنوان (اختياري)'),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: caseIdController,
+                    decoration: const InputDecoration(labelText: 'Case ID (اختياري)'),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: tagsController,
+                    decoration: const InputDecoration(labelText: 'وسوم (مفصولة بفاصلة)'),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: extractedTextController,
+                    maxLines: 5,
+                    decoration: const InputDecoration(labelText: 'نص مستخرج (اختياري)'),
+                  ),
+                ],
+              ),
             ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(context.tr('Close')),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (pickedFile == null || pickedFile!.bytes == null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('اختيار ملف مطلوب.')),
+                  );
+                  return;
+                }
+
+                try {
+                  final dio = ref.read(dioProvider);
+                  final formData = FormData.fromMap({
+                    'file': MultipartFile.fromBytes(
+                      pickedFile!.bytes!,
+                      filename: pickedFile!.name,
+                    ),
+                    if (titleController.text.trim().isNotEmpty)
+                      'title': titleController.text.trim(),
+                    if (caseIdController.text.trim().isNotEmpty)
+                      'caseId': caseIdController.text.trim(),
+                    if (tagsController.text.trim().isNotEmpty)
+                      'tags': tagsController.text.trim(),
+                    if (extractedTextController.text.trim().isNotEmpty)
+                      'extractedText': extractedTextController.text.trim(),
+                  });
+
+                  await dio.post(
+                    '/documents/upload',
+                    data: formData,
+                    options: Options(
+                      headers: authHeaders(ref),
+                      contentType: 'multipart/form-data',
+                    ),
+                  );
+
+                  if (!context.mounted) {
+                    return;
+                  }
+                  Navigator.of(context).pop(true);
+                } catch (error) {
+                  if (!context.mounted) {
+                    return;
+                  }
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(parseApiError(error))),
+                  );
+                }
+              },
+              child: const Text('حفظ'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text(context.tr('Close')),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final title = titleController.text.trim();
-              final originalName = originalNameController.text.trim();
-              final mimeType = mimeTypeController.text.trim();
-
-              if (title.isEmpty || originalName.isEmpty || mimeType.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('العنوان واسم الملف وMIME Type مطلوبة.')),
-                );
-                return;
-              }
-
-              try {
-                final dio = ref.read(dioProvider);
-                await dio.post(
-                  '/documents',
-                  data: {
-                    'title': title,
-                    'originalName': originalName,
-                    'mimeType': mimeType,
-                    'caseId': caseIdController.text.trim().isEmpty
-                        ? null
-                        : caseIdController.text.trim(),
-                    'sizeBytes': int.tryParse(sizeController.text.trim()),
-                    'extractedText': extractedTextController.text.trim().isEmpty
-                        ? null
-                        : extractedTextController.text.trim(),
-                    'tags': tagsController.text
-                        .split(',')
-                        .map((entry) => entry.trim())
-                        .where((entry) => entry.isNotEmpty)
-                        .toList(),
-                  },
-                  options: Options(headers: authHeaders(ref)),
-                );
-
-                if (!context.mounted) {
-                  return;
-                }
-                Navigator.of(context).pop(true);
-              } catch (error) {
-                if (!context.mounted) {
-                  return;
-                }
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(parseApiError(error))),
-                );
-              }
-            },
-            child: const Text('حفظ'),
-          ),
-        ],
       ),
     );
 
     titleController.dispose();
-    originalNameController.dispose();
-    mimeTypeController.dispose();
     caseIdController.dispose();
-    sizeController.dispose();
     extractedTextController.dispose();
     tagsController.dispose();
 

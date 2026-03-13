@@ -28,6 +28,7 @@ import { DecisionSimilarityService } from './services/decision-similarity.servic
 import { EmbeddingsService } from './services/embeddings.service';
 import { LegalArticleMatcherService } from './services/legal-article-matcher.service';
 import { MemoDraftingService } from './services/memo-drafting.service';
+import { OpenAiLegalService } from './services/openai-legal.service';
 import { RetrievalService } from './services/retrieval.service';
 
 @Module({
@@ -56,6 +57,7 @@ import { RetrievalService } from './services/retrieval.service';
     DecisionSimilarityService,
     ArgumentSuggestionService,
     MemoDraftingService,
+    OpenAiLegalService,
   ],
   exports: [AiService],
 })

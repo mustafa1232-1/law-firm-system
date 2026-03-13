@@ -18,6 +18,20 @@ export const IraqiCaseTypes = [
   'أخرى',
 ] as const;
 
+@Schema({ _id: false, versionKey: false })
+export class CaseEvidenceEntry {
+  @Prop({ type: Types.ObjectId, ref: 'Document', required: false })
+  documentId?: Types.ObjectId;
+
+  @Prop({ required: false })
+  attachmentName?: string;
+
+  @Prop({ required: false })
+  description?: string;
+}
+
+export const CaseEvidenceEntrySchema = SchemaFactory.createForClass(CaseEvidenceEntry);
+
 @Schema({ timestamps: true, versionKey: false, collection: 'cases' })
 export class CaseFile {
   @Prop({ type: Types.ObjectId, ref: 'Firm', required: false })
@@ -38,8 +52,23 @@ export class CaseFile {
   @Prop({ required: false })
   subcategory?: string;
 
+  @Prop({ type: Types.ObjectId, ref: 'Court', required: false })
+  courtId?: Types.ObjectId;
+
   @Prop({ required: false })
   court?: string;
+
+  @Prop({ required: false })
+  courtCity?: string;
+
+  @Prop({ required: false })
+  courtDistrict?: string;
+
+  @Prop({ required: false })
+  courtArea?: string;
+
+  @Prop({ required: false })
+  courtLocationDescription?: string;
 
   @Prop({ required: false })
   governorate?: string;
@@ -89,8 +118,29 @@ export class CaseFile {
   @Prop({ type: [String], default: [] })
   evidenceList: string[];
 
+  @Prop({ type: [CaseEvidenceEntrySchema], default: [] })
+  evidenceEntries: CaseEvidenceEntry[];
+
   @Prop({ required: false })
   fees?: number;
+
+  @Prop({ required: false })
+  contractDate?: Date;
+
+  @Prop({ required: false, default: 0 })
+  contractAmount?: number;
+
+  @Prop({ default: 0 })
+  paidAmount: number;
+
+  @Prop({ default: 0 })
+  outstandingAmount: number;
+
+  @Prop({ default: 'unpaid' })
+  paymentStatus: 'unpaid' | 'partial' | 'paid';
+
+  @Prop({ default: 'pending' })
+  outcome: 'pending' | 'won' | 'lost';
 
   @Prop({ type: [String], default: [] })
   linkedLawArticleIds: string[];

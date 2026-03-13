@@ -16,15 +16,20 @@ export class NotificationsService {
     return this.notificationModel.create({
       ...dto,
       userId: dto.userId ? new Types.ObjectId(dto.userId) : undefined,
+      scheduledFor: dto.scheduledFor ? new Date(dto.scheduledFor) : undefined,
     });
   }
 
   listForUser(userId: string, query: PaginationQueryDto) {
     const { page, limit } = query;
     const skip = (page - 1) * limit;
+    const now = new Date();
     return this.notificationModel
-      .find({ userId: new Types.ObjectId(userId) })
-      .sort({ createdAt: -1 })
+      .find({
+        userId: new Types.ObjectId(userId),
+        $or: [{ scheduledFor: { $exists: false } }, { scheduledFor: { $lte: now } }],
+      })
+      .sort({ scheduledFor: -1, createdAt: -1 })
       .skip(skip)
       .limit(limit)
       .lean();

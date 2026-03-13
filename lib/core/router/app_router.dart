@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lexiq_iraq/core/auth/auth_controller.dart';
 import 'package:lexiq_iraq/features/admin/presentation/pages/admin_page.dart';
 import 'package:lexiq_iraq/features/ai_workspace/presentation/pages/ai_workspace_page.dart';
+import 'package:lexiq_iraq/features/ai_workspace/presentation/pages/authority_reader_page.dart';
 import 'package:lexiq_iraq/features/auth/presentation/pages/forgot_password_page.dart';
 import 'package:lexiq_iraq/features/auth/presentation/pages/login_page.dart';
 import 'package:lexiq_iraq/features/auth/presentation/pages/register_page.dart';
@@ -75,6 +76,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => const AiWorkspacePage(),
           ),
           GoRoute(
+            path: '/authority/:type/:id',
+            builder: (context, state) => AuthorityReaderPage(
+              authorityType: state.pathParameters['type']!,
+              authorityId: state.pathParameters['id']!,
+            ),
+          ),
+          GoRoute(
             path: '/notifications',
             builder: (context, state) => const NotificationsPage(),
           ),
@@ -126,6 +134,7 @@ String _routeTitle(String path) {
   if (path.startsWith('/laws')) return 'Iraqi Laws Explorer';
   if (path.startsWith('/decisions')) return 'Judicial Decisions Explorer';
   if (path.startsWith('/ai-workspace')) return 'AI Legal Workspace';
+  if (path.startsWith('/authority/')) return 'Authority Reader';
   if (path.startsWith('/notifications')) return 'Notifications Center';
   if (path.startsWith('/admin')) return 'Admin Panel';
   if (path.startsWith('/settings')) return 'Settings';

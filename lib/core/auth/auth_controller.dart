@@ -238,6 +238,31 @@ class AuthController extends StateNotifier<AuthState> {
     await prefs.setString(_sessionStorageKey, jsonEncode(session.toJson()));
   }
 
+  Future<void> updateSessionFirm({
+    required String firmId,
+    List<String>? roles,
+  }) async {
+    final current = state.session;
+    if (current == null) {
+      return;
+    }
+
+    final mergedRoles = roles ?? current.user.roles;
+    final updated = AuthSession(
+      accessToken: current.accessToken,
+      refreshToken: current.refreshToken,
+      user: AuthUser(
+        id: current.user.id,
+        email: current.user.email,
+        roles: mergedRoles,
+        firmId: firmId,
+      ),
+    );
+
+    await _saveSession(updated);
+    state = state.copyWith(session: updated, clearError: true);
+  }
+
   String? get accessToken {
     final token = state.session?.accessToken;
     if (token == null || token.isEmpty) {

@@ -22,6 +22,7 @@ import { ConstitutionalMatcherService } from './constitutional-matcher.service';
 import { DecisionSimilarityService } from './decision-similarity.service';
 import { LegalArticleMatcherService } from './legal-article-matcher.service';
 import { MemoDraftingService } from './memo-drafting.service';
+import { OpenAiLegalService } from './openai-legal.service';
 import { RetrievalService } from './retrieval.service';
 
 @Injectable()
@@ -34,6 +35,7 @@ export class AiOrchestratorService {
     private readonly decisionSimilarityService: DecisionSimilarityService,
     private readonly argumentSuggestionService: ArgumentSuggestionService,
     private readonly memoDraftingService: MemoDraftingService,
+    private readonly openAiLegalService: OpenAiLegalService,
     private readonly auditService: AuditService,
     @InjectModel(AiAnalysis.name)
     private readonly analysisModel: Model<AiAnalysisDocument>,
@@ -55,27 +57,38 @@ export class AiOrchestratorService {
     const constitutionalHints = this.constitutionalMatcher.match(dto.description);
     const legalHints = this.legalArticleMatcher.suggest(dto.description);
     const similarDecisions = this.decisionSimilarityService.rankSimilar(results);
+    const llmEnrichment = await this.openAiLegalService.enrichCaseAnalysis({
+      description: dto.description,
+      authorities: results,
+    });
 
     const issues = this.extractIssues(dto.description);
     const confidence = this.estimateConfidence(results, dto.description);
     const disclaimer = this.getDisclaimer();
 
     const output = {
-      extractedType: dto.caseTypeHint ?? this.inferCaseType(dto.description),
-      extractedParties: this.extractParties(dto.description),
-      extractedFacts: this.extractFacts(dto.description),
-      extractedClaims: this.extractClaims(dto.description),
-      legalTopic: issues[0] ?? 'موضوع قانوني عام',
-      keywords: this.extractKeywords(dto.description),
+      extractedType:
+        llmEnrichment?.extractedType ??
+        dto.caseTypeHint ??
+        this.inferCaseType(dto.description),
+      extractedParties:
+        llmEnrichment?.extractedParties ?? this.extractParties(dto.description),
+      extractedFacts: llmEnrichment?.extractedFacts ?? this.extractFacts(dto.description),
+      extractedClaims: llmEnrichment?.extractedClaims ?? this.extractClaims(dto.description),
+      legalTopic: llmEnrichment?.legalTopic ?? issues[0] ?? 'موضوع قانوني عام',
+      keywords: llmEnrichment?.keywords ?? this.extractKeywords(dto.description),
       constitutionalHints,
       legalHints,
       similarDecisions,
-      missingDocuments: this.detectMissingDocuments(dto.description),
-      questionsForLawyer: this.proposeQuestions(dto.description),
+      missingDocuments:
+        llmEnrichment?.missingDocuments ?? this.detectMissingDocuments(dto.description),
+      questionsForLawyer:
+        llmEnrichment?.questionsForLawyer ?? this.proposeQuestions(dto.description),
       riskScore: this.estimateRisk(dto.description),
-      evidenceGaps: this.detectEvidenceGaps(dto.description),
+      evidenceGaps: llmEnrichment?.evidenceGaps ?? this.detectEvidenceGaps(dto.description),
       confidence,
       disclaimer,
+      aiProvider: this.openAiLegalService.enabled ? 'openai+routed' : 'heuristic',
     };
 
     const analysis = await this.analysisModel.create({
@@ -126,22 +139,32 @@ export class AiOrchestratorService {
     const disclaimer = this.getDisclaimer();
     const hasSources =
       grouped.constitution.length + grouped.laws.length + grouped.decisions.length > 0;
+    const llmEnrichment = await this.openAiLegalService.enrichLegalResearch({
+      query: dto.query,
+      authorities: retrieval,
+    });
 
     const answer = {
-      summary: hasSources
-        ? 'تم العثور على مصادر قانونية مرتبطة بالسؤال ضمن الدستور والقوانين والقرارات المتاحة.'
-        : 'لم يتم العثور على مصادر كافية ضمن البيانات المفهرسة لهذا السؤال.',
+      summary:
+        llmEnrichment?.summary ??
+        (hasSources
+          ? 'تم العثور على مصادر قانونية مرتبطة بالسؤال ضمن الدستور والقوانين والقرارات المتاحة.'
+          : 'لم يتم العثور على مصادر كافية ضمن البيانات المفهرسة لهذا السؤال.'),
       groundedAnswer:
+        llmEnrichment?.groundedAnswer ??
         'هذه الإجابة أولية ومبنية على المصادر القانونية المتاحة داخل النظام مع الاستشهادات.',
-      extractedIssues: this.extractIssues(dto.query),
-      proposedQuestions: this.proposeQuestions(dto.query),
+      extractedIssues: llmEnrichment?.extractedIssues ?? this.extractIssues(dto.query),
+      proposedQuestions:
+        llmEnrichment?.proposedQuestions ?? this.proposeQuestions(dto.query),
       suggestedAuthorities: retrieval.slice(0, 10),
       confidence,
-      limitations: [
-        'قد تكون بعض البيانات القضائية غير مكتملة أو غير محدثة.',
-        'المخرجات لا تُعد استشارة قانونية نهائية.',
-      ],
+      limitations:
+        llmEnrichment?.limitations ?? [
+          'قد تكون بعض البيانات القضائية غير مكتملة أو غير محدثة.',
+          'المخرجات لا تُعد استشارة قانونية نهائية.',
+        ],
       disclaimer,
+      aiProvider: this.openAiLegalService.enabled ? 'openai+routed' : 'heuristic',
     };
 
     const analysis = await this.analysisModel.create({

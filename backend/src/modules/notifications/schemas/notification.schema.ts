@@ -21,6 +21,12 @@ export class Notification {
   isRead: boolean;
 
   @Prop({ required: false })
+  scheduledFor?: Date;
+
+  @Prop({ required: false })
+  reminderKey?: string;
+
+  @Prop({ required: false })
   entityType?: string;
 
   @Prop({ required: false })
@@ -28,3 +34,5 @@ export class Notification {
 }
 
 export const NotificationSchema = SchemaFactory.createForClass(Notification);
+NotificationSchema.index({ userId: 1, isRead: 1, scheduledFor: -1, createdAt: -1 });
+NotificationSchema.index({ entityType: 1, entityId: 1, reminderKey: 1 });

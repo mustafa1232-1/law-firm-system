@@ -37,6 +37,7 @@ Implemented modules:
 - `constitution`
 - `laws`
 - `decisions`
+- `courts`
 - `research`
 - `ai`
 - `ingest`
@@ -55,6 +56,8 @@ Implemented modules:
 - `GET /api/v1/cases`
 - `POST /api/v1/cases`
 - `POST /api/v1/cases/:id/analyze`
+- `POST /api/v1/documents/upload` (multipart upload)
+- `GET /api/v1/courts?q=...`
 - `GET /api/v1/constitution/search?q=`
 - `GET /api/v1/laws/search?q=`
 - `GET /api/v1/decisions/search?q=`
@@ -101,6 +104,7 @@ flutter run -d chrome \
 # Backend
 cd backend && npm run build
 cd backend && npm run seed:public-data
+cd backend && npm run reset:production
 
 # Frontend
 flutter analyze
@@ -132,8 +136,16 @@ Use `backend/.env.example` as the canonical source and set at least:
 Optional:
 
 - `REDIS_URL`
-- storage vars (`STORAGE_*`)
+- storage vars (`STORAGE_*`) including:
+  - `STORAGE_PROVIDER=local|s3|r2`
+  - `STORAGE_BUCKET`, `STORAGE_ENDPOINT`, `STORAGE_ACCESS_KEY`, `STORAGE_SECRET_KEY`
+  - `STORAGE_PROJECT_PREFIX=lexiq-iraq` (isolates this project in one bucket folder)
+  - `STORAGE_LOCAL_ROOT=uploads`
+  - `STORAGE_PUBLIC_BASE_URL=https://your-domain`
 - `OPENAI_API_KEY`
+- `OPENAI_MODEL`
+- `OPENAI_EMBEDDING_MODEL`
+- `EMBEDDINGS_PROVIDER=openai` (to use OpenAI embeddings)
 
 Seed curated legal references after setting `MONGODB_URI`:
 
@@ -146,7 +158,35 @@ Current seeded legal corpus includes:
 
 - Iraqi Constitution full text (articles 1..144), sourced from: `https://www.sjc.iq/view.77/`
 - Curated Iraqi law documents and indexed law articles
-- Curated judicial decision records for search and retrieval
+- Expanded curated judicial decision records for search and retrieval
+- Iraqi courts directory (seeded from publicly available OSM courthouse data) with searchable location metadata
+
+## Production reset and super admin
+
+To wipe all existing MongoDB data and keep only one super-admin account:
+
+```bash
+cd backend
+MONGODB_URI=... npm run reset:production
+```
+
+Default seeded super-admin credentials:
+
+- Email: `mustafa@1.net`
+- Password: `12345678`
+
+You can override via env vars:
+
+- `SUPER_ADMIN_EMAIL`
+- `SUPER_ADMIN_PASSWORD`
+- `SUPER_ADMIN_NAME`
+
+The reset script also re-seeds:
+
+- Constitution: 144 articles
+- Laws: seeded law docs + indexed articles
+- Judicial decisions: expanded public reference set
+- Courts directory: searchable Iraqi courts with governorate/city/district/area metadata
 
 ### Deploy with Railway CLI
 
@@ -164,5 +204,7 @@ After deploy:
 ## Notes
 
 - Large files are not stored in MongoDB, only metadata + storage path.
+- `local` storage provider serves files under `/storage/*` from backend disk.
+- For durable production storage, use `STORAGE_PROVIDER=s3` or `r2`.
 - Decision ingestion is designed for mixed data quality with review queue support.
 - Case-law / constitution / laws / AI cross-linking is scaffolded for iterative expansion.

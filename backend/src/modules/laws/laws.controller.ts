@@ -37,6 +37,11 @@ export class LawsController {
     return this.lawsService.createArticle(dto, user?.sub);
   }
 
+  @Get('articles/:id')
+  findArticle(@Param('id') id: string) {
+    return this.lawsService.findArticleById(id);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.lawsService.findLawById(id);

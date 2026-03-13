@@ -27,10 +27,15 @@ export default () => ({
     endpoint: process.env.STORAGE_ENDPOINT ?? '',
     accessKey: process.env.STORAGE_ACCESS_KEY ?? '',
     secretKey: process.env.STORAGE_SECRET_KEY ?? '',
+    projectPrefix: process.env.STORAGE_PROJECT_PREFIX ?? '',
+    localRoot: process.env.STORAGE_LOCAL_ROOT ?? 'uploads',
+    publicBaseUrl: process.env.STORAGE_PUBLIC_BASE_URL ?? '',
   },
   ai: {
     embeddingsProvider: process.env.EMBEDDINGS_PROVIDER ?? 'none',
     openaiApiKey: process.env.OPENAI_API_KEY ?? '',
+    openaiModel: process.env.OPENAI_MODEL ?? 'gpt-4.1-mini',
+    openaiEmbeddingModel: process.env.OPENAI_EMBEDDING_MODEL ?? 'text-embedding-3-small',
     disclaimer:
       process.env.LEGAL_DISCLAIMER ??
       'مخرجات الذكاء الاصطناعي هي اقتراحات أولية للمراجعة القانونية وليست استشارة نهائية.',

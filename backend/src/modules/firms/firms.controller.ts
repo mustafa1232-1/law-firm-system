@@ -37,6 +37,11 @@ export class FirmsController {
     return this.firmsService.registerCompany(dto);
   }
 
+  @Post('my-firm')
+  createMyFirm(@Body() dto: CreateFirmDto, @CurrentUser() user: any) {
+    return this.firmsService.createMyFirm(dto, user?.sub);
+  }
+
   @Get()
   findAll(@Query() query: PaginationQueryDto) {
     return this.firmsService.findAll(query);

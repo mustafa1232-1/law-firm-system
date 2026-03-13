@@ -9,6 +9,7 @@ import { AuditService } from '../audit/audit.service';
 import { StorageService } from '../storage/storage.service';
 import { AnalyzeDocumentDto } from './dto/analyze-document.dto';
 import { CreateDocumentDto } from './dto/create-document.dto';
+import { UploadDocumentDto } from './dto/upload-document.dto';
 import { UpdateDocumentDto } from './dto/update-document.dto';
 import { DocumentChunk, DocumentChunkDocument } from './schemas/document-chunk.schema';
 import { DocumentFile, DocumentFileDocument } from './schemas/document.schema';
@@ -51,13 +52,55 @@ export class DocumentsService {
     return document;
   }
 
-  async findAll(query: PaginationQueryDto, search?: string) {
+  async uploadFile(file: Express.Multer.File, dto: UploadDocumentDto, actorId?: string) {
+    const originalName = dto.originalName?.trim() || file.originalname || 'file.bin';
+    const mimeType = dto.mimeType?.trim() || file.mimetype || 'application/octet-stream';
+    const storagePath = await this.storageService.generatePath({
+      caseId: dto.caseId,
+      originalName,
+    });
+
+    await this.storageService.uploadFile({
+      storagePath,
+      buffer: file.buffer,
+      mimeType,
+    });
+
+    const tags = this.parseTags(dto.tags);
+
+    const document = await this.documentModel.create({
+      title: dto.title?.trim() || originalName,
+      originalName,
+      mimeType,
+      caseId: toObjectIdOrUndefined(dto.caseId),
+      extractedText: dto.extractedText?.trim() || undefined,
+      sizeBytes: file.size,
+      tags,
+      storagePath,
+    });
+
+    if (dto.extractedText?.trim()) {
+      await this.createChunks(document._id.toString(), dto.extractedText);
+    }
+
+    await this.auditService.record({
+      action: 'document.upload',
+      entity: 'documents',
+      entityId: document.id,
+      actorId,
+      payload: { title: document.title, mimeType: document.mimeType, sizeBytes: file.size },
+    });
+
+    return document;
+  }
+
+  async findAll(query: PaginationQueryDto, search?: string, caseId?: string) {
     const { page, limit } = query;
     const skip = (page - 1) * limit;
 
     const rawSearch = (search ?? '').trim();
     const safeSearch = escapeRegex(rawSearch);
-    const filter = rawSearch
+    const filter: Record<string, unknown> = rawSearch
       ? {
           $or: [
             { title: { $regex: safeSearch, $options: 'i' } },
@@ -66,6 +109,10 @@ export class DocumentsService {
           ],
         }
       : {};
+
+    if (caseId && Types.ObjectId.isValid(caseId)) {
+      filter.caseId = new Types.ObjectId(caseId);
+    }
 
     const [items, total] = await Promise.all([
       this.documentModel
@@ -169,5 +216,26 @@ export class DocumentsService {
     }
     await this.chunkModel.deleteMany({ documentId: new Types.ObjectId(documentId) });
     await this.chunkModel.insertMany(chunks);
+  }
+
+  private parseTags(raw?: string) {
+    const value = (raw ?? '').trim();
+    if (!value) {
+      return [] as string[];
+    }
+    if (value.startsWith('[') && value.endsWith(']')) {
+      try {
+        const parsed = JSON.parse(value);
+        if (Array.isArray(parsed)) {
+          return parsed.map((item) => `${item}`.trim()).filter(Boolean);
+        }
+      } catch {
+        // fall back to comma-separated parsing
+      }
+    }
+    return value
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
   }
 }

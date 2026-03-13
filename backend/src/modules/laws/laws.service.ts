@@ -112,6 +112,7 @@ export class LawsService {
             ...buildTokenRegexConditions('text', terms.rawTokens),
           ],
         })
+        .populate('lawId', 'title lawNumber year legalDomain')
         .skip(skip)
         .limit(limit)
         .lean(),
@@ -131,6 +132,17 @@ export class LawsService {
       throw new NotFoundException('Law not found');
     }
     return law;
+  }
+
+  async findArticleById(id: string) {
+    const article = await this.articleModel
+      .findById(id)
+      .populate('lawId', 'title lawNumber year issuingBody legalDomain')
+      .lean();
+    if (!article) {
+      throw new NotFoundException('Law article not found');
+    }
+    return article;
   }
 
   async findLawArticles(id: string, query: PaginationQueryDto) {

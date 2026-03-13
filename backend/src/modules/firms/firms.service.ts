@@ -1,4 +1,9 @@
-﻿import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { PaginationQueryDto } from 'src/common/dto/pagination-query.dto';
@@ -43,6 +48,53 @@ export class FirmsService {
     });
 
     return firm;
+  }
+
+  async createMyFirm(dto: CreateFirmDto, actorId?: string) {
+    if (!actorId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+
+    const user = await this.userModel.findById(actorId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (user.firmId) {
+      throw new ConflictException('User already belongs to a firm');
+    }
+
+    const firm = await this.firmModel.create({
+      ...dto,
+      employeeCount: dto.employeeCount ?? 1,
+      category: this.normalizeFirmCategory(dto.category),
+    });
+    await this.settingsModel.create({ firmId: firm._id });
+
+    const roleSet = new Set([...(user.roles ?? []), SystemRole.FIRM_ADMIN]);
+    user.firmId = firm._id;
+    user.roles = Array.from(roleSet);
+    await user.save();
+
+    await this.auditService.record({
+      action: 'firm.create-my-firm',
+      entity: 'firms',
+      entityId: firm.id,
+      actorId,
+      payload: { name: dto.name, category: dto.category },
+    });
+
+    return {
+      message: 'Firm created and linked to your account',
+      firm,
+      user: {
+        id: user.id,
+        fullName: user.fullName,
+        email: user.email,
+        firmId: firm.id,
+        roles: user.roles,
+      },
+    };
   }
 
   async registerCompany(dto: RegisterCompanyDto) {
@@ -186,7 +238,7 @@ export class FirmsService {
   private normalizeFirmCategory(value?: string) {
     const raw = (value ?? '').trim();
     if (!raw) {
-      return 'أخرى';
+      return FirmCategories[6];
     }
 
     if (FirmCategories.includes(raw as any)) {
@@ -195,30 +247,31 @@ export class FirmsService {
 
     const normalized = raw.toLowerCase();
 
-    if (normalized.includes('large') || normalized.includes('كبرى')) {
-      return 'شركة محاماة كبرى';
+    if (normalized.includes('large')) {
+      return FirmCategories[3];
     }
 
-    if (normalized.includes('medium') || normalized.includes('متوسطة')) {
-      return 'شركة محاماة متوسطة';
+    if (normalized.includes('medium')) {
+      return FirmCategories[2];
     }
 
-    if (normalized.includes('small') || normalized.includes('صغيرة')) {
-      return 'شركة محاماة صغيرة';
+    if (normalized.includes('small')) {
+      return FirmCategories[1];
     }
 
-    if (normalized.includes('consult') || normalized.includes('استشار')) {
-      return 'شركة استشارات قانونية';
+    if (normalized.includes('consult')) {
+      return FirmCategories[4];
     }
 
-    if (normalized.includes('research') || normalized.includes('بحث')) {
-      return 'شركة بحث قانوني';
+    if (normalized.includes('research')) {
+      return FirmCategories[5];
     }
 
-    if (normalized.includes('law') || normalized.includes('firm') || normalized.includes('محام')) {
-      return 'شركة محاماة صغيرة';
+    if (normalized.includes('law') || normalized.includes('firm')) {
+      return FirmCategories[1];
     }
 
-    return 'أخرى';
+    return FirmCategories[6];
   }
 }
+
