@@ -1,6 +1,6 @@
 ﻿import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { Model, Types } from 'mongoose';
 import { normalizeArabic } from 'src/common/utils/arabic-normalization.util';
 import { PaginationQueryDto } from 'src/common/dto/pagination-query.dto';
@@ -21,6 +21,7 @@ import { MemoDraft, MemoDraftDocument } from '../schemas/memo-draft.schema';
 import {
   ArgumentBuilderDto,
   CaseAnalysisDto,
+  ExplainLawArticleDto,
   LegalResearchDto,
   MemoDraftDto,
   SaveAiAnalysisDto,
@@ -32,6 +33,7 @@ import { LegalArticleMatcherService } from './legal-article-matcher.service';
 import { MemoDraftingService } from './memo-drafting.service';
 import { OpenAiLegalService } from './openai-legal.service';
 import { RetrievalService } from './retrieval.service';
+import { LawArticle, LawArticleDocument } from '../../laws/schemas/law-article.schema';
 
 @Injectable()
 export class AiOrchestratorService {
@@ -57,6 +59,8 @@ export class AiOrchestratorService {
     private readonly caseModel: Model<CaseDocument>,
     @InjectModel(DocumentFile.name)
     private readonly documentModel: Model<DocumentFileDocument>,
+    @InjectModel(LawArticle.name)
+    private readonly lawArticleModel: Model<LawArticleDocument>,
   ) {}
 
   async analyzeCase(dto: CaseAnalysisDto, actorId?: string) {
@@ -313,6 +317,123 @@ export class AiOrchestratorService {
       body: memo.body,
       citations: memo.citations,
       disclaimer,
+    };
+  }
+
+  async explainLawArticle(dto: ExplainLawArticleDto, actorId?: string) {
+    if (!Types.ObjectId.isValid(dto.articleId)) {
+      throw new NotFoundException('Law article not found');
+    }
+
+    const article = await this.lawArticleModel
+      .findById(dto.articleId)
+      .populate('lawId', 'title lawNumber year legalDomain')
+      .lean();
+
+    if (!article) {
+      throw new NotFoundException('Law article not found');
+    }
+
+    const lawRef = (article.lawId ?? {}) as Record<string, unknown>;
+    const lawTitle = (lawRef.title ?? 'قانون عراقي').toString();
+    const lawNumber = (lawRef.lawNumber ?? '-').toString();
+    const legalDomain = (lawRef.legalDomain ?? '').toString();
+    const focusQuestion = (dto.focusQuestion ?? '').trim();
+
+    const compositeQuery = [
+      `شرح المادة ${article.articleNumber} من ${lawTitle}`,
+      article.text ?? '',
+      focusQuestion,
+    ]
+      .filter((part) => part.trim().length > 0)
+      .join('\n');
+
+    const authorities = await this.retrievalService.hybridSearch({
+      query: compositeQuery,
+      searchConstitution: true,
+      searchLaws: true,
+      searchDecisions: true,
+      legalDomain: legalDomain || undefined,
+      limit: 14,
+    });
+
+    const llmExplanation = await this.openAiLegalService.explainLawArticle({
+      articleNumber: (article.articleNumber ?? '').toString(),
+      articleText: (article.text ?? '').toString(),
+      lawTitle,
+      lawNumber,
+      focusQuestion,
+      authorities,
+    });
+
+    const fallback = this.buildFallbackLawArticleExplanation(
+      (article.text ?? '').toString(),
+      focusQuestion,
+    );
+
+    const confidence = this.estimateConfidence(authorities, compositeQuery);
+    const disclaimer = this.getDisclaimer();
+
+    const output = {
+      article: {
+        id: article._id.toString(),
+        articleNumber: article.articleNumber,
+        lawTitle,
+        lawNumber,
+        year: lawRef.year,
+        legalDomain,
+      },
+      plainMeaning: llmExplanation?.plainMeaning ?? fallback.plainMeaning,
+      legalElements: llmExplanation?.legalElements ?? fallback.legalElements,
+      applicationScenarios:
+        llmExplanation?.applicationScenarios ?? fallback.applicationScenarios,
+      proceduralNotes: llmExplanation?.proceduralNotes ?? fallback.proceduralNotes,
+      potentialRisks: llmExplanation?.potentialRisks ?? fallback.potentialRisks,
+      defenseAngles: llmExplanation?.defenseAngles ?? fallback.defenseAngles,
+      practicalChecklist:
+        llmExplanation?.practicalChecklist ?? fallback.practicalChecklist,
+      detailedExplanation:
+        llmExplanation?.detailedExplanation ?? fallback.detailedExplanation,
+      proposedQuestions: llmExplanation?.proposedQuestions ?? fallback.proposedQuestions,
+      suggestedAuthorities: authorities.slice(0, 12),
+      confidence,
+      limitations: [
+        'الشرح لا يغني عن المراجعة القانونية المهنية حسب وقائع الملف الكامل.',
+        'دقة الشرح تعتمد على اكتمال النصوص والمراجع المفهرسة داخل النظام.',
+      ],
+      disclaimer,
+      aiProvider: this.openAiLegalService.enabled ? 'openai+routed' : 'heuristic',
+    };
+
+    const analysis = await this.analysisModel.create({
+      caseId: toObjectIdOrUndefined(dto.caseId),
+      analysisType: 'law-article-explanation',
+      inputText: focusQuestion || article.text,
+      output,
+      citations: authorities.map((item) => ({
+        sourceType: item.sourceType,
+        citation: item.citation,
+        id: item.id,
+      })),
+      confidenceScore: confidence,
+      disclaimer,
+    });
+
+    await this.auditService.record({
+      action: 'ai.law-article-explanation',
+      entity: 'ai_analyses',
+      entityId: analysis.id,
+      actorId,
+      payload: {
+        articleId: dto.articleId,
+        caseId: dto.caseId,
+        aiProvider: output.aiProvider,
+      },
+    });
+
+    return {
+      analysisId: analysis.id,
+      ...output,
     };
   }
 
@@ -639,6 +760,82 @@ export class AiOrchestratorService {
         };
       })
       .filter((item) => item.id && item.sourceType);
+  }
+
+  private buildFallbackLawArticleExplanation(articleText: string, focusQuestion?: string) {
+    const normalized = normalizeArabic(articleText);
+    const paragraphs = articleText
+      .split(/\n+/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    const legalElements = paragraphs.slice(0, 4).map((line, index) => `عنصر ${index + 1}: ${line}`);
+
+    const proceduralNotes: string[] = [];
+    if (this.hasAny(normalized, ['اختصاص', 'محكمه'])) {
+      proceduralNotes.push('التأكد من الاختصاص القضائي والنوعي قبل الترافع.');
+    }
+    if (this.hasAny(normalized, ['مده', 'تقادم'])) {
+      proceduralNotes.push('التحقق من المدد القانونية والتقادم قبل تقديم الطلب.');
+    }
+    if (this.hasAny(normalized, ['اثبات', 'بينه', 'دليل'])) {
+      proceduralNotes.push('ترتيب أدلة الإثبات وربط كل دفع بمستند داعم.');
+    }
+    if (!proceduralNotes.length) {
+      proceduralNotes.push('مراجعة شروط انطباق المادة على الوقائع الفعلية في ملف الدعوى.');
+    }
+
+    const potentialRisks: string[] = [];
+    if (!this.hasAny(normalized, ['مستند', 'اثبات', 'دليل'])) {
+      potentialRisks.push('مخاطر في عبء الإثبات إذا لم تُدعم الوقائع بمستندات واضحة.');
+    }
+    potentialRisks.push('احتمال اختلاف تفسير النص بين المحاكم بحسب وقائع كل دعوى.');
+
+    const defenseAngles = [
+      'تحديد أركان تطبيق المادة ثم إثبات تحقق كل ركن بوقائع ومستندات.',
+      'التركيز على التفسير الذي ينسجم مع مبادئ العدالة واستقرار القضاء.',
+      'معالجة الدفوع المتوقعة للطرف المقابل قبل جلسة المرافعة.',
+    ];
+
+    const checklist = [
+      'قراءة النص كاملًا مع الفقرات دون اجتزاء.',
+      'ربط كل فقرة بواقعة محددة من ملف الدعوى.',
+      'تحديد المستند المؤيد لكل واقعة.',
+      'مراجعة السوابق ذات الصلة قبل صياغة المذكرة.',
+    ];
+
+    return {
+      plainMeaning:
+        paragraphs[0] ??
+        'المادة تنظم حكمًا قانونيًا محددًا ويجب تطبيقها وفق الوقائع والأدلة المتاحة.',
+      legalElements:
+        legalElements.length > 0
+          ? legalElements
+          : ['يلزم تفكيك النص إلى أركان تطبيق وربطها بوقائع الملف.'],
+      applicationScenarios: [
+        'عند تطابق وقائع الدعوى مع شروط انطباق المادة.',
+        'عند وجود نزاع على تفسير النص أو نطاق تطبيقه.',
+        'عند الحاجة لتعزيز الطلب باستناد تشريعي مباشر.',
+      ],
+      proceduralNotes,
+      potentialRisks,
+      defenseAngles,
+      practicalChecklist: checklist,
+      detailedExplanation: [
+        'شرح عام:',
+        'تطبيق هذه المادة يتطلب قراءة النص كاملًا مع فقراته وربطه بوقائع الدعوى ومرفقاتها.',
+        'التركيز العملي:',
+        'ينبغي بيان كيفية تحقق شروط النص في الحالة المعروضة، مع معالجة أي تعارض أو نقص في الدليل.',
+        focusQuestion?.trim().length ? `سؤال التركيز: ${focusQuestion.trim()}` : '',
+      ]
+        .filter((line) => line.length > 0)
+        .join('\n'),
+      proposedQuestions: [
+        'ما الوقائع التي تطابق شروط المادة بشكل صريح؟',
+        'ما المستندات الناقصة لإثبات تطبيق النص؟',
+        'ما الدفع المتوقع من الخصم ضد هذا الاستناد؟',
+      ],
+    };
   }
 
   private inferCaseType(text: string) {

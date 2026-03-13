@@ -6,6 +6,7 @@ import {
   AttachAiAnalysisToCaseDto,
   ArgumentBuilderDto,
   CaseAnalysisDto,
+  ExplainLawArticleDto,
   LegalResearchDto,
   MemoDraftDto,
   SaveAiAnalysisDto,
@@ -36,6 +37,11 @@ export class AiController {
   @Post('memo-draft')
   memoDraft(@Body() dto: MemoDraftDto, @CurrentUser() user: any) {
     return this.aiOrchestratorService.memoDraft(dto, user?.sub);
+  }
+
+  @Post('explain-law-article')
+  explainLawArticle(@Body() dto: ExplainLawArticleDto, @CurrentUser() user: any) {
+    return this.aiOrchestratorService.explainLawArticle(dto, user?.sub);
   }
 
   @Get('analyses')

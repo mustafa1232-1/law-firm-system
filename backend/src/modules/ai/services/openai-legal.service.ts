@@ -23,6 +23,18 @@ interface LegalResearchEnrichment {
   limitations?: string[];
 }
 
+interface LawArticleExplanationEnrichment {
+  plainMeaning?: string;
+  legalElements?: string[];
+  applicationScenarios?: string[];
+  proceduralNotes?: string[];
+  potentialRisks?: string[];
+  defenseAngles?: string[];
+  practicalChecklist?: string[];
+  detailedExplanation?: string;
+  proposedQuestions?: string[];
+}
+
 @Injectable()
 export class OpenAiLegalService {
   private readonly logger = new Logger(OpenAiLegalService.name);
@@ -119,6 +131,58 @@ export class OpenAiLegalService {
       extractedIssues: this.asStringArray(json.extractedIssues),
       proposedQuestions: this.asStringArray(json.proposedQuestions),
       limitations: this.asStringArray(json.limitations),
+    };
+  }
+
+  async explainLawArticle(input: {
+    articleNumber: string;
+    articleText: string;
+    lawTitle?: string;
+    lawNumber?: string;
+    focusQuestion?: string;
+    authorities: RetrievalResult[];
+  }): Promise<LawArticleExplanationEnrichment | null> {
+    if (!this.client) {
+      return null;
+    }
+
+    const sources = this.renderAuthorities(input.authorities, 14);
+    const prompt = [
+      'أنت خبير شرح نصوص قانونية عراقية للمحامين.',
+      'المطلوب شرح المادة بشكل تفصيلي ومنظم، مع التركيز على المعنى العملي وحدود التطبيق.',
+      'ممنوع اختلاق نصوص أو أحكام غير موجودة في النص أو المصادر.',
+      'إذا كانت المعلومات غير كافية اذكر ذلك بوضوح.',
+      '',
+      `القانون: ${input.lawTitle ?? 'غير محدد'} (رقم ${input.lawNumber ?? '-'})`,
+      `رقم المادة: ${input.articleNumber}`,
+      '',
+      'نص المادة:',
+      input.articleText,
+      '',
+      `سؤال التركيز (إن وجد): ${input.focusQuestion?.trim() || 'لا يوجد'}`,
+      '',
+      'المراجع ذات الصلة:',
+      sources || 'لا توجد مراجع إضافية.',
+      '',
+      'أعد JSON فقط بالمفاتيح التالية:',
+      '{"plainMeaning":"","legalElements":[],"applicationScenarios":[],"proceduralNotes":[],"potentialRisks":[],"defenseAngles":[],"practicalChecklist":[],"detailedExplanation":"","proposedQuestions":[]}',
+    ].join('\n');
+
+    const json = await this.completeJson(prompt);
+    if (!json || typeof json !== 'object') {
+      return null;
+    }
+
+    return {
+      plainMeaning: this.asString(json.plainMeaning),
+      legalElements: this.asStringArray(json.legalElements),
+      applicationScenarios: this.asStringArray(json.applicationScenarios),
+      proceduralNotes: this.asStringArray(json.proceduralNotes),
+      potentialRisks: this.asStringArray(json.potentialRisks),
+      defenseAngles: this.asStringArray(json.defenseAngles),
+      practicalChecklist: this.asStringArray(json.practicalChecklist),
+      detailedExplanation: this.asString(json.detailedExplanation),
+      proposedQuestions: this.asStringArray(json.proposedQuestions),
     };
   }
 

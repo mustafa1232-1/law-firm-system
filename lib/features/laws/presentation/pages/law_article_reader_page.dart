@@ -97,30 +97,18 @@ class _LawArticleReaderPageState extends ConsumerState<LawArticleReaderPage> {
   }
 
   Future<void> _explainArticle() async {
-    final item = _article;
-    if (item == null) {
+    if (_article == null) {
       return;
     }
-
-    final law = (item['lawId'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{};
 
     setState(() => _explaining = true);
     try {
       final dio = ref.read(dioProvider);
-      final query = [
-        'اشرح المادة ${(item['articleNumber'] ?? '-').toString()} من ${(law['title'] ?? 'القانون').toString()} شرحًا عمليًا للمحامي.',
-        'اذكر دلالة المادة ونطاق تطبيقها ونقاط القوة والقيود المحتملة.',
-        'نص المادة:',
-        (item['text'] ?? '').toString(),
-      ].join('\n');
-
       final response = await dio.post(
-        '/ai/legal-research',
+        '/ai/explain-law-article',
         data: {
-          'query': query,
-          'searchConstitution': true,
-          'searchLaws': true,
-          'searchDecisions': true,
+          'articleId': widget.articleId,
+          'focusQuestion': 'اشرح المادة شرحًا تفصيليًا عمليًا للمحامي مع تحليل البنود.',
         },
         options: Options(headers: authHeaders(ref)),
       );
@@ -143,6 +131,39 @@ class _LawArticleReaderPageState extends ConsumerState<LawArticleReaderPage> {
     }
   }
 
+  Widget _buildListSection(
+    BuildContext context,
+    String title,
+    dynamic value,
+  ) {
+    final items = (value as List?)
+            ?.map((entry) => entry.toString().trim())
+            .where((entry) => entry.isNotEmpty)
+            .toList() ??
+        const <String>[];
+
+    if (items.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 6),
+          ...items.map(
+            (entry) => Padding(
+              padding: const EdgeInsets.only(bottom: 5),
+              child: Text('• $entry'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final item = _article;
@@ -158,7 +179,7 @@ class _LawArticleReaderPageState extends ConsumerState<LawArticleReaderPage> {
           children: [
             SectionHeader(
               title: 'قارئ المادة القانونية',
-              subtitle: 'عرض المادة كاملة مع البنود وشرح أولي مدعوم بالمرجعيات',
+              subtitle: 'نص المادة، البنود، والشرح التفصيلي المدعوم بالذكاء الاصطناعي',
               trailing: Wrap(
                 spacing: 8,
                 runSpacing: 8,
@@ -182,7 +203,7 @@ class _LawArticleReaderPageState extends ConsumerState<LawArticleReaderPage> {
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : const Icon(Icons.psychology_alt_rounded),
-                    label: const Text('شرح المادة'),
+                    label: const Text('شرح تفصيلي'),
                   ),
                 ],
               ),
@@ -258,14 +279,57 @@ class _LawArticleReaderPageState extends ConsumerState<LawArticleReaderPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'الشرح الأولي (AI)',
+                        'الشرح التفصيلي للمادة',
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
                       const SizedBox(height: 8),
-                      Text((_explanation?['summary'] ?? '').toString()),
-                      const SizedBox(height: 8),
-                      Text((_explanation?['groundedAnswer'] ?? '').toString()),
-                      const SizedBox(height: 10),
+                      if ((_explanation?['plainMeaning'] ?? '').toString().trim().isNotEmpty) ...[
+                        Text('المعنى المبسط', style: Theme.of(context).textTheme.titleMedium),
+                        const SizedBox(height: 4),
+                        Text((_explanation?['plainMeaning'] ?? '').toString()),
+                        const SizedBox(height: 10),
+                      ],
+                      if ((_explanation?['detailedExplanation'] ?? '')
+                          .toString()
+                          .trim()
+                          .isNotEmpty) ...[
+                        Text('الشرح المفصل', style: Theme.of(context).textTheme.titleMedium),
+                        const SizedBox(height: 4),
+                        Text((_explanation?['detailedExplanation'] ?? '').toString()),
+                        const SizedBox(height: 10),
+                      ],
+                      _buildListSection(context, 'الأركان القانونية', _explanation?['legalElements']),
+                      _buildListSection(
+                        context,
+                        'سيناريوهات التطبيق',
+                        _explanation?['applicationScenarios'],
+                      ),
+                      _buildListSection(
+                        context,
+                        'ملاحظات إجرائية',
+                        _explanation?['proceduralNotes'],
+                      ),
+                      _buildListSection(
+                        context,
+                        'مخاطر محتملة',
+                        _explanation?['potentialRisks'],
+                      ),
+                      _buildListSection(
+                        context,
+                        'زوايا دفاع محتملة',
+                        _explanation?['defenseAngles'],
+                      ),
+                      _buildListSection(
+                        context,
+                        'قائمة عمل للمحامي',
+                        _explanation?['practicalChecklist'],
+                      ),
+                      _buildListSection(
+                        context,
+                        'أسئلة متابعة',
+                        _explanation?['proposedQuestions'],
+                      ),
+                      const SizedBox(height: 6),
                       Text(
                         ((_explanation?['disclaimer'] ??
                                     'هذه المخرجات أولية وتحتاج مراجعة محامٍ بشري.')

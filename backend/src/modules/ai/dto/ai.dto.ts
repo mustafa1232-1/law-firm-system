@@ -96,6 +96,22 @@ export class MemoDraftDto {
   caseId?: string;
 }
 
+export class ExplainLawArticleDto {
+  @ApiProperty()
+  @IsString()
+  articleId: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  focusQuestion?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  caseId?: string;
+}
+
 export class SaveAiAnalysisDto {
   @ApiPropertyOptional()
   @IsOptional()
