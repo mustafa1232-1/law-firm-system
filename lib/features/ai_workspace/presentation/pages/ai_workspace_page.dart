@@ -1,4 +1,6 @@
-﻿import 'package:dio/dio.dart';
+import 'dart:typed_data';
+
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -6,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/localization/app_translations.dart';
 import '../../../../core/network/api_helpers.dart';
 import '../../../../core/network/dio_client.dart';
+import '../../../../core/utils/file_download.dart';
 import '../../../../shared/widgets/glass_panel.dart';
 import '../../../../shared/widgets/section_header.dart';
 import '../../../../theme/lexiq_colors.dart';
@@ -69,7 +72,9 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
         return;
       }
 
-      final nextCaseId = _selectedCaseId ?? (items.isNotEmpty ? items.first['_id']?.toString() : null);
+      final nextCaseId =
+          _selectedCaseId ??
+          (items.isNotEmpty ? items.first['_id']?.toString() : null);
 
       setState(() {
         _cases = items;
@@ -101,10 +106,7 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
       final dio = ref.read(dioProvider);
       final response = await dio.get(
         '/documents',
-        queryParameters: {
-          'caseId': caseId,
-          'limit': 300,
-        },
+        queryParameters: {'caseId': caseId, 'limit': 300},
         options: Options(headers: authHeaders(ref)),
       );
 
@@ -197,7 +199,11 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
     final query = _queryController.text.trim();
     if (query.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(context.tr('Please enter case facts or a legal question.'))),
+        SnackBar(
+          content: Text(
+            context.tr('Please enter case facts or a legal question.'),
+          ),
+        ),
       );
       return;
     }
@@ -254,7 +260,9 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
     final query = _queryController.text.trim();
     if (query.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(context.tr('Enter content before converting to memo.'))),
+        SnackBar(
+          content: Text(context.tr('Enter content before converting to memo.')),
+        ),
       );
       return;
     }
@@ -296,9 +304,9 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(parseApiError(error))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(parseApiError(error))));
     } finally {
       if (mounted) {
         setState(() => _loading = false);
@@ -309,7 +317,9 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
   Future<void> _saveAnalysis() async {
     if (_result == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(context.tr('Run analysis first to save results.'))),
+        SnackBar(
+          content: Text(context.tr('Run analysis first to save results.')),
+        ),
       );
       return;
     }
@@ -326,7 +336,8 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
           'inputText': _queryController.text.trim(),
           'output': _result,
           'citations': (_result?['suggestedAuthorities'] as List?) ?? const [],
-          'confidenceScore': (_result?['confidence'] as num?)?.toDouble() ?? 0.5,
+          'confidenceScore':
+              (_result?['confidence'] as num?)?.toDouble() ?? 0.5,
         },
         options: Options(headers: authHeaders(ref)),
       );
@@ -341,15 +352,17 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تم حفظ التحليل في قاعدة البيانات بنجاح.')),
+        const SnackBar(
+          content: Text('تم حفظ التحليل في قاعدة البيانات بنجاح.'),
+        ),
       );
     } catch (error) {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(parseApiError(error))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(parseApiError(error))));
     } finally {
       if (mounted) {
         setState(() => _loading = false);
@@ -360,7 +373,9 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
   Future<void> _attachAnalysisToCase() async {
     if ((_analysisId ?? '').isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('شغّل التحليل أولًا أو احفظه ثم أعد المحاولة.')),
+        const SnackBar(
+          content: Text('شغّل التحليل أولًا أو احفظه ثم أعد المحاولة.'),
+        ),
       );
       return;
     }
@@ -376,9 +391,7 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
       final dio = ref.read(dioProvider);
       await dio.post(
         '/ai/analyses/$_analysisId/attach-case',
-        data: {
-          'caseId': _selectedCaseId,
-        },
+        data: {'caseId': _selectedCaseId},
         options: Options(headers: authHeaders(ref)),
       );
 
@@ -386,15 +399,17 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تم ربط التحليل بالقضية وتحديث ملف القضية.')),
+        const SnackBar(
+          content: Text('تم ربط التحليل بالقضية وتحديث ملف القضية.'),
+        ),
       );
     } catch (error) {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(parseApiError(error))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(parseApiError(error))));
     } finally {
       if (mounted) {
         setState(() => _loading = false);
@@ -402,23 +417,85 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
     }
   }
 
+  Future<void> _exportAnalysis(String format) async {
+    final analysisId = (_analysisId ?? '').trim();
+    if (analysisId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('شغّل التحليل أولًا أو احفظه ثم أعد المحاولة.'),
+        ),
+      );
+      return;
+    }
+
+    try {
+      final dio = ref.read(dioProvider);
+      final response = await dio.get(
+        '/ai/analyses/$analysisId/export',
+        queryParameters: {'format': format},
+        options: Options(
+          headers: authHeaders(ref),
+          responseType: ResponseType.bytes,
+        ),
+      );
+
+      final bytes = _toUint8List(response.data);
+      if (bytes == null || bytes.isEmpty) {
+        throw const FormatException('invalid_export_payload');
+      }
+
+      final defaultName = format == 'txt'
+          ? 'analysis-export.txt'
+          : 'analysis-export.doc';
+      final filename = _extractFilename(response.headers, defaultName);
+      final savedPath = await saveBytesAsFile(
+        bytes: bytes,
+        suggestedName: filename,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            savedPath == null
+                ? 'التصدير متاح على المنصات المكتبية/الموبايل فقط.'
+                : 'تم تصدير التحليل إلى: $savedPath',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(parseApiError(error))));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final suggestedAuthorities = ((_result?['suggestedAuthorities'] as List?) ?? const [])
-        .map((entry) => (entry as Map).cast<String, dynamic>())
-        .toList();
+    final suggestedAuthorities =
+        ((_result?['suggestedAuthorities'] as List?) ?? const [])
+            .map((entry) => (entry as Map).cast<String, dynamic>())
+            .toList();
 
     final extractedIssues = ((_result?['extractedIssues'] as List?) ?? const [])
         .map((entry) => entry.toString())
         .toList();
 
-    final proposedQuestions = ((_result?['proposedQuestions'] as List?) ?? const [])
-        .map((entry) => entry.toString())
-        .toList();
+    final proposedQuestions =
+        ((_result?['proposedQuestions'] as List?) ?? const [])
+            .map((entry) => entry.toString())
+            .toList();
 
     final confidence = (_result?['confidence'] as num?)?.toDouble() ?? 0;
 
-    final selectedCaseValue = _cases.any((entry) => entry['_id']?.toString() == _selectedCaseId)
+    final selectedCaseValue =
+        _cases.any((entry) => entry['_id']?.toString() == _selectedCaseId)
         ? _selectedCaseId
         : null;
 
@@ -439,7 +516,9 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
                   controller: _queryController,
                   maxLines: 5,
                   decoration: InputDecoration(
-                    hintText: context.tr('Describe the case facts or ask a legal question'),
+                    hintText: context.tr(
+                      'Describe the case facts or ask a legal question',
+                    ),
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -473,7 +552,9 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
                                 }
                               },
                         decoration: InputDecoration(
-                          labelText: _loadingCases ? 'جاري تحميل القضايا...' : 'القضية المرتبطة',
+                          labelText: _loadingCases
+                              ? 'جاري تحميل القضايا...'
+                              : 'القضية المرتبطة',
                           prefixIcon: const Icon(Icons.balance_rounded),
                         ),
                       ),
@@ -508,8 +589,11 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
                     children: _selectedDocumentIds
                         .map(
                           (id) => Chip(
-                            label: Text(id.substring(0, id.length > 8 ? 8 : id.length)),
-                            onDeleted: () => setState(() => _selectedDocumentIds.remove(id)),
+                            label: Text(
+                              id.substring(0, id.length > 8 ? 8 : id.length),
+                            ),
+                            onDeleted: () =>
+                                setState(() => _selectedDocumentIds.remove(id)),
                           ),
                         )
                         .toList(),
@@ -523,7 +607,8 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
                     _ToggleChip(
                       label: 'Search Constitution',
                       selected: _searchConstitution,
-                      onChanged: (value) => setState(() => _searchConstitution = value),
+                      onChanged: (value) =>
+                          setState(() => _searchConstitution = value),
                     ),
                     _ToggleChip(
                       label: 'Search Laws',
@@ -533,12 +618,14 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
                     _ToggleChip(
                       label: 'Search Decisions',
                       selected: _searchDecisions,
-                      onChanged: (value) => setState(() => _searchDecisions = value),
+                      onChanged: (value) =>
+                          setState(() => _searchDecisions = value),
                     ),
                     _ToggleChip(
                       label: 'Only Firm Knowledge',
                       selected: _searchMyKnowledgeOnly,
-                      onChanged: (value) => setState(() => _searchMyKnowledgeOnly = value),
+                      onChanged: (value) =>
+                          setState(() => _searchMyKnowledgeOnly = value),
                     ),
                   ],
                 ),
@@ -563,7 +650,9 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
                             ? const SizedBox(
                                 width: 16,
                                 height: 16,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
                               )
                             : const Icon(Icons.auto_awesome_rounded),
                         label: Text(context.tr('Run Analysis')),
@@ -585,6 +674,26 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
                         label: const Text('إرفاق بالقضية'),
                       ),
                     ),
+                    SizedBox(
+                      width: 220,
+                      child: OutlinedButton.icon(
+                        onPressed: _loading
+                            ? null
+                            : () => _exportAnalysis('word'),
+                        icon: const Icon(Icons.download_rounded),
+                        label: const Text('تصدير Word'),
+                      ),
+                    ),
+                    SizedBox(
+                      width: 220,
+                      child: OutlinedButton.icon(
+                        onPressed: _loading
+                            ? null
+                            : () => _exportAnalysis('txt'),
+                        icon: const Icon(Icons.text_snippet_rounded),
+                        label: const Text('تصدير TXT'),
+                      ),
+                    ),
                   ],
                 ),
               ],
@@ -600,12 +709,19 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(context.tr('Results'), style: Theme.of(context).textTheme.titleMedium),
+                      Text(
+                        context.tr('Results'),
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
                       const SizedBox(height: 8),
                       if (_error != null)
                         Text(_error!)
                       else if (_result == null)
-                        Text(context.tr('Citation-aware grounded answer appears here.'))
+                        Text(
+                          context.tr(
+                            'Citation-aware grounded answer appears here.',
+                          ),
+                        )
                       else ...[
                         Text((_result?['summary'] ?? '').toString()),
                         const SizedBox(height: 8),
@@ -615,9 +731,8 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
                           context.tr(
                             'AI output is preliminary and must be reviewed by a licensed lawyer.',
                           ),
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: LexiqColors.brassGold,
-                              ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: LexiqColors.brassGold),
                         ),
                       ],
                     ],
@@ -637,7 +752,9 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
                             style: Theme.of(context).textTheme.titleMedium,
                           ),
                           const SizedBox(height: 8),
-                          LinearProgressIndicator(value: confidence.clamp(0, 1)),
+                          LinearProgressIndicator(
+                            value: confidence.clamp(0, 1),
+                          ),
                           const SizedBox(height: 8),
                           Text('${(confidence * 100).toStringAsFixed(0)}%'),
                         ],
@@ -657,8 +774,10 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
                             Text(context.tr('No suggested authorities yet.'))
                           else
                             ...suggestedAuthorities.map((item) {
-                              final citation = (item['citation'] ?? '-').toString();
-                              final sourceType = (item['sourceType'] ?? '-').toString();
+                              final citation = (item['citation'] ?? '-')
+                                  .toString();
+                              final sourceType = (item['sourceType'] ?? '-')
+                                  .toString();
                               return _authority(
                                 context,
                                 item,
@@ -691,7 +810,9 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
                           if (proposedQuestions.isEmpty)
                             Text(context.tr('No proposed questions yet.'))
                           else
-                            ...proposedQuestions.map((question) => Text('• $question')),
+                            ...proposedQuestions.map(
+                              (question) => Text('• $question'),
+                            ),
                         ],
                       ),
                     ),
@@ -723,6 +844,35 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
           ? null
           : () => context.go('/authority/$sourceType/$id'),
     );
+  }
+
+  Uint8List? _toUint8List(dynamic value) {
+    if (value is Uint8List) {
+      return value;
+    }
+    if (value is List<int>) {
+      return Uint8List.fromList(value);
+    }
+    if (value is ByteBuffer) {
+      return value.asUint8List();
+    }
+    return null;
+  }
+
+  String _extractFilename(Headers headers, String fallback) {
+    final contentDispositionValues = headers['content-disposition'];
+    if (contentDispositionValues == null || contentDispositionValues.isEmpty) {
+      return fallback;
+    }
+    final contentDisposition = contentDispositionValues.first;
+    final match = RegExp(
+      r'filename="([^"]+)"',
+      caseSensitive: false,
+    ).firstMatch(contentDisposition);
+    if (match == null) {
+      return fallback;
+    }
+    return match.group(1) ?? fallback;
   }
 }
 

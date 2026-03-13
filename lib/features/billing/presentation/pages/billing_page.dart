@@ -1,10 +1,12 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'dart:typed_data';
 
 import '../../../../core/localization/app_translations.dart';
 import '../../../../core/network/api_helpers.dart';
 import '../../../../core/network/dio_client.dart';
+import '../../../../core/utils/file_download.dart';
 import '../../../../shared/widgets/glass_panel.dart';
 import '../../../../shared/widgets/section_header.dart';
 
@@ -485,6 +487,55 @@ class _BillingPageState extends ConsumerState<BillingPage> {
     }
   }
 
+  Future<void> _exportInvoice(String invoiceId, String format) async {
+    try {
+      final dio = ref.read(dioProvider);
+      final response = await dio.get<List<int>>(
+        '/billing/invoices/$invoiceId/export',
+        queryParameters: {'format': format},
+        options: Options(
+          headers: authHeaders(ref),
+          responseType: ResponseType.bytes,
+        ),
+      );
+
+      final bytes = _toUint8List(response.data);
+      if (bytes == null || bytes.isEmpty) {
+        throw Exception('Empty export payload');
+      }
+
+      final suggestedName =
+          _extractFilename(response.headers.map['content-disposition']) ??
+          'invoice-export.${format == 'txt' ? 'txt' : 'doc'}';
+      final savedPath = await saveBytesAsFile(
+        bytes: bytes,
+        suggestedName: suggestedName,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      if (savedPath == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تعذر فتح نافذة الحفظ على هذا النظام.')),
+        );
+        return;
+      }
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('تم حفظ التصدير: $savedPath')));
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(parseApiError(error))));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final unpaidStats =
@@ -684,6 +735,7 @@ class _BillingPageState extends ConsumerState<BillingPage> {
 
                             final status = (invoice['status'] ?? 'unpaid')
                                 .toString();
+                            final invoiceId = _idOf(invoice);
                             return ListTile(
                               contentPadding: EdgeInsets.zero,
                               title: Text(
@@ -693,16 +745,37 @@ class _BillingPageState extends ConsumerState<BillingPage> {
                                 'العميل: ${(client['fullName'] ?? '-').toString()}\nالقضية: ${(caseData['caseNumber'] ?? '-').toString()} ${(caseData['title'] ?? '').toString()}\nالحالة: ${_invoiceStatusLabel(status)}',
                               ),
                               isThreeLine: true,
-                              trailing: status == 'paid'
-                                  ? const Icon(
-                                      Icons.verified_rounded,
-                                      color: Colors.green,
-                                    )
-                                  : OutlinedButton(
-                                      onPressed: () =>
-                                          _showCreatePaymentDialog(invoice),
+                              trailing: PopupMenuButton<String>(
+                                onSelected: (value) {
+                                  if (value == 'pay') {
+                                    _showCreatePaymentDialog(invoice);
+                                    return;
+                                  }
+                                  if (invoiceId == null || invoiceId.isEmpty) {
+                                    return;
+                                  }
+                                  if (value == 'export-word') {
+                                    _exportInvoice(invoiceId, 'word');
+                                  } else if (value == 'export-txt') {
+                                    _exportInvoice(invoiceId, 'txt');
+                                  }
+                                },
+                                itemBuilder: (context) => [
+                                  if (status != 'paid')
+                                    PopupMenuItem<String>(
+                                      value: 'pay',
                                       child: Text(context.tr('Pay')),
                                     ),
+                                  const PopupMenuItem<String>(
+                                    value: 'export-word',
+                                    child: Text('تصدير Word'),
+                                  ),
+                                  const PopupMenuItem<String>(
+                                    value: 'export-txt',
+                                    child: Text('تصدير TXT'),
+                                  ),
+                                ],
+                              ),
                             );
                           }),
                       ],
@@ -774,6 +847,39 @@ class _BillingPageState extends ConsumerState<BillingPage> {
         ],
       ),
     );
+  }
+
+  Uint8List? _toUint8List(dynamic payload) {
+    if (payload == null) {
+      return null;
+    }
+    if (payload is Uint8List) {
+      return payload;
+    }
+    if (payload is List<int>) {
+      return Uint8List.fromList(payload);
+    }
+    if (payload is List) {
+      return Uint8List.fromList(
+        payload
+            .map((entry) => entry is int ? entry : int.tryParse('$entry') ?? 0)
+            .toList(),
+      );
+    }
+    return null;
+  }
+
+  String? _extractFilename(List<String>? contentDispositionValues) {
+    if (contentDispositionValues == null || contentDispositionValues.isEmpty) {
+      return null;
+    }
+
+    final raw = contentDispositionValues.join(';');
+    final match = RegExp(
+      r'filename=\"?([^\";]+)\"?',
+      caseSensitive: false,
+    ).firstMatch(raw);
+    return match?.group(1);
   }
 
   String _invoiceStatusLabel(String status) {

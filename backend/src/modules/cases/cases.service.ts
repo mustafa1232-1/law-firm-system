@@ -385,6 +385,127 @@ export class CasesService {
     };
   }
 
+  async exportCaseSummary(id: string, format: string, actorId?: string) {
+    const caseItem = await this.caseModel
+      .findById(id)
+      .populate('clientId', 'fullName phone address')
+      .populate('lawyerIds', 'fullName title')
+      .lean();
+
+    if (!caseItem) {
+      throw new NotFoundException('Case not found');
+    }
+
+    const timeline = await this.eventModel
+      .find({ caseId: new Types.ObjectId(id) })
+      .sort({ eventDate: 1, createdAt: 1 })
+      .limit(60)
+      .lean();
+
+    const client = (caseItem.clientId as unknown as Record<string, unknown> | undefined) ?? {};
+    const lawyers = ((caseItem.lawyerIds ?? []) as unknown as Array<Record<string, unknown>>)
+      .map((lawyer) => (lawyer.fullName ?? '').toString().trim())
+      .filter(Boolean);
+    const genome = (caseItem.caseGenome ?? {}) as Record<string, unknown>;
+    const insights = (caseItem.aiInsights ?? {}) as Record<string, unknown>;
+    const genomeKeywords = this.toStringArray(genome['keywords']);
+    const genomeWeaknesses = this.toStringArray(genome['weaknesses']);
+    const insightMissingDocs = this.toStringArray(insights['missingDocuments']);
+
+    const lines = [
+      'ملخص القضية - LexIQ Iraq',
+      `رقم القضية: ${caseItem.caseNumber ?? '-'}`,
+      `العنوان: ${caseItem.title ?? '-'}`,
+      `نوع القضية: ${caseItem.caseType ?? '-'}`,
+      `المحكمة: ${caseItem.court ?? '-'}`,
+      `المحافظة: ${caseItem.governorate ?? '-'}`,
+      `الحالة: ${caseItem.status ?? '-'}`,
+      `المرحلة: ${caseItem.stage ?? '-'}`,
+      `العميل: ${client.fullName ?? '-'}`,
+      `هاتف العميل: ${client.phone ?? '-'}`,
+      `الخصم المقابل: ${caseItem.oppositeParty ?? '-'}`,
+      `المحامون: ${lawyers.length === 0 ? '-' : lawyers.join('، ')}`,
+      `ملخص الوقائع: ${caseItem.summary ?? '-'}`,
+      `الوقائع: ${caseItem.facts ?? '-'}`,
+      `المطالب: ${caseItem.claims ?? '-'}`,
+      `الدفوع: ${caseItem.defenses ?? '-'}`,
+      `الدفوع المضادة: ${caseItem.counterArguments ?? '-'}`,
+      `درجة المخاطر: ${caseItem.riskScore ?? 0}%`,
+      `حالة السداد: ${caseItem.paymentStatus ?? 'unpaid'}`,
+      `قيمة العقد: ${Number(caseItem.contractAmount ?? caseItem.fees ?? 0)} IQD`,
+      `المبلغ المسدد: ${Number(caseItem.paidAmount ?? 0)} IQD`,
+      `المبلغ المتبقي: ${Number(caseItem.outstandingAmount ?? 0)} IQD`,
+      '',
+      'المواد القانونية المرتبطة:',
+      ...((caseItem.linkedLawArticleIds ?? []) as string[]).map((entry) => `- ${entry}`),
+      '',
+      'المواد الدستورية المرتبطة:',
+      ...((caseItem.linkedConstitutionArticleIds ?? []) as string[]).map((entry) => `- ${entry}`),
+      '',
+      'القرارات المرتبطة:',
+      ...((caseItem.linkedDecisionIds ?? []) as string[]).map((entry) => `- ${entry}`),
+      '',
+      'مؤشرات Case Genome:',
+      `- الموضوع القانوني: ${(genome['legalTopic'] ?? '').toString()}`,
+      `- الكلمات المفتاحية: ${genomeKeywords.join('، ')}`,
+      `- نقاط الضعف: ${genomeWeaknesses.join(' | ')}`,
+      `- فجوات الأدلة: ${insightMissingDocs.join(' | ')}`,
+      '',
+      'الخط الزمني:',
+      ...timeline.map(
+        (entry) =>
+          `- ${this.toDateOnly(entry.eventDate)} | ${(entry.title ?? '-').toString()} | ${(entry.details ?? '').toString()}`,
+      ),
+      '',
+      'تنبيه:',
+      this.getDisclaimer(),
+    ];
+
+    const baseName = `case-${caseItem.caseNumber ?? id}-summary`
+      .replaceAll(/[^a-zA-Z0-9_\-]+/g, '-')
+      .replaceAll(/-+/g, '-')
+      .toLowerCase();
+    const normalizedFormat = (format ?? 'word').toLowerCase();
+
+    await this.auditService.record({
+      action: 'case.export-summary',
+      entity: 'cases',
+      entityId: id,
+      actorId,
+      payload: { format: normalizedFormat },
+    });
+
+    if (normalizedFormat == 'txt') {
+      const body = lines.join('\n');
+      return {
+        filename: `${baseName}.txt`,
+        contentType: 'text/plain; charset=utf-8',
+        buffer: Buffer.from(body, 'utf8'),
+      };
+    }
+
+    const htmlBody = this.renderWordDocument({
+      title: 'ملخص القضية',
+      subtitle: `${caseItem.caseNumber ?? '-'} - ${caseItem.title ?? '-'}`,
+      lines,
+    });
+
+    return {
+      filename: `${baseName}.doc`,
+      contentType: 'application/msword; charset=utf-8',
+      buffer: Buffer.from(htmlBody, 'utf8'),
+    };
+  }
+
+  private toStringArray(value: unknown): string[] {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+    return value
+      .map((item) => `${item ?? ''}`.trim())
+      .filter((item) => item.length > 0);
+  }
+
   private async resolveCourtContext(dto: CreateCaseDto | UpdateCaseDto) {
     if (!dto.courtId) {
       return {
@@ -620,6 +741,10 @@ export class CasesService {
     return 'partial';
   }
 
+  private getDisclaimer() {
+    return 'هذا ملخص أولي للمراجعة المهنية، ولا يُعد بديلاً عن التقدير القانوني للمحامي.';
+  }
+
   private generateInvoiceNumber() {
     const now = new Date();
     const y = now.getFullYear();
@@ -627,5 +752,50 @@ export class CasesService {
     const d = `${now.getDate()}`.padStart(2, '0');
     const tail = Math.random().toString(36).slice(2, 7).toUpperCase();
     return `INV-${y}${m}${d}-${tail}`;
+  }
+
+  private toDateOnly(value: unknown) {
+    if (!value) {
+      return '-';
+    }
+    const raw = value instanceof Date ? value.toISOString() : `${value}`;
+    return raw.split('T')[0] ?? raw;
+  }
+
+  private renderWordDocument(input: {
+    title: string;
+    subtitle?: string;
+    lines: string[];
+  }) {
+    const body = input.lines
+      .map((line) => `<p>${this.escapeHtml(line)}</p>`)
+      .join('');
+    return `<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <title>${this.escapeHtml(input.title)}</title>
+  <style>
+    body { font-family: Tahoma, Arial, sans-serif; direction: rtl; unicode-bidi: embed; line-height: 1.65; padding: 24px; color: #111827; }
+    h1 { margin: 0 0 6px; font-size: 24px; }
+    h2 { margin: 0 0 18px; font-size: 16px; font-weight: 500; color: #374151; }
+    p { margin: 0 0 8px; font-size: 14px; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h1>${this.escapeHtml(input.title)}</h1>
+  <h2>${this.escapeHtml(input.subtitle ?? '')}</h2>
+  ${body}
+</body>
+</html>`;
+  }
+
+  private escapeHtml(value: string) {
+    return value
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
   }
 }

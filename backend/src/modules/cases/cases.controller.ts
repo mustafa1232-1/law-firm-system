@@ -6,8 +6,10 @@ import {
   Patch,
   Post,
   Query,
+  Res,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { Response } from 'express';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { PaginationQueryDto } from 'src/common/dto/pagination-query.dto';
 import { AnalyzeCaseDto } from './dto/analyze-case.dto';
@@ -30,6 +32,19 @@ export class CasesController {
   @Post()
   create(@Body() dto: CreateCaseDto, @CurrentUser() user: any) {
     return this.casesService.create(dto, user?.sub);
+  }
+
+  @Get(':id/export/summary')
+  async exportSummary(
+    @Param('id') id: string,
+    @Query('format') format: string,
+    @CurrentUser() user: any,
+    @Res() res: Response,
+  ) {
+    const file = await this.casesService.exportCaseSummary(id, format, user?.sub);
+    res.setHeader('Content-Type', file.contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${file.filename}"`);
+    res.send(file.buffer);
   }
 
   @Get(':id')

@@ -1,5 +1,6 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Res } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Response } from 'express';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { PaginationQueryDto } from 'src/common/dto/pagination-query.dto';
 import {
@@ -70,6 +71,19 @@ export class AiController {
     @CurrentUser() user?: any,
   ) {
     return this.aiOrchestratorService.listSessions({ ...query, caseId }, user?.sub);
+  }
+
+  @Get('analyses/:id/export')
+  async exportAnalysis(
+    @Param('id') id: string,
+    @Query('format') format: string,
+    @CurrentUser() user: any,
+    @Res() res: Response,
+  ) {
+    const file = await this.aiOrchestratorService.exportAnalysis(id, format, user?.sub);
+    res.setHeader('Content-Type', file.contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${file.filename}"`);
+    res.send(file.buffer);
   }
 
   @Post('analyses/save')

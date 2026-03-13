@@ -2,11 +2,13 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'dart:typed_data';
 
 import '../../../../core/auth/auth_controller.dart';
 import '../../../../core/localization/app_translations.dart';
 import '../../../../core/network/api_helpers.dart';
 import '../../../../core/network/dio_client.dart';
+import '../../../../core/utils/file_download.dart';
 import '../../../../shared/widgets/glass_panel.dart';
 import '../../../../shared/widgets/section_header.dart';
 import '../../../../theme/lexiq_colors.dart';
@@ -115,6 +117,55 @@ class _CaseDetailsPageState extends ConsumerState<CaseDetailsPage> {
     }
   }
 
+  Future<void> _exportCaseSummary(String format) async {
+    try {
+      final dio = ref.read(dioProvider);
+      final response = await dio.get<List<int>>(
+        '/cases/${widget.caseId}/export/summary',
+        queryParameters: {'format': format},
+        options: Options(
+          headers: authHeaders(ref),
+          responseType: ResponseType.bytes,
+        ),
+      );
+
+      final bytes = _toUint8List(response.data);
+      if (bytes == null || bytes.isEmpty) {
+        throw Exception('Empty export payload');
+      }
+
+      final suggestedName =
+          _extractFilename(response.headers.map['content-disposition']) ??
+          'case-summary.${format == 'txt' ? 'txt' : 'doc'}';
+      final savedPath = await saveBytesAsFile(
+        bytes: bytes,
+        suggestedName: suggestedName,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      if (savedPath == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تعذر فتح نافذة الحفظ على هذا النظام.')),
+        );
+        return;
+      }
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('تم حفظ التصدير: $savedPath')));
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(parseApiError(error))));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final asyncCase = ref.watch(_caseDetailsProvider(widget.caseId));
@@ -193,16 +244,34 @@ class _CaseDetailsPageState extends ConsumerState<CaseDetailsPage> {
                   'caseId': widget.caseId,
                 }),
                 subtitle: 'Case Genome, timeline, evidence, and AI suggestions',
-                trailing: ElevatedButton.icon(
-                  onPressed: _isAnalyzing ? null : () => _runAnalysis(caseItem),
-                  icon: const Icon(Icons.auto_awesome_rounded),
-                  label: _isAnalyzing
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Text(context.tr('Analyze')),
+                trailing: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: _isAnalyzing
+                          ? null
+                          : () => _runAnalysis(caseItem),
+                      icon: const Icon(Icons.auto_awesome_rounded),
+                      label: _isAnalyzing
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : Text(context.tr('Analyze')),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () => _exportCaseSummary('word'),
+                      icon: const Icon(Icons.description_rounded),
+                      label: const Text('تصدير Word'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () => _exportCaseSummary('txt'),
+                      icon: const Icon(Icons.text_snippet_rounded),
+                      label: const Text('تصدير TXT'),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 10),
@@ -517,5 +586,38 @@ class _CaseDetailsPageState extends ConsumerState<CaseDetailsPage> {
       default:
         return 'غير مسدد';
     }
+  }
+
+  Uint8List? _toUint8List(dynamic payload) {
+    if (payload == null) {
+      return null;
+    }
+    if (payload is Uint8List) {
+      return payload;
+    }
+    if (payload is List<int>) {
+      return Uint8List.fromList(payload);
+    }
+    if (payload is List) {
+      return Uint8List.fromList(
+        payload
+            .map((entry) => entry is int ? entry : int.tryParse('$entry') ?? 0)
+            .toList(),
+      );
+    }
+    return null;
+  }
+
+  String? _extractFilename(List<String>? contentDispositionValues) {
+    if (contentDispositionValues == null || contentDispositionValues.isEmpty) {
+      return null;
+    }
+
+    final raw = contentDispositionValues.join(';');
+    final match = RegExp(
+      r'filename=\"?([^\";]+)\"?',
+      caseSensitive: false,
+    ).firstMatch(raw);
+    return match?.group(1);
   }
 }

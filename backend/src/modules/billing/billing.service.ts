@@ -105,6 +105,92 @@ export class BillingService {
     return payment;
   }
 
+  async exportInvoice(invoiceId: string, format: string, actorId?: string) {
+    if (!Types.ObjectId.isValid(invoiceId)) {
+      throw new NotFoundException('Invoice not found');
+    }
+
+    const invoice = await this.invoiceModel
+      .findById(invoiceId)
+      .populate('clientId', 'fullName phone email address companyName')
+      .populate('caseId', 'caseNumber title')
+      .lean();
+    if (!invoice) {
+      throw new NotFoundException('Invoice not found');
+    }
+
+    const payments = await this.paymentModel
+      .find({ invoiceId: new Types.ObjectId(invoiceId) })
+      .sort({ paymentDate: -1 })
+      .lean();
+    const totalPaid = payments.reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0);
+    const remaining = Math.max(Number(invoice.amount ?? 0) - totalPaid, 0);
+
+    const client = (invoice.clientId as unknown as Record<string, unknown> | undefined) ?? {};
+    const caseRef = (invoice.caseId as unknown as Record<string, unknown> | undefined) ?? {};
+
+    const lines = [
+      'تقرير الفاتورة - LexIQ Iraq',
+      `رقم الفاتورة: ${invoice.invoiceNumber ?? '-'}`,
+      `الحالة: ${this.mapInvoiceStatus((invoice.status ?? '').toString())}`,
+      `القيمة: ${Number(invoice.amount ?? 0)} ${(invoice.currency ?? 'IQD').toString()}`,
+      `المسدد: ${totalPaid} ${(invoice.currency ?? 'IQD').toString()}`,
+      `المتبقي: ${remaining} ${(invoice.currency ?? 'IQD').toString()}`,
+      `تاريخ الإصدار: ${this.toDateOnly(invoice.issueDate)}`,
+      `تاريخ الاستحقاق: ${this.toDateOnly(invoice.dueDate)}`,
+      `العميل: ${(client.fullName ?? '-').toString()}`,
+      `هاتف العميل: ${(client.phone ?? '-').toString()}`,
+      `بريد العميل: ${(client.email ?? '-').toString()}`,
+      `القضية: ${(caseRef.caseNumber ?? '-').toString()} ${(caseRef.title ?? '').toString()}`,
+      `ملاحظات: ${(invoice.notes ?? '-').toString()}`,
+      '',
+      'الدفعات المسجلة:',
+      ...(payments.length === 0
+          ? ['- لا توجد دفعات مسجلة حتى الآن.']
+          : payments.map(
+              (payment, index) =>
+                `${index + 1}) ${Number(payment.amount ?? 0)} ${(invoice.currency ?? 'IQD').toString()} | ${this.toDateOnly(payment.paymentDate)} | ${(payment.method ?? '-').toString()}`,
+            )),
+      '',
+      'تنبيه:',
+      'هذا التقرير للاستخدام المهني داخل المكتب، ويجب مراجعته قبل اعتماده المحاسبي النهائي.',
+    ];
+
+    const baseName = `invoice-${invoice.invoiceNumber ?? invoiceId}`
+      .replaceAll(/[^a-zA-Z0-9_\-]+/g, '-')
+      .replaceAll(/-+/g, '-')
+      .toLowerCase();
+    const normalizedFormat = (format ?? 'word').toLowerCase();
+
+    await this.auditService.record({
+      action: 'billing.invoice.export',
+      entity: 'invoices',
+      entityId: invoiceId,
+      actorId,
+      payload: { format: normalizedFormat },
+    });
+
+    if (normalizedFormat == 'txt') {
+      return {
+        filename: `${baseName}.txt`,
+        contentType: 'text/plain; charset=utf-8',
+        buffer: Buffer.from(lines.join('\n'), 'utf8'),
+      };
+    }
+
+    const html = this.renderWordDocument({
+      title: 'تقرير فاتورة',
+      subtitle: `${invoice.invoiceNumber ?? '-'} | ${this.mapInvoiceStatus((invoice.status ?? '').toString())}`,
+      lines,
+    });
+
+    return {
+      filename: `${baseName}.doc`,
+      contentType: 'application/msword; charset=utf-8',
+      buffer: Buffer.from(html, 'utf8'),
+    };
+  }
+
   async listInvoices(
     query: PaginationQueryDto,
     filters?: {
@@ -255,5 +341,57 @@ export class BillingService {
         count: Number(summaryAgg[0]?.count ?? 0),
       },
     };
+  }
+
+  private toDateOnly(value: unknown) {
+    if (!value) {
+      return '-';
+    }
+    const raw = value instanceof Date ? value.toISOString() : `${value}`;
+    return raw.split('T')[0] ?? raw;
+  }
+
+  private mapInvoiceStatus(status: string) {
+    switch ((status ?? '').toLowerCase()) {
+      case 'paid':
+        return 'مدفوعة';
+      case 'partial':
+        return 'مدفوعة جزئياً';
+      case 'overdue':
+        return 'متأخرة';
+      default:
+        return 'غير مدفوعة';
+    }
+  }
+
+  private renderWordDocument(input: { title: string; subtitle?: string; lines: string[] }) {
+    const body = input.lines.map((line) => `<p>${this.escapeHtml(line)}</p>`).join('');
+    return `<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <title>${this.escapeHtml(input.title)}</title>
+  <style>
+    body { font-family: Tahoma, Arial, sans-serif; direction: rtl; unicode-bidi: embed; line-height: 1.65; padding: 24px; color: #111827; }
+    h1 { margin: 0 0 6px; font-size: 24px; }
+    h2 { margin: 0 0 18px; font-size: 16px; font-weight: 500; color: #374151; }
+    p { margin: 0 0 8px; font-size: 14px; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h1>${this.escapeHtml(input.title)}</h1>
+  <h2>${this.escapeHtml(input.subtitle ?? '')}</h2>
+  ${body}
+</body>
+</html>`;
+  }
+
+  private escapeHtml(value: string) {
+    return value
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
   }
 }

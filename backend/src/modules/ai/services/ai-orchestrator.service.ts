@@ -482,6 +482,89 @@ export class AiOrchestratorService {
     return { items, total, page, limit };
   }
 
+  async exportAnalysis(analysisId: string, format: string, actorId?: string) {
+    if (!Types.ObjectId.isValid(analysisId)) {
+      throw new NotFoundException('AI analysis not found');
+    }
+
+    const analysis = await this.analysisModel
+      .findById(analysisId)
+      .populate('caseId', 'caseNumber title caseType')
+      .populate('sessionId', 'status createdAt')
+      .lean();
+    if (!analysis) {
+      throw new NotFoundException('AI analysis not found');
+    }
+
+    const caseRef = (analysis.caseId ?? {}) as Record<string, unknown>;
+    const output = (analysis.output ?? {}) as Record<string, unknown>;
+    const citations = (analysis.citations ?? []) as Array<Record<string, unknown>>;
+    const confidence = Number((analysis.confidenceScore ?? 0) as number);
+    const summary = this.extractSummaryFromOutput(output);
+    const createdAt = (analysis as unknown as { createdAt?: unknown }).createdAt;
+
+    const lines = [
+      'تقرير تحليل الذكاء الاصطناعي - LexIQ Iraq',
+      `معرّف التحليل: ${analysis._id.toString()}`,
+      `نوع التحليل: ${(analysis.analysisType ?? '-').toString()}`,
+      `القضية: ${(caseRef.caseNumber ?? '-').toString()} ${(caseRef.title ?? '').toString()}`,
+      `نوع القضية: ${(caseRef.caseType ?? '-').toString()}`,
+      `تاريخ الإنشاء: ${this.toDateOnly(createdAt)}`,
+      `الثقة: ${(confidence * 100).toFixed(0)}%`,
+      '',
+      'السؤال/المدخل:',
+      (analysis.inputText ?? '').toString(),
+      '',
+      'الملخص:',
+      summary || '-',
+      '',
+      'الاستشهادات:',
+      ...(citations.length
+        ? citations.map(
+            (item, index) =>
+              `${index + 1}) ${(item.citation ?? '-').toString()} | ${(item.sourceType ?? '-').toString()}`,
+          )
+        : ['- لا توجد استشهادات محفوظة.']),
+      '',
+      'الناتج الكامل (JSON):',
+      JSON.stringify(output, null, 2),
+      '',
+      'تنبيه:',
+      (analysis.disclaimer ?? this.getDisclaimer()).toString(),
+    ];
+
+    const normalizedFormat = (format ?? 'word').toLowerCase();
+    const baseName = `ai-analysis-${analysis._id.toString().slice(-10)}`.toLowerCase();
+
+    await this.auditService.record({
+      action: 'ai.analysis.export',
+      entity: 'ai_analyses',
+      entityId: analysisId,
+      actorId,
+      payload: { format: normalizedFormat },
+    });
+
+    if (normalizedFormat == 'txt') {
+      return {
+        filename: `${baseName}.txt`,
+        contentType: 'text/plain; charset=utf-8',
+        buffer: Buffer.from(lines.join('\n'), 'utf8'),
+      };
+    }
+
+    const htmlBody = this.renderWordDocument({
+      title: 'تقرير تحليل AI',
+      subtitle: `${(analysis.analysisType ?? '-').toString()} | ${analysis._id.toString()}`,
+      lines,
+    });
+
+    return {
+      filename: `${baseName}.doc`,
+      contentType: 'application/msword; charset=utf-8',
+      buffer: Buffer.from(htmlBody, 'utf8'),
+    };
+  }
+
   async listSessions(
     query: PaginationQueryDto & { caseId?: string },
     actorId?: string,
@@ -729,6 +812,51 @@ export class AiOrchestratorService {
       .join('\n\n');
 
     return `${query}\n\nسياق المستندات المرتبطة:\n${context}`;
+  }
+
+  private toDateOnly(value: unknown) {
+    if (!value) {
+      return '-';
+    }
+    const raw = value instanceof Date ? value.toISOString() : `${value}`;
+    return raw.split('T')[0] ?? raw;
+  }
+
+  private renderWordDocument(input: {
+    title: string;
+    subtitle?: string;
+    lines: string[];
+  }) {
+    const body = input.lines
+      .map((line) => `<p>${this.escapeHtml(line)}</p>`)
+      .join('');
+    return `<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <title>${this.escapeHtml(input.title)}</title>
+  <style>
+    body { font-family: Tahoma, Arial, sans-serif; direction: rtl; unicode-bidi: embed; line-height: 1.65; padding: 24px; color: #111827; }
+    h1 { margin: 0 0 6px; font-size: 24px; }
+    h2 { margin: 0 0 18px; font-size: 16px; font-weight: 500; color: #374151; }
+    p { margin: 0 0 8px; font-size: 14px; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h1>${this.escapeHtml(input.title)}</h1>
+  <h2>${this.escapeHtml(input.subtitle ?? '')}</h2>
+  ${body}
+</body>
+</html>`;
+  }
+
+  private escapeHtml(value: string) {
+    return value
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
   }
 
   private extractSummaryFromOutput(output: Record<string, unknown>) {
