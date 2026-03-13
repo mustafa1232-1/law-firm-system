@@ -148,7 +148,7 @@ class _AiWorkspacePageState extends ConsumerState<AiWorkspacePage> {
         builder: (context, setDialogState) => AlertDialog(
           title: const Text('اختر المستندات المرتبطة'),
           content: SizedBox(
-            width: 720,
+            width: MediaQuery.sizeOf(context).width.clamp(280.0, 720.0),
             child: ListView.builder(
               shrinkWrap: true,
               itemCount: _documents.length,

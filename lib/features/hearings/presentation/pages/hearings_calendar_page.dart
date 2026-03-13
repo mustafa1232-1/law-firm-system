@@ -140,7 +140,7 @@ class _HearingsCalendarPageState extends ConsumerState<HearingsCalendarPage> {
         builder: (context, setDialogState) => AlertDialog(
           title: const Text('إنشاء جلسة'),
           content: SizedBox(
-            width: 680,
+            width: MediaQuery.sizeOf(context).width.clamp(280.0, 680.0),
             child: SingleChildScrollView(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -166,7 +166,9 @@ class _HearingsCalendarPageState extends ConsumerState<HearingsCalendarPage> {
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     title: const Text('تاريخ ووقت الجلسة *'),
-                    subtitle: Text(_dateTimeShort(selectedDateTime.toIso8601String())),
+                    subtitle: Text(
+                      _dateTimeShort(selectedDateTime.toIso8601String()),
+                    ),
                     trailing: const Icon(Icons.event_rounded),
                     onTap: () async {
                       final date = await showDatePicker(
@@ -312,7 +314,8 @@ class _HearingsCalendarPageState extends ConsumerState<HearingsCalendarPage> {
                       'courtCity': selectedCourt['city'],
                       'courtDistrict': selectedCourt['district'],
                       'courtArea': selectedCourt['area'],
-                      'courtLocationDescription': selectedCourt['addressDescription'],
+                      'courtLocationDescription':
+                          selectedCourt['addressDescription'],
                       'room': roomController.text.trim().isEmpty
                           ? null
                           : roomController.text.trim(),
@@ -389,7 +392,7 @@ class _HearingsCalendarPageState extends ConsumerState<HearingsCalendarPage> {
       builder: (context) => AlertDialog(
         title: const Text('تحديث نتيجة الجلسة'),
         content: SizedBox(
-          width: 560,
+          width: MediaQuery.sizeOf(context).width.clamp(280.0, 560.0),
           child: SingleChildScrollView(
             child: Column(
               children: [
@@ -501,46 +504,48 @@ class _HearingsCalendarPageState extends ConsumerState<HearingsCalendarPage> {
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
                 : _error != null
-                    ? Text(_error!)
-                    : _hearings.isEmpty
-                        ? const Text('لا توجد جلسات بعد.')
-                        : Column(
-                            children: _hearings.map((hearing) {
-                              final caseData = (hearing['caseId'] is Map)
-                                  ? (hearing['caseId'] as Map).cast<String, dynamic>()
-                                  : <String, dynamic>{};
+                ? Text(_error!)
+                : _hearings.isEmpty
+                ? const Text('لا توجد جلسات بعد.')
+                : Column(
+                    children: _hearings.map((hearing) {
+                      final caseData = (hearing['caseId'] is Map)
+                          ? (hearing['caseId'] as Map).cast<String, dynamic>()
+                          : <String, dynamic>{};
 
-                              final requiredDocs =
-                                  ((hearing['requiredDocuments'] as List?) ?? const [])
-                                      .map((entry) => entry.toString())
-                                      .toList();
+                      final requiredDocs =
+                          ((hearing['requiredDocuments'] as List?) ?? const [])
+                              .map((entry) => entry.toString())
+                              .toList();
 
-                              final courtLocation = _courtLocationFromHearing(hearing);
-                              final reminderPreview = _reminderPreview(hearing['hearingDate']);
+                      final courtLocation = _courtLocationFromHearing(hearing);
+                      final reminderPreview = _reminderPreview(
+                        hearing['hearingDate'],
+                      );
 
-                              return ListTile(
-                                contentPadding: EdgeInsets.zero,
-                                leading: const Icon(Icons.event_note_rounded),
-                                title: Text(
-                                  '${(caseData['caseNumber'] ?? '-').toString()} - ${(caseData['title'] ?? '-').toString()}',
-                                ),
-                                subtitle: Text(
-                                  'التاريخ: ${_dateTimeShort((hearing['hearingDate'] ?? '').toString())}\n'
-                                  'المحكمة: ${(hearing['court'] ?? '-').toString()}\n'
-                                  'الموقع: ${courtLocation.isEmpty ? '-' : courtLocation}\n'
-                                  'القاضي: ${(hearing['judge'] ?? '-').toString()} | القاعة: ${(hearing['room'] ?? '-').toString()}\n'
-                                  'النتيجة: ${(hearing['outcome'] ?? '-').toString()}\n'
-                                  'التذكيرات: $reminderPreview\n'
-                                  'المستندات: ${requiredDocs.isEmpty ? '-' : requiredDocs.join(' | ')}',
-                                ),
-                                isThreeLine: true,
-                                trailing: OutlinedButton(
-                                  onPressed: () => _showUpdateOutcomeDialog(hearing),
-                                  child: Text(context.tr('Update')),
-                                ),
-                              );
-                            }).toList(),
-                          ),
+                      return ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.event_note_rounded),
+                        title: Text(
+                          '${(caseData['caseNumber'] ?? '-').toString()} - ${(caseData['title'] ?? '-').toString()}',
+                        ),
+                        subtitle: Text(
+                          'التاريخ: ${_dateTimeShort((hearing['hearingDate'] ?? '').toString())}\n'
+                          'المحكمة: ${(hearing['court'] ?? '-').toString()}\n'
+                          'الموقع: ${courtLocation.isEmpty ? '-' : courtLocation}\n'
+                          'القاضي: ${(hearing['judge'] ?? '-').toString()} | القاعة: ${(hearing['room'] ?? '-').toString()}\n'
+                          'النتيجة: ${(hearing['outcome'] ?? '-').toString()}\n'
+                          'التذكيرات: $reminderPreview\n'
+                          'المستندات: ${requiredDocs.isEmpty ? '-' : requiredDocs.join(' | ')}',
+                        ),
+                        isThreeLine: true,
+                        trailing: OutlinedButton(
+                          onPressed: () => _showUpdateOutcomeDialog(hearing),
+                          child: Text(context.tr('Update')),
+                        ),
+                      );
+                    }).toList(),
+                  ),
           ),
         ],
       ),
@@ -559,9 +564,10 @@ class _HearingsCalendarPageState extends ConsumerState<HearingsCalendarPage> {
     final name = (court['name'] ?? '-').toString();
     final governorate = (court['governorate'] ?? '').toString();
     final city = (court['city'] ?? '').toString();
-    final location = [governorate, city]
-        .where((item) => item.trim().isNotEmpty)
-        .join(' - ');
+    final location = [
+      governorate,
+      city,
+    ].where((item) => item.trim().isNotEmpty).join(' - ');
     if (location.isEmpty) {
       return name;
     }
@@ -578,9 +584,12 @@ class _HearingsCalendarPageState extends ConsumerState<HearingsCalendarPage> {
     final area = (court['area'] ?? '').toString();
     final desc = (court['addressDescription'] ?? '').toString();
 
-    final parts = [governorate, city, district, area]
-        .where((item) => item.trim().isNotEmpty)
-        .toList();
+    final parts = [
+      governorate,
+      city,
+      district,
+      area,
+    ].where((item) => item.trim().isNotEmpty).toList();
     final header = parts.isEmpty ? '' : parts.join(' - ');
     return desc.trim().isEmpty ? header : '$header | $desc';
   }
@@ -611,12 +620,7 @@ class _HearingsCalendarPageState extends ConsumerState<HearingsCalendarPage> {
     if (hearingDate == null) {
       return '-';
     }
-    final labels = [
-      'قبل يوم',
-      'قبل 6 ساعات',
-      'قبل ساعتين',
-      'قبل ساعة',
-    ];
+    final labels = ['قبل يوم', 'قبل 6 ساعات', 'قبل ساعتين', 'قبل ساعة'];
     final reminderTimes = [
       hearingDate.subtract(const Duration(hours: 24)),
       hearingDate.subtract(const Duration(hours: 6)),

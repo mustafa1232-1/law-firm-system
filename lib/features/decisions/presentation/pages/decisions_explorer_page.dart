@@ -293,7 +293,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
         builder: (context, setDialogState) => AlertDialog(
           title: Text(_loc(context, 'إضافة قرار جديد', 'Add New Decision')),
           content: SizedBox(
-            width: 680,
+            width: MediaQuery.sizeOf(context).width.clamp(280.0, 680.0),
             child: SingleChildScrollView(
               child: Column(
                 children: [
@@ -657,7 +657,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
                   '${(decision['courtName'] ?? '-').toString()} - ${(decision['decisionNumber'] ?? '-').toString()}',
                 ),
                 content: SizedBox(
-                  width: 980,
+                  width: MediaQuery.sizeOf(context).width.clamp(280.0, 980.0),
                   child: SingleChildScrollView(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,

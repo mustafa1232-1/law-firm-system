@@ -1,4 +1,4 @@
-﻿import 'package:dio/dio.dart';
+import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -45,7 +45,8 @@ class _DocumentsPageState extends ConsumerState<DocumentsPage> {
       final response = await dio.get(
         '/documents',
         queryParameters: {
-          if (_searchController.text.trim().isNotEmpty) 'search': _searchController.text.trim(),
+          if (_searchController.text.trim().isNotEmpty)
+            'search': _searchController.text.trim(),
         },
         options: Options(headers: authHeaders(ref)),
       );
@@ -85,7 +86,7 @@ class _DocumentsPageState extends ConsumerState<DocumentsPage> {
         builder: (context, setDialogState) => AlertDialog(
           title: const Text('رفع مستند'),
           content: SizedBox(
-            width: 560,
+            width: MediaQuery.sizeOf(context).width.clamp(280.0, 560.0),
             child: SingleChildScrollView(
               child: Column(
                 children: [
@@ -112,23 +113,31 @@ class _DocumentsPageState extends ConsumerState<DocumentsPage> {
                   const SizedBox(height: 10),
                   TextField(
                     controller: titleController,
-                    decoration: const InputDecoration(labelText: 'العنوان (اختياري)'),
+                    decoration: const InputDecoration(
+                      labelText: 'العنوان (اختياري)',
+                    ),
                   ),
                   const SizedBox(height: 10),
                   TextField(
                     controller: caseIdController,
-                    decoration: const InputDecoration(labelText: 'Case ID (اختياري)'),
+                    decoration: const InputDecoration(
+                      labelText: 'Case ID (اختياري)',
+                    ),
                   ),
                   const SizedBox(height: 10),
                   TextField(
                     controller: tagsController,
-                    decoration: const InputDecoration(labelText: 'وسوم (مفصولة بفاصلة)'),
+                    decoration: const InputDecoration(
+                      labelText: 'وسوم (مفصولة بفاصلة)',
+                    ),
                   ),
                   const SizedBox(height: 10),
                   TextField(
                     controller: extractedTextController,
                     maxLines: 5,
-                    decoration: const InputDecoration(labelText: 'نص مستخرج (اختياري)'),
+                    decoration: const InputDecoration(
+                      labelText: 'نص مستخرج (اختياري)',
+                    ),
                   ),
                 ],
               ),
@@ -182,9 +191,9 @@ class _DocumentsPageState extends ConsumerState<DocumentsPage> {
                   if (!context.mounted) {
                     return;
                   }
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(parseApiError(error))),
-                  );
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text(parseApiError(error))));
                 }
               },
               child: const Text('حفظ'),
@@ -204,9 +213,9 @@ class _DocumentsPageState extends ConsumerState<DocumentsPage> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تم إنشاء المستند بنجاح.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('تم إنشاء المستند بنجاح.')));
     }
   }
 
@@ -229,14 +238,16 @@ class _DocumentsPageState extends ConsumerState<DocumentsPage> {
         builder: (context) => AlertDialog(
           title: const Text('نتيجة تحليل المستند'),
           content: SizedBox(
-            width: 620,
+            width: MediaQuery.sizeOf(context).width.clamp(280.0, 620.0),
             child: SingleChildScrollView(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text((result['summary'] ?? '').toString()),
                   const SizedBox(height: 12),
-                  Text('الكيانات: ${(result['extractedEntities'] ?? {}).toString()}'),
+                  Text(
+                    'الكيانات: ${(result['extractedEntities'] ?? {}).toString()}',
+                  ),
                   const SizedBox(height: 12),
                   Text((result['disclaimer'] ?? '').toString()),
                 ],
@@ -255,14 +266,16 @@ class _DocumentsPageState extends ConsumerState<DocumentsPage> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(parseApiError(error))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(parseApiError(error))));
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final isCompact = MediaQuery.sizeOf(context).width < 720;
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(18),
       child: Column(
@@ -270,7 +283,8 @@ class _DocumentsPageState extends ConsumerState<DocumentsPage> {
         children: [
           SectionHeader(
             title: 'Documents / Archive',
-            subtitle: 'Upload, OCR, extract entities, and archive document versions',
+            subtitle:
+                'Upload, OCR, extract entities, and archive document versions',
             trailing: ElevatedButton.icon(
               onPressed: _showCreateDocumentDialog,
               icon: const Icon(Icons.upload_file_rounded),
@@ -278,53 +292,74 @@ class _DocumentsPageState extends ConsumerState<DocumentsPage> {
             ),
           ),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _searchController,
-                  onSubmitted: (_) => _loadDocuments(),
-                  decoration: const InputDecoration(
-                    hintText: 'ابحث في عنوان المستند أو اسم الملف',
-                    prefixIcon: Icon(Icons.search_rounded),
-                  ),
-                ),
+          if (isCompact) ...[
+            TextField(
+              controller: _searchController,
+              onSubmitted: (_) => _loadDocuments(),
+              decoration: const InputDecoration(
+                hintText: 'ابحث في عنوان المستند أو اسم الملف',
+                prefixIcon: Icon(Icons.search_rounded),
               ),
-              const SizedBox(width: 10),
-              ElevatedButton.icon(
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
                 onPressed: _loading ? null : _loadDocuments,
                 icon: const Icon(Icons.search_rounded),
                 label: Text(context.tr('Search')),
               ),
-            ],
-          ),
+            ),
+          ] else
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _searchController,
+                    onSubmitted: (_) => _loadDocuments(),
+                    decoration: const InputDecoration(
+                      hintText: 'ابحث في عنوان المستند أو اسم الملف',
+                      prefixIcon: Icon(Icons.search_rounded),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                ElevatedButton.icon(
+                  onPressed: _loading ? null : _loadDocuments,
+                  icon: const Icon(Icons.search_rounded),
+                  label: Text(context.tr('Search')),
+                ),
+              ],
+            ),
           const SizedBox(height: 12),
           GlassPanel(
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
                 : _error != null
-                    ? Text(_error!)
-                    : _documents.isEmpty
-                        ? const Text('لا توجد مستندات بعد.')
-                        : Column(
-                            children: _documents.map((document) {
-                              final id = (document['_id'] ?? '').toString();
-                              return ListTile(
-                                contentPadding: EdgeInsets.zero,
-                                leading: const Icon(Icons.description_outlined),
-                                title: Text((document['title'] ?? '-').toString()),
-                                subtitle: Text(
-                                  '${(document['originalName'] ?? '-').toString()}\n${(document['mimeType'] ?? '-').toString()} | ${(document['storagePath'] ?? '-').toString()}',
-                                ),
-                                isThreeLine: true,
-                                trailing: OutlinedButton.icon(
-                                  onPressed: id.isEmpty ? null : () => _analyzeDocument(id),
-                                  icon: const Icon(Icons.auto_awesome_rounded),
-                                  label: Text(context.tr('Analyze')),
-                                ),
-                              );
-                            }).toList(),
-                          ),
+                ? Text(_error!)
+                : _documents.isEmpty
+                ? const Text('لا توجد مستندات بعد.')
+                : Column(
+                    children: _documents.map((document) {
+                      final id = (document['_id'] ?? '').toString();
+                      return ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.description_outlined),
+                        title: Text((document['title'] ?? '-').toString()),
+                        subtitle: Text(
+                          '${(document['originalName'] ?? '-').toString()}\n${(document['mimeType'] ?? '-').toString()} | ${(document['storagePath'] ?? '-').toString()}',
+                        ),
+                        isThreeLine: true,
+                        trailing: OutlinedButton.icon(
+                          onPressed: id.isEmpty
+                              ? null
+                              : () => _analyzeDocument(id),
+                          icon: const Icon(Icons.auto_awesome_rounded),
+                          label: Text(context.tr('Analyze')),
+                        ),
+                      );
+                    }).toList(),
+                  ),
           ),
         ],
       ),

@@ -1,4 +1,4 @@
-﻿import 'package:dio/dio.dart';
+import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,14 +11,26 @@ import '../../../../shared/widgets/glass_panel.dart';
 import '../../../../shared/widgets/section_header.dart';
 
 const _iraqiCaseTypes = <String>[
-  'مدنية','تجارية','جنائية','أحوال شخصية','عمالية','إدارية','عقارية','ضريبية','دستورية','تنفيذ','تحكيم','أخرى',
+  'مدنية',
+  'تجارية',
+  'جنائية',
+  'أحوال شخصية',
+  'عمالية',
+  'إدارية',
+  'عقارية',
+  'ضريبية',
+  'دستورية',
+  'تنفيذ',
+  'تحكيم',
+  'أخرى',
 ];
 
 class CreateCaseWizardPage extends ConsumerStatefulWidget {
   const CreateCaseWizardPage({super.key});
 
   @override
-  ConsumerState<CreateCaseWizardPage> createState() => _CreateCaseWizardPageState();
+  ConsumerState<CreateCaseWizardPage> createState() =>
+      _CreateCaseWizardPageState();
 }
 
 class _CreateCaseWizardPageState extends ConsumerState<CreateCaseWizardPage> {
@@ -83,8 +95,12 @@ class _CreateCaseWizardPageState extends ConsumerState<CreateCaseWizardPage> {
     _contractAmountController.dispose();
     _initialPaymentController.dispose();
     _secondPaymentAmountController.dispose();
-    for (final row in _evidenceRows) { row.dispose(); }
-    for (final row in _additionalInstallments) { row.dispose(); }
+    for (final row in _evidenceRows) {
+      row.dispose();
+    }
+    for (final row in _additionalInstallments) {
+      row.dispose();
+    }
     super.dispose();
   }
 
@@ -92,7 +108,8 @@ class _CreateCaseWizardPageState extends ConsumerState<CreateCaseWizardPage> {
     setState(() => _loadingCourts = true);
     try {
       final dio = ref.read(dioProvider);
-      final response = await dio.get('/courts',
+      final response = await dio.get(
+        '/courts',
         queryParameters: {'limit': 80, if (q.trim().isNotEmpty) 'q': q.trim()},
         options: Options(headers: authHeaders(ref)),
       );
@@ -113,14 +130,18 @@ class _CreateCaseWizardPageState extends ConsumerState<CreateCaseWizardPage> {
   Future<void> _searchClients(String query) async {
     final value = query.trim();
     if (value.length < 2) {
-      setState(() { _clientSuggestions = const []; _selectedClientId = null; });
+      setState(() {
+        _clientSuggestions = const [];
+        _selectedClientId = null;
+      });
       return;
     }
 
     setState(() => _loadingClients = true);
     try {
       final dio = ref.read(dioProvider);
-      final response = await dio.get('/clients',
+      final response = await dio.get(
+        '/clients',
         queryParameters: {'search': value, 'limit': 10},
         options: Options(headers: authHeaders(ref)),
       );
@@ -133,7 +154,10 @@ class _CreateCaseWizardPageState extends ConsumerState<CreateCaseWizardPage> {
       String? autoId;
       for (final item in items) {
         final name = (item['fullName'] ?? '').toString().trim().toLowerCase();
-        if (name == value.toLowerCase()) { autoId = _idOf(item); break; }
+        if (name == value.toLowerCase()) {
+          autoId = _idOf(item);
+          break;
+        }
       }
 
       setState(() {
@@ -153,7 +177,10 @@ class _CreateCaseWizardPageState extends ConsumerState<CreateCaseWizardPage> {
       setState(() => _selectedCourtId = null);
       return;
     }
-    final selected = _courts.firstWhere((item) => _idOf(item) == courtId, orElse: () => <String, dynamic>{});
+    final selected = _courts.firstWhere(
+      (item) => _idOf(item) == courtId,
+      orElse: () => <String, dynamic>{},
+    );
     setState(() {
       _selectedCourtId = courtId;
       _courtController.text = (selected['name'] ?? '').toString();
@@ -193,30 +220,58 @@ class _CreateCaseWizardPageState extends ConsumerState<CreateCaseWizardPage> {
   }
 
   Future<void> _createCase() async {
-    if (_caseNumberController.text.trim().isEmpty || _titleController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('رقم القضية وعنوان القضية مطلوبان.')));
+    if (_caseNumberController.text.trim().isEmpty ||
+        _titleController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('رقم القضية وعنوان القضية مطلوبان.')),
+      );
       return;
     }
     if (_clientNameController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('اسم العميل مطلوب.')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('اسم العميل مطلوب.')));
       return;
     }
 
-    final contractAmount = double.tryParse(_contractAmountController.text.trim()) ?? 0;
-    final initialPayment = double.tryParse(_initialPaymentController.text.trim()) ?? 0;
-    final secondPaymentAmount = double.tryParse(_secondPaymentAmountController.text.trim()) ?? 0;
+    final contractAmount =
+        double.tryParse(_contractAmountController.text.trim()) ?? 0;
+    final initialPayment =
+        double.tryParse(_initialPaymentController.text.trim()) ?? 0;
+    final secondPaymentAmount =
+        double.tryParse(_secondPaymentAmountController.text.trim()) ?? 0;
 
-    final selectedCourt = _courts.firstWhere((item) => _idOf(item) == _selectedCourtId, orElse: () => <String, dynamic>{});
+    final selectedCourt = _courts.firstWhere(
+      (item) => _idOf(item) == _selectedCourtId,
+      orElse: () => <String, dynamic>{},
+    );
     final evidenceEntries = _evidenceRows
-        .map((row) => {'attachmentName': row.file?.name, 'description': row.descriptionController.text.trim().isEmpty ? null : row.descriptionController.text.trim()})
-        .where((row) => (row['attachmentName'] ?? '').toString().isNotEmpty || (row['description'] ?? '').toString().isNotEmpty)
+        .map(
+          (row) => {
+            'attachmentName': row.file?.name,
+            'description': row.descriptionController.text.trim().isEmpty
+                ? null
+                : row.descriptionController.text.trim(),
+          },
+        )
+        .where(
+          (row) =>
+              (row['attachmentName'] ?? '').toString().isNotEmpty ||
+              (row['description'] ?? '').toString().isNotEmpty,
+        )
         .toList();
 
     final additionalInstallments = _additionalInstallments
         .map((row) {
           final amount = double.tryParse(row.amountController.text.trim()) ?? 0;
           if (amount <= 0 || row.dueDate == null) return null;
-          return {'amount': amount, 'dueDate': row.dueDate!.toIso8601String(), 'label': row.labelController.text.trim().isEmpty ? null : row.labelController.text.trim()};
+          return {
+            'amount': amount,
+            'dueDate': row.dueDate!.toIso8601String(),
+            'label': row.labelController.text.trim().isEmpty
+                ? null
+                : row.labelController.text.trim(),
+          };
         })
         .whereType<Map<String, dynamic>>()
         .toList();
@@ -224,31 +279,52 @@ class _CreateCaseWizardPageState extends ConsumerState<CreateCaseWizardPage> {
     setState(() => isSubmitting = true);
     try {
       final dio = ref.read(dioProvider);
-      final response = await dio.post('/cases',
+      final response = await dio.post(
+        '/cases',
         data: {
           'caseNumber': _caseNumberController.text.trim(),
           'internalReference': _internalReferenceController.text.trim(),
           'title': _titleController.text.trim(),
           'caseType': _caseType,
           'courtId': _selectedCourtId,
-          'court': _courtController.text.trim().isEmpty ? null : _courtController.text.trim(),
-          'governorate': _governorateController.text.trim().isEmpty ? null : _governorateController.text.trim(),
+          'court': _courtController.text.trim().isEmpty
+              ? null
+              : _courtController.text.trim(),
+          'governorate': _governorateController.text.trim().isEmpty
+              ? null
+              : _governorateController.text.trim(),
           'courtCity': selectedCourt['city'],
           'courtDistrict': selectedCourt['district'],
           'courtArea': selectedCourt['area'],
           'courtLocationDescription': selectedCourt['addressDescription'],
           'clientId': _selectedClientId,
-          if (_selectedClientId == null) 'newClient': {
-            'fullName': _clientNameController.text.trim(),
-            'phone': _clientPhoneController.text.trim().isEmpty ? null : _clientPhoneController.text.trim(),
-            'address': _clientAddressController.text.trim().isEmpty ? null : _clientAddressController.text.trim(),
-          },
-          'oppositeParty': _oppositePartyController.text.trim().isEmpty ? null : _oppositePartyController.text.trim(),
-          'summary': _summaryController.text.trim().isEmpty ? null : _summaryController.text.trim(),
-          'facts': _factsController.text.trim().isEmpty ? null : _factsController.text.trim(),
-          'claims': _claimsController.text.trim().isEmpty ? null : _claimsController.text.trim(),
+          if (_selectedClientId == null)
+            'newClient': {
+              'fullName': _clientNameController.text.trim(),
+              'phone': _clientPhoneController.text.trim().isEmpty
+                  ? null
+                  : _clientPhoneController.text.trim(),
+              'address': _clientAddressController.text.trim().isEmpty
+                  ? null
+                  : _clientAddressController.text.trim(),
+            },
+          'oppositeParty': _oppositePartyController.text.trim().isEmpty
+              ? null
+              : _oppositePartyController.text.trim(),
+          'summary': _summaryController.text.trim().isEmpty
+              ? null
+              : _summaryController.text.trim(),
+          'facts': _factsController.text.trim().isEmpty
+              ? null
+              : _factsController.text.trim(),
+          'claims': _claimsController.text.trim().isEmpty
+              ? null
+              : _claimsController.text.trim(),
           'evidenceEntries': evidenceEntries,
-          'evidenceList': evidenceEntries.map((entry) => (entry['description'] ?? '').toString()).where((entry) => entry.trim().isNotEmpty).toList(),
+          'evidenceList': evidenceEntries
+              .map((entry) => (entry['description'] ?? '').toString())
+              .where((entry) => entry.trim().isNotEmpty)
+              .toList(),
           'contractDate': _contractDate.toIso8601String(),
           'contractAmount': contractAmount,
           'initialPayment': initialPayment,
@@ -296,15 +372,23 @@ class _CreateCaseWizardPageState extends ConsumerState<CreateCaseWizardPage> {
         }
 
         if (description.isNotEmpty || file != null) {
-          uploadedEntries.add({'documentId': documentId, 'attachmentName': file?.name, 'description': description.isEmpty ? null : description});
+          uploadedEntries.add({
+            'documentId': documentId,
+            'attachmentName': file?.name,
+            'description': description.isEmpty ? null : description,
+          });
         }
       }
 
       if (uploadedEntries.isNotEmpty || linkedDocumentIds.isNotEmpty) {
-        await dio.patch('/cases/$caseId',
+        await dio.patch(
+          '/cases/$caseId',
           data: {
             'evidenceEntries': uploadedEntries,
-            'evidenceList': uploadedEntries.map((entry) => (entry['description'] ?? '').toString()).where((entry) => entry.trim().isNotEmpty).toList(),
+            'evidenceList': uploadedEntries
+                .map((entry) => (entry['description'] ?? '').toString())
+                .where((entry) => entry.trim().isNotEmpty)
+                .toList(),
             'documentIds': linkedDocumentIds,
           },
           options: Options(headers: authHeaders(ref)),
@@ -312,11 +396,15 @@ class _CreateCaseWizardPageState extends ConsumerState<CreateCaseWizardPage> {
       }
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم إنشاء القضية وربط البيانات بنجاح.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تم إنشاء القضية وربط البيانات بنجاح.')),
+      );
       context.go('/cases/$caseId');
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(parseApiError(error))));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(parseApiError(error))));
     } finally {
       if (mounted) setState(() => isSubmitting = false);
     }
@@ -324,6 +412,7 @@ class _CreateCaseWizardPageState extends ConsumerState<CreateCaseWizardPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isCompact = MediaQuery.sizeOf(context).width < 920;
     final steps = <Step>[
       Step(
         title: Text(context.tr('Basic Info')),
@@ -335,8 +424,14 @@ class _CreateCaseWizardPageState extends ConsumerState<CreateCaseWizardPage> {
             DropdownButtonFormField<String>(
               initialValue: _caseType,
               decoration: InputDecoration(labelText: context.tr('Case Type')),
-              items: _iraqiCaseTypes.map((type) => DropdownMenuItem(value: type, child: Text(type))).toList(),
-              onChanged: (value) { if (value != null) setState(() => _caseType = value); },
+              items: _iraqiCaseTypes
+                  .map(
+                    (type) => DropdownMenuItem(value: type, child: Text(type)),
+                  )
+                  .toList(),
+              onChanged: (value) {
+                if (value != null) setState(() => _caseType = value);
+              },
             ),
             const SizedBox(height: 10),
             TextField(
@@ -346,18 +441,38 @@ class _CreateCaseWizardPageState extends ConsumerState<CreateCaseWizardPage> {
                 labelText: 'ابحث عن المحكمة',
                 prefixIcon: const Icon(Icons.search_rounded),
                 suffixIcon: IconButton(
-                  onPressed: _loadingCourts ? null : () => _loadCourts(q: _courtSearchController.text),
-                  icon: _loadingCourts ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.arrow_forward_rounded),
+                  onPressed: _loadingCourts
+                      ? null
+                      : () => _loadCourts(q: _courtSearchController.text),
+                  icon: _loadingCourts
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.arrow_forward_rounded),
                 ),
               ),
             ),
             const SizedBox(height: 10),
             DropdownButtonFormField<String>(
-              key: ValueKey<String?>('court-${_selectedCourtId ?? 'none'}-${_courts.length}'),
+              key: ValueKey<String?>(
+                'court-${_selectedCourtId ?? 'none'}-${_courts.length}',
+              ),
               initialValue: _selectedCourtId,
               isExpanded: true,
               decoration: const InputDecoration(labelText: 'المحكمة'),
-              items: _courts.map((court) => DropdownMenuItem(value: _idOf(court), child: Text(_courtDisplayLabel(court), overflow: TextOverflow.ellipsis))).toList(),
+              items: _courts
+                  .map(
+                    (court) => DropdownMenuItem(
+                      value: _idOf(court),
+                      child: Text(
+                        _courtDisplayLabel(court),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  )
+                  .toList(),
               onChanged: _applyCourtSelection,
             ),
             const SizedBox(height: 10),
@@ -373,11 +488,16 @@ class _CreateCaseWizardPageState extends ConsumerState<CreateCaseWizardPage> {
           children: [
             TextField(
               controller: _clientNameController,
-              onChanged: (value) { _selectedClientId = null; _searchClients(value); },
+              onChanged: (value) {
+                _selectedClientId = null;
+                _searchClients(value);
+              },
               decoration: InputDecoration(
                 labelText: 'اسم العميل *',
                 prefixIcon: const Icon(Icons.person_search_rounded),
-                helperText: _selectedClientId == null ? 'يمكن البحث عن عميل موجود أو كتابة اسم جديد' : 'معرّف العميل: $_selectedClientId',
+                helperText: _selectedClientId == null
+                    ? 'يمكن البحث عن عميل موجود أو كتابة اسم جديد'
+                    : 'معرّف العميل: $_selectedClientId',
               ),
             ),
             if (_loadingClients)
@@ -389,7 +509,10 @@ class _CreateCaseWizardPageState extends ConsumerState<CreateCaseWizardPage> {
               const SizedBox(height: 8),
               Container(
                 constraints: const BoxConstraints(maxHeight: 170),
-                decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.white24)),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white24),
+                ),
                 child: ListView.builder(
                   shrinkWrap: true,
                   itemCount: _clientSuggestions.length,
@@ -399,7 +522,9 @@ class _CreateCaseWizardPageState extends ConsumerState<CreateCaseWizardPage> {
                       dense: true,
                       onTap: () => _applyClientSelection(client),
                       title: Text((client['fullName'] ?? '-').toString()),
-                      subtitle: Text('المعرف: ${_idOf(client) ?? '-'} | الهاتف: ${(client['phone'] ?? '-').toString()}'),
+                      subtitle: Text(
+                        'المعرف: ${_idOf(client) ?? '-'} | الهاتف: ${(client['phone'] ?? '-').toString()}',
+                      ),
                     );
                   },
                 ),
@@ -426,47 +551,95 @@ class _CreateCaseWizardPageState extends ConsumerState<CreateCaseWizardPage> {
         title: const Text('قائمة الأدلة'),
         content: Column(
           children: [
-            const Align(alignment: Alignment.centerRight, child: Text('لكل صف: عمود ملف اختياري + عمود وصف الدليل (حتى 100 صف).')),
+            const Align(
+              alignment: Alignment.centerRight,
+              child: Text(
+                'لكل صف: عمود ملف اختياري + عمود وصف الدليل (حتى 100 صف).',
+              ),
+            ),
             const SizedBox(height: 10),
             ..._evidenceRows.asMap().entries.map((entry) {
               final index = entry.key;
               final row = entry.value;
               return Padding(
                 padding: const EdgeInsets.only(bottom: 10),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () => _pickEvidenceFile(index),
-                        icon: const Icon(Icons.attach_file_rounded),
-                        label: Text(row.file == null ? 'رفع ملف' : row.file!.name, overflow: TextOverflow.ellipsis),
+                child: isCompact
+                    ? Column(
+                        children: [
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              onPressed: () => _pickEvidenceFile(index),
+                              icon: const Icon(Icons.attach_file_rounded),
+                              label: Text(
+                                row.file == null ? 'رفع ملف' : row.file!.name,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: row.descriptionController,
+                            decoration: InputDecoration(
+                              labelText: 'وصف الدليل ${index + 1}',
+                            ),
+                          ),
+                          if (_evidenceRows.length > 1)
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: IconButton(
+                                onPressed: () {
+                                  setState(() {
+                                    _evidenceRows[index].dispose();
+                                    _evidenceRows.removeAt(index);
+                                  });
+                                },
+                                icon: const Icon(Icons.delete_outline_rounded),
+                              ),
+                            ),
+                        ],
+                      )
+                    : Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () => _pickEvidenceFile(index),
+                              icon: const Icon(Icons.attach_file_rounded),
+                              label: Text(
+                                row.file == null ? 'رفع ملف' : row.file!.name,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: TextField(
+                              controller: row.descriptionController,
+                              decoration: InputDecoration(
+                                labelText: 'وصف الدليل ${index + 1}',
+                              ),
+                            ),
+                          ),
+                          if (_evidenceRows.length > 1)
+                            IconButton(
+                              onPressed: () {
+                                setState(() {
+                                  _evidenceRows[index].dispose();
+                                  _evidenceRows.removeAt(index);
+                                });
+                              },
+                              icon: const Icon(Icons.delete_outline_rounded),
+                            ),
+                        ],
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: TextField(
-                        controller: row.descriptionController,
-                        decoration: InputDecoration(labelText: 'وصف الدليل ${index + 1}'),
-                      ),
-                    ),
-                    if (_evidenceRows.length > 1)
-                      IconButton(
-                        onPressed: () {
-                          setState(() {
-                            _evidenceRows[index].dispose();
-                            _evidenceRows.removeAt(index);
-                          });
-                        },
-                        icon: const Icon(Icons.delete_outline_rounded),
-                      ),
-                  ],
-                ),
               );
             }),
             Align(
               alignment: Alignment.centerRight,
               child: TextButton.icon(
-                onPressed: _evidenceRows.length >= 100 ? null : () => _addEvidenceRows(),
+                onPressed: _evidenceRows.length >= 100
+                    ? null
+                    : () => _addEvidenceRows(),
                 icon: const Icon(Icons.add_rounded),
                 label: Text('إضافة صف دليل (${_evidenceRows.length}/100)'),
               ),
@@ -481,58 +654,229 @@ class _CreateCaseWizardPageState extends ConsumerState<CreateCaseWizardPage> {
             ListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('تاريخ العقد'),
-              subtitle: Text('${_contractDate.year}-${_contractDate.month.toString().padLeft(2, '0')}-${_contractDate.day.toString().padLeft(2, '0')}'),
+              subtitle: Text(
+                '${_contractDate.year}-${_contractDate.month.toString().padLeft(2, '0')}-${_contractDate.day.toString().padLeft(2, '0')}',
+              ),
               trailing: const Icon(Icons.event_rounded),
               onTap: () async {
-                final picked = await showDatePicker(context: context, firstDate: DateTime(2000), lastDate: DateTime(2100), initialDate: _contractDate);
+                final picked = await showDatePicker(
+                  context: context,
+                  firstDate: DateTime(2000),
+                  lastDate: DateTime(2100),
+                  initialDate: _contractDate,
+                );
                 if (picked != null) setState(() => _contractDate = picked);
               },
             ),
-            _input(context, _contractAmountController, 'قيمة العقد (IQD)', keyboardType: TextInputType.number),
-            _input(context, _initialPaymentController, 'الدفعة الأولى (IQD)', keyboardType: TextInputType.number),
-            Row(
-              children: [
-                Expanded(child: _input(context, _secondPaymentAmountController, 'قيمة الدفعة الثانية (IQD)', keyboardType: TextInputType.number)),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () async {
-                      final picked = await showDatePicker(context: context, firstDate: DateTime(2000), lastDate: DateTime(2100), initialDate: _secondPaymentDueDate ?? _contractDate.add(const Duration(days: 30)));
-                      if (picked != null) setState(() => _secondPaymentDueDate = picked);
-                    },
-                    icon: const Icon(Icons.event_available_rounded),
-                    label: Text(_secondPaymentDueDate == null ? 'تاريخ استحقاق الثانية' : '${_secondPaymentDueDate!.year}-${_secondPaymentDueDate!.month.toString().padLeft(2, '0')}-${_secondPaymentDueDate!.day.toString().padLeft(2, '0')}'),
+            _input(
+              context,
+              _contractAmountController,
+              'قيمة العقد (IQD)',
+              keyboardType: TextInputType.number,
+            ),
+            _input(
+              context,
+              _initialPaymentController,
+              'الدفعة الأولى (IQD)',
+              keyboardType: TextInputType.number,
+            ),
+            if (isCompact) ...[
+              _input(
+                context,
+                _secondPaymentAmountController,
+                'قيمة الدفعة الثانية (IQD)',
+                keyboardType: TextInputType.number,
+              ),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      firstDate: DateTime(2000),
+                      lastDate: DateTime(2100),
+                      initialDate:
+                          _secondPaymentDueDate ??
+                          _contractDate.add(const Duration(days: 30)),
+                    );
+                    if (picked != null) {
+                      setState(() => _secondPaymentDueDate = picked);
+                    }
+                  },
+                  icon: const Icon(Icons.event_available_rounded),
+                  label: Text(
+                    _secondPaymentDueDate == null
+                        ? 'تاريخ استحقاق الثانية'
+                        : '${_secondPaymentDueDate!.year}-${_secondPaymentDueDate!.month.toString().padLeft(2, '0')}-${_secondPaymentDueDate!.day.toString().padLeft(2, '0')}',
                   ),
                 ),
-              ],
-            ),
+              ),
+            ] else
+              Row(
+                children: [
+                  Expanded(
+                    child: _input(
+                      context,
+                      _secondPaymentAmountController,
+                      'قيمة الدفعة الثانية (IQD)',
+                      keyboardType: TextInputType.number,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        final picked = await showDatePicker(
+                          context: context,
+                          firstDate: DateTime(2000),
+                          lastDate: DateTime(2100),
+                          initialDate:
+                              _secondPaymentDueDate ??
+                              _contractDate.add(const Duration(days: 30)),
+                        );
+                        if (picked != null) {
+                          setState(() => _secondPaymentDueDate = picked);
+                        }
+                      },
+                      icon: const Icon(Icons.event_available_rounded),
+                      label: Text(
+                        _secondPaymentDueDate == null
+                            ? 'تاريخ استحقاق الثانية'
+                            : '${_secondPaymentDueDate!.year}-${_secondPaymentDueDate!.month.toString().padLeft(2, '0')}-${_secondPaymentDueDate!.day.toString().padLeft(2, '0')}',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             const SizedBox(height: 8),
             ..._additionalInstallments.asMap().entries.map((entry) {
               final index = entry.key;
               final row = entry.value;
               return Padding(
                 padding: const EdgeInsets.only(bottom: 8),
-                child: Row(
-                  children: [
-                    Expanded(child: TextField(controller: row.labelController, decoration: const InputDecoration(labelText: 'اسم الدفعة'))),
-                    const SizedBox(width: 8),
-                    Expanded(child: TextField(controller: row.amountController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'القيمة'))),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () async {
-                          final picked = await showDatePicker(context: context, firstDate: DateTime(2000), lastDate: DateTime(2100), initialDate: row.dueDate ?? _contractDate.add(const Duration(days: 45)));
-                          if (picked != null) setState(() => row.dueDate = picked);
-                        },
-                        child: Text(row.dueDate == null ? 'تاريخ الاستحقاق' : '${row.dueDate!.year}-${row.dueDate!.month.toString().padLeft(2, '0')}-${row.dueDate!.day.toString().padLeft(2, '0')}'),
+                child: isCompact
+                    ? Column(
+                        children: [
+                          TextField(
+                            controller: row.labelController,
+                            decoration: const InputDecoration(
+                              labelText: 'اسم الدفعة',
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: row.amountController,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              labelText: 'القيمة',
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton(
+                              onPressed: () async {
+                                final picked = await showDatePicker(
+                                  context: context,
+                                  firstDate: DateTime(2000),
+                                  lastDate: DateTime(2100),
+                                  initialDate:
+                                      row.dueDate ??
+                                      _contractDate.add(
+                                        const Duration(days: 45),
+                                      ),
+                                );
+                                if (picked != null) {
+                                  setState(() => row.dueDate = picked);
+                                }
+                              },
+                              child: Text(
+                                row.dueDate == null
+                                    ? 'تاريخ الاستحقاق'
+                                    : '${row.dueDate!.year}-${row.dueDate!.month.toString().padLeft(2, '0')}-${row.dueDate!.day.toString().padLeft(2, '0')}',
+                              ),
+                            ),
+                          ),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: IconButton(
+                              onPressed: () {
+                                setState(() {
+                                  row.dispose();
+                                  _additionalInstallments.removeAt(index);
+                                });
+                              },
+                              icon: const Icon(Icons.delete_outline_rounded),
+                            ),
+                          ),
+                        ],
+                      )
+                    : Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: row.labelController,
+                              decoration: const InputDecoration(
+                                labelText: 'اسم الدفعة',
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: TextField(
+                              controller: row.amountController,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(
+                                labelText: 'القيمة',
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () async {
+                                final picked = await showDatePicker(
+                                  context: context,
+                                  firstDate: DateTime(2000),
+                                  lastDate: DateTime(2100),
+                                  initialDate:
+                                      row.dueDate ??
+                                      _contractDate.add(
+                                        const Duration(days: 45),
+                                      ),
+                                );
+                                if (picked != null) {
+                                  setState(() => row.dueDate = picked);
+                                }
+                              },
+                              child: Text(
+                                row.dueDate == null
+                                    ? 'تاريخ الاستحقاق'
+                                    : '${row.dueDate!.year}-${row.dueDate!.month.toString().padLeft(2, '0')}-${row.dueDate!.day.toString().padLeft(2, '0')}',
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () {
+                              setState(() {
+                                row.dispose();
+                                _additionalInstallments.removeAt(index);
+                              });
+                            },
+                            icon: const Icon(Icons.delete_outline_rounded),
+                          ),
+                        ],
                       ),
-                    ),
-                    IconButton(onPressed: () { setState(() { row.dispose(); _additionalInstallments.removeAt(index); }); }, icon: const Icon(Icons.delete_outline_rounded)),
-                  ],
-                ),
               );
             }),
-            Align(alignment: Alignment.centerRight, child: TextButton.icon(onPressed: _addInstallmentRow, icon: const Icon(Icons.add_rounded), label: const Text('إضافة دفعة إضافية'))),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: _addInstallmentRow,
+                icon: const Icon(Icons.add_rounded),
+                label: const Text('إضافة دفعة إضافية'),
+              ),
+            ),
           ],
         ),
       ),
@@ -547,26 +891,51 @@ class _CreateCaseWizardPageState extends ConsumerState<CreateCaseWizardPage> {
             SectionHeader(
               title: 'Create New Case Wizard',
               subtitle: 'Basic info, client, evidence, and payment plan',
-              trailing: TextButton(onPressed: () => context.go('/cases'), child: Text(context.tr('Close'))),
+              trailing: TextButton(
+                onPressed: () => context.go('/cases'),
+                child: Text(context.tr('Close')),
+              ),
             ),
             const SizedBox(height: 12),
             Stepper(
               currentStep: currentStep,
-              onStepContinue: isSubmitting ? null : () {
-                if (currentStep < steps.length - 1) { setState(() => currentStep++); return; }
-                _createCase();
+              onStepContinue: isSubmitting
+                  ? null
+                  : () {
+                      if (currentStep < steps.length - 1) {
+                        setState(() => currentStep++);
+                        return;
+                      }
+                      _createCase();
+                    },
+              onStepCancel: () {
+                if (currentStep > 0) setState(() => currentStep--);
               },
-              onStepCancel: () { if (currentStep > 0) setState(() => currentStep--); },
-              controlsBuilder: (context, details) => Row(
+              controlsBuilder: (context, details) => Wrap(
+                spacing: 8,
+                runSpacing: 8,
                 children: [
                   ElevatedButton(
                     onPressed: isSubmitting ? null : details.onStepContinue,
                     child: isSubmitting
-                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                        : Text(context.tr(currentStep == steps.length - 1 ? 'Create' : 'Next')),
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Text(
+                            context.tr(
+                              currentStep == steps.length - 1
+                                  ? 'Create'
+                                  : 'Next',
+                            ),
+                          ),
                   ),
                   const SizedBox(width: 8),
-                  TextButton(onPressed: details.onStepCancel, child: Text(context.tr('Back'))),
+                  TextButton(
+                    onPressed: details.onStepCancel,
+                    child: Text(context.tr('Back')),
+                  ),
                 ],
               ),
               steps: steps,
@@ -577,10 +946,21 @@ class _CreateCaseWizardPageState extends ConsumerState<CreateCaseWizardPage> {
     );
   }
 
-  Widget _input(BuildContext context, TextEditingController controller, String label, {int maxLines = 1, TextInputType? keyboardType}) {
+  Widget _input(
+    BuildContext context,
+    TextEditingController controller,
+    String label, {
+    int maxLines = 1,
+    TextInputType? keyboardType,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
-      child: TextField(controller: controller, maxLines: maxLines, keyboardType: keyboardType, decoration: InputDecoration(labelText: context.tr(label))),
+      child: TextField(
+        controller: controller,
+        maxLines: maxLines,
+        keyboardType: keyboardType,
+        decoration: InputDecoration(labelText: context.tr(label)),
+      ),
     );
   }
 
@@ -594,7 +974,10 @@ class _CreateCaseWizardPageState extends ConsumerState<CreateCaseWizardPage> {
     final name = (court['name'] ?? '-').toString();
     final governorate = (court['governorate'] ?? '').toString();
     final city = (court['city'] ?? '').toString();
-    final location = [governorate, city].where((item) => item.trim().isNotEmpty).join(' - ');
+    final location = [
+      governorate,
+      city,
+    ].where((item) => item.trim().isNotEmpty).join(' - ');
     return location.isEmpty ? name : '$name | $location';
   }
 }
@@ -607,9 +990,14 @@ class _EvidenceRowData {
 }
 
 class _InstallmentRowData {
-  _InstallmentRowData() : labelController = TextEditingController(), amountController = TextEditingController();
+  _InstallmentRowData()
+    : labelController = TextEditingController(),
+      amountController = TextEditingController();
   final TextEditingController labelController;
   final TextEditingController amountController;
   DateTime? dueDate;
-  void dispose() { labelController.dispose(); amountController.dispose(); }
+  void dispose() {
+    labelController.dispose();
+    amountController.dispose();
+  }
 }

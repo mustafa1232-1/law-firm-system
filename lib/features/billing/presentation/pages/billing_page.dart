@@ -164,7 +164,7 @@ class _BillingPageState extends ConsumerState<BillingPage> {
         builder: (context, setDialogState) => AlertDialog(
           title: const Text('إنشاء فاتورة'),
           content: SizedBox(
-            width: 640,
+            width: MediaQuery.sizeOf(context).width.clamp(280.0, 640.0),
             child: SingleChildScrollView(
               child: Column(
                 children: [
@@ -370,7 +370,7 @@ class _BillingPageState extends ConsumerState<BillingPage> {
             'إضافة دفعة - ${(invoice['invoiceNumber'] ?? '').toString()}',
           ),
           content: SizedBox(
-            width: 560,
+            width: MediaQuery.sizeOf(context).width.clamp(280.0, 560.0),
             child: SingleChildScrollView(
               child: Column(
                 children: [
@@ -538,6 +538,15 @@ class _BillingPageState extends ConsumerState<BillingPage> {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final isCompact = screenWidth < 1100;
+    final caseFilterWidth = isCompact
+        ? (screenWidth - 84).clamp(220.0, 320.0).toDouble()
+        : 320.0;
+    final statusFilterWidth = isCompact
+        ? (screenWidth - 84).clamp(180.0, 220.0).toDouble()
+        : 220.0;
+
     final unpaidStats =
         (_invoiceTotals['unpaid'] as Map?)?.cast<String, dynamic>() ?? const {};
     final partialStats =
@@ -593,7 +602,7 @@ class _BillingPageState extends ConsumerState<BillingPage> {
                   runSpacing: 10,
                   children: [
                     SizedBox(
-                      width: 320,
+                      width: caseFilterWidth,
                       child: DropdownButtonFormField<String?>(
                         initialValue: selectedCaseFilter,
                         isExpanded: true,
@@ -620,7 +629,7 @@ class _BillingPageState extends ConsumerState<BillingPage> {
                       ),
                     ),
                     SizedBox(
-                      width: 220,
+                      width: statusFilterWidth,
                       child: DropdownButtonFormField<String>(
                         initialValue: _filterInvoiceStatus,
                         decoration: const InputDecoration(
@@ -705,121 +714,119 @@ class _BillingPageState extends ConsumerState<BillingPage> {
             const Center(child: CircularProgressIndicator())
           else if (_error != null)
             GlassPanel(child: Text(_error!))
-          else
+          else if (isCompact) ...[
+            GlassPanel(child: _invoicesPanel(context)),
+            const SizedBox(height: 12),
+            GlassPanel(child: _paymentsPanel(context)),
+          ] else
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: GlassPanel(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'الفواتير (${_invoices.length})',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        const SizedBox(height: 8),
-                        if (_invoices.isEmpty)
-                          const Text('لا توجد فواتير بعد.')
-                        else
-                          ..._invoices.map((invoice) {
-                            final client = (invoice['clientId'] is Map)
-                                ? (invoice['clientId'] as Map)
-                                      .cast<String, dynamic>()
-                                : <String, dynamic>{};
-
-                            final caseData = (invoice['caseId'] is Map)
-                                ? (invoice['caseId'] as Map)
-                                      .cast<String, dynamic>()
-                                : <String, dynamic>{};
-
-                            final status = (invoice['status'] ?? 'unpaid')
-                                .toString();
-                            final invoiceId = _idOf(invoice);
-                            return ListTile(
-                              contentPadding: EdgeInsets.zero,
-                              title: Text(
-                                '${(invoice['invoiceNumber'] ?? '-').toString()} | ${(invoice['amount'] ?? '-').toString()} ${(invoice['currency'] ?? '').toString()}',
-                              ),
-                              subtitle: Text(
-                                'العميل: ${(client['fullName'] ?? '-').toString()}\nالقضية: ${(caseData['caseNumber'] ?? '-').toString()} ${(caseData['title'] ?? '').toString()}\nالحالة: ${_invoiceStatusLabel(status)}',
-                              ),
-                              isThreeLine: true,
-                              trailing: PopupMenuButton<String>(
-                                onSelected: (value) {
-                                  if (value == 'pay') {
-                                    _showCreatePaymentDialog(invoice);
-                                    return;
-                                  }
-                                  if (invoiceId == null || invoiceId.isEmpty) {
-                                    return;
-                                  }
-                                  if (value == 'export-word') {
-                                    _exportInvoice(invoiceId, 'word');
-                                  } else if (value == 'export-txt') {
-                                    _exportInvoice(invoiceId, 'txt');
-                                  }
-                                },
-                                itemBuilder: (context) => [
-                                  if (status != 'paid')
-                                    PopupMenuItem<String>(
-                                      value: 'pay',
-                                      child: Text(context.tr('Pay')),
-                                    ),
-                                  const PopupMenuItem<String>(
-                                    value: 'export-word',
-                                    child: Text('تصدير Word'),
-                                  ),
-                                  const PopupMenuItem<String>(
-                                    value: 'export-txt',
-                                    child: Text('تصدير TXT'),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }),
-                      ],
-                    ),
-                  ),
-                ),
+                Expanded(child: GlassPanel(child: _invoicesPanel(context))),
                 const SizedBox(width: 12),
-                Expanded(
-                  child: GlassPanel(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'الدفعات (${_payments.length})',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        const SizedBox(height: 8),
-                        if (_payments.isEmpty)
-                          const Text('لا توجد دفعات بعد.')
-                        else
-                          ..._payments.map((payment) {
-                            final invoice = (payment['invoiceId'] is Map)
-                                ? (payment['invoiceId'] as Map)
-                                      .cast<String, dynamic>()
-                                : <String, dynamic>{};
-                            return ListTile(
-                              contentPadding: EdgeInsets.zero,
-                              leading: const Icon(Icons.payments_outlined),
-                              title: Text(
-                                (payment['amount'] ?? '-').toString(),
-                              ),
-                              subtitle: Text(
-                                'فاتورة: ${(invoice['invoiceNumber'] ?? '-').toString()} | الحالة: ${_invoiceStatusLabel((invoice['status'] ?? '-').toString())}\n${(payment['paymentDate'] ?? '').toString().split('T').first}',
-                              ),
-                            );
-                          }),
-                      ],
-                    ),
-                  ),
-                ),
+                Expanded(child: GlassPanel(child: _paymentsPanel(context))),
               ],
             ),
         ],
       ),
+    );
+  }
+
+  Widget _invoicesPanel(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'الفواتير (${_invoices.length})',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: 8),
+        if (_invoices.isEmpty)
+          const Text('لا توجد فواتير بعد.')
+        else
+          ..._invoices.map((invoice) {
+            final client = (invoice['clientId'] is Map)
+                ? (invoice['clientId'] as Map).cast<String, dynamic>()
+                : <String, dynamic>{};
+
+            final caseData = (invoice['caseId'] is Map)
+                ? (invoice['caseId'] as Map).cast<String, dynamic>()
+                : <String, dynamic>{};
+
+            final status = (invoice['status'] ?? 'unpaid').toString();
+            final invoiceId = _idOf(invoice);
+            return ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(
+                '${(invoice['invoiceNumber'] ?? '-').toString()} | ${(invoice['amount'] ?? '-').toString()} ${(invoice['currency'] ?? '').toString()}',
+              ),
+              subtitle: Text(
+                'العميل: ${(client['fullName'] ?? '-').toString()}\nالقضية: ${(caseData['caseNumber'] ?? '-').toString()} ${(caseData['title'] ?? '').toString()}\nالحالة: ${_invoiceStatusLabel(status)}',
+              ),
+              isThreeLine: true,
+              trailing: PopupMenuButton<String>(
+                onSelected: (value) {
+                  if (value == 'pay') {
+                    _showCreatePaymentDialog(invoice);
+                    return;
+                  }
+                  if (invoiceId == null || invoiceId.isEmpty) {
+                    return;
+                  }
+                  if (value == 'export-word') {
+                    _exportInvoice(invoiceId, 'word');
+                  } else if (value == 'export-txt') {
+                    _exportInvoice(invoiceId, 'txt');
+                  }
+                },
+                itemBuilder: (context) => [
+                  if (status != 'paid')
+                    PopupMenuItem<String>(
+                      value: 'pay',
+                      child: Text(context.tr('Pay')),
+                    ),
+                  const PopupMenuItem<String>(
+                    value: 'export-word',
+                    child: Text('تصدير Word'),
+                  ),
+                  const PopupMenuItem<String>(
+                    value: 'export-txt',
+                    child: Text('تصدير TXT'),
+                  ),
+                ],
+              ),
+            );
+          }),
+      ],
+    );
+  }
+
+  Widget _paymentsPanel(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'الدفعات (${_payments.length})',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: 8),
+        if (_payments.isEmpty)
+          const Text('لا توجد دفعات بعد.')
+        else
+          ..._payments.map((payment) {
+            final invoice = (payment['invoiceId'] is Map)
+                ? (payment['invoiceId'] as Map).cast<String, dynamic>()
+                : <String, dynamic>{};
+            return ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.payments_outlined),
+              title: Text((payment['amount'] ?? '-').toString()),
+              subtitle: Text(
+                'فاتورة: ${(invoice['invoiceNumber'] ?? '-').toString()} | الحالة: ${_invoiceStatusLabel((invoice['status'] ?? '-').toString())}\n${(payment['paymentDate'] ?? '').toString().split('T').first}',
+              ),
+            );
+          }),
+      ],
     );
   }
 

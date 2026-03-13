@@ -102,7 +102,7 @@ class _TasksPageState extends ConsumerState<TasksPage> {
         builder: (context, setDialogState) => AlertDialog(
           title: const Text('إضافة مهمة'),
           content: SizedBox(
-            width: 600,
+            width: MediaQuery.sizeOf(context).width.clamp(280.0, 600.0),
             child: SingleChildScrollView(
               child: Column(
                 children: [

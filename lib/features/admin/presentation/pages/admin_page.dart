@@ -114,34 +114,36 @@ class _AdminPageState extends ConsumerState<AdminPage> {
       builder: (context) => AlertDialog(
         title: const Text('إنشاء صلاحية جديدة'),
         content: SizedBox(
-          width: 540,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: keyController,
-                decoration: const InputDecoration(
-                  labelText: 'Key * (مثال: cases.read)',
+          width: MediaQuery.sizeOf(context).width.clamp(280.0, 540.0),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: keyController,
+                  decoration: const InputDecoration(
+                    labelText: 'Key * (مثال: cases.read)',
+                  ),
                 ),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: nameController,
-                decoration: const InputDecoration(labelText: 'الاسم *'),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: descriptionController,
-                decoration: const InputDecoration(labelText: 'الوصف'),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: moduleController,
-                decoration: const InputDecoration(
-                  labelText: 'Module (اختياري)',
+                const SizedBox(height: 10),
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(labelText: 'الاسم *'),
                 ),
-              ),
-            ],
+                const SizedBox(height: 10),
+                TextField(
+                  controller: descriptionController,
+                  decoration: const InputDecoration(labelText: 'الوصف'),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: moduleController,
+                  decoration: const InputDecoration(
+                    labelText: 'Module (اختياري)',
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
         actions: [
@@ -217,35 +219,37 @@ class _AdminPageState extends ConsumerState<AdminPage> {
       builder: (context) => AlertDialog(
         title: const Text('إنشاء دور جديد'),
         content: SizedBox(
-          width: 560,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: keyController,
-                decoration: const InputDecoration(
-                  labelText: 'Key * (مثال: SENIOR_LAWYER)',
+          width: MediaQuery.sizeOf(context).width.clamp(280.0, 560.0),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: keyController,
+                  decoration: const InputDecoration(
+                    labelText: 'Key * (مثال: SENIOR_LAWYER)',
+                  ),
                 ),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: nameController,
-                decoration: const InputDecoration(labelText: 'الاسم *'),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: descriptionController,
-                decoration: const InputDecoration(labelText: 'الوصف'),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: permissionsController,
-                maxLines: 3,
-                decoration: const InputDecoration(
-                  labelText: 'Permissions (مفصولة بفاصلة)',
+                const SizedBox(height: 10),
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(labelText: 'الاسم *'),
                 ),
-              ),
-            ],
+                const SizedBox(height: 10),
+                TextField(
+                  controller: descriptionController,
+                  decoration: const InputDecoration(labelText: 'الوصف'),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: permissionsController,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'Permissions (مفصولة بفاصلة)',
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
         actions: [
@@ -314,6 +318,8 @@ class _AdminPageState extends ConsumerState<AdminPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isCompact = MediaQuery.sizeOf(context).width < 1100;
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(18),
       child: Column(
@@ -355,99 +361,133 @@ class _AdminPageState extends ConsumerState<AdminPage> {
                 style: const TextStyle(color: LexiqColors.crimsonAlert),
               ),
             ),
+          if (isCompact) ...[
+            GlassPanel(child: _rolesPanel(context, compact: true)),
+            const SizedBox(height: 12),
+            GlassPanel(child: _permissionsPanel(context, compact: true)),
+          ] else
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: GlassPanel(child: _rolesPanel(context))),
+                const SizedBox(width: 12),
+                Expanded(child: GlassPanel(child: _permissionsPanel(context))),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _rolesPanel(BuildContext context, {bool compact = false}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (compact) ...[
+          Text(
+            'الأدوار (${_roles.length})',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _showCreateRoleDialog,
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('دور جديد'),
+            ),
+          ),
+        ] else
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: GlassPanel(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            'الأدوار (${_roles.length})',
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          const Spacer(),
-                          OutlinedButton.icon(
-                            onPressed: _showCreateRoleDialog,
-                            icon: const Icon(Icons.add_rounded),
-                            label: const Text('دور جديد'),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      if (_loading)
-                        const Center(child: CircularProgressIndicator())
-                      else if (_roles.isEmpty)
-                        const Text('لا توجد أدوار حتى الآن.')
-                      else
-                        ..._roles.map((role) {
-                          final rolePermissions =
-                              ((role['permissions'] as List?) ?? const [])
-                                  .map((entry) => entry.toString())
-                                  .toList();
-                          return ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            leading: const Icon(Icons.badge_rounded),
-                            title: Text((role['name'] ?? '-').toString()),
-                            subtitle: Text(
-                              'Key: ${(role['key'] ?? '-').toString()}\n${rolePermissions.isEmpty ? 'بدون صلاحيات' : rolePermissions.join(', ')}',
-                            ),
-                            isThreeLine: true,
-                          );
-                        }),
-                    ],
-                  ),
-                ),
+              Text(
+                'الأدوار (${_roles.length})',
+                style: Theme.of(context).textTheme.titleMedium,
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: GlassPanel(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            'الصلاحيات (${_permissions.length})',
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          const Spacer(),
-                          OutlinedButton.icon(
-                            onPressed: _showCreatePermissionDialog,
-                            icon: const Icon(Icons.add_rounded),
-                            label: const Text('صلاحية جديدة'),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      if (_loading)
-                        const Center(child: CircularProgressIndicator())
-                      else if (_permissions.isEmpty)
-                        const Text('لا توجد صلاحيات حتى الآن.')
-                      else
-                        ..._permissions.map((permission) {
-                          return ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            leading: const Icon(Icons.vpn_key_rounded),
-                            title: Text((permission['name'] ?? '-').toString()),
-                            subtitle: Text(
-                              'Key: ${(permission['key'] ?? '-').toString()}\n'
-                              'Module: ${(permission['module'] ?? '-').toString()}',
-                            ),
-                            isThreeLine: true,
-                          );
-                        }),
-                    ],
-                  ),
-                ),
+              const Spacer(),
+              OutlinedButton.icon(
+                onPressed: _showCreateRoleDialog,
+                icon: const Icon(Icons.add_rounded),
+                label: const Text('دور جديد'),
               ),
             ],
           ),
-        ],
-      ),
+        const SizedBox(height: 8),
+        if (_loading)
+          const Center(child: CircularProgressIndicator())
+        else if (_roles.isEmpty)
+          const Text('لا توجد أدوار حتى الآن.')
+        else
+          ..._roles.map((role) {
+            final rolePermissions = ((role['permissions'] as List?) ?? const [])
+                .map((entry) => entry.toString())
+                .toList();
+            return ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.badge_rounded),
+              title: Text((role['name'] ?? '-').toString()),
+              subtitle: Text(
+                'Key: ${(role['key'] ?? '-').toString()}\n${rolePermissions.isEmpty ? 'بدون صلاحيات' : rolePermissions.join(', ')}',
+              ),
+              isThreeLine: true,
+            );
+          }),
+      ],
+    );
+  }
+
+  Widget _permissionsPanel(BuildContext context, {bool compact = false}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (compact) ...[
+          Text(
+            'الصلاحيات (${_permissions.length})',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _showCreatePermissionDialog,
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('صلاحية جديدة'),
+            ),
+          ),
+        ] else
+          Row(
+            children: [
+              Text(
+                'الصلاحيات (${_permissions.length})',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const Spacer(),
+              OutlinedButton.icon(
+                onPressed: _showCreatePermissionDialog,
+                icon: const Icon(Icons.add_rounded),
+                label: const Text('صلاحية جديدة'),
+              ),
+            ],
+          ),
+        const SizedBox(height: 8),
+        if (_loading)
+          const Center(child: CircularProgressIndicator())
+        else if (_permissions.isEmpty)
+          const Text('لا توجد صلاحيات حتى الآن.')
+        else
+          ..._permissions.map((permission) {
+            return ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.vpn_key_rounded),
+              title: Text((permission['name'] ?? '-').toString()),
+              subtitle: Text(
+                'Key: ${(permission['key'] ?? '-').toString()}\n'
+                'Module: ${(permission['module'] ?? '-').toString()}',
+              ),
+              isThreeLine: true,
+            );
+          }),
+      ],
     );
   }
 }

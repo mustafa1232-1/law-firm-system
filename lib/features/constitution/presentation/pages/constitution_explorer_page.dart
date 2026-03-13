@@ -1,4 +1,4 @@
-﻿import 'package:dio/dio.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -13,10 +13,12 @@ class ConstitutionExplorerPage extends ConsumerStatefulWidget {
   const ConstitutionExplorerPage({super.key});
 
   @override
-  ConsumerState<ConstitutionExplorerPage> createState() => _ConstitutionExplorerPageState();
+  ConsumerState<ConstitutionExplorerPage> createState() =>
+      _ConstitutionExplorerPageState();
 }
 
-class _ConstitutionExplorerPageState extends ConsumerState<ConstitutionExplorerPage> {
+class _ConstitutionExplorerPageState
+    extends ConsumerState<ConstitutionExplorerPage> {
   final _searchController = TextEditingController();
 
   bool _loading = false;
@@ -44,7 +46,9 @@ class _ConstitutionExplorerPageState extends ConsumerState<ConstitutionExplorerP
     try {
       final dio = ref.read(dioProvider);
       final query = _searchController.text.trim();
-      final endpoint = query.isEmpty ? '/constitution/articles' : '/constitution/search';
+      final endpoint = query.isEmpty
+          ? '/constitution/articles'
+          : '/constitution/search';
       final baseParams = <String, dynamic>{
         if (query.isNotEmpty) 'q': query,
         'limit': 100,
@@ -67,10 +71,7 @@ class _ConstitutionExplorerPageState extends ConsumerState<ConstitutionExplorerP
         while (items.length < total) {
           final pageResponse = await dio.get(
             endpoint,
-            queryParameters: {
-              ...baseParams,
-              'page': page,
-            },
+            queryParameters: {...baseParams, 'page': page},
             options: Options(headers: authHeaders(ref)),
           );
 
@@ -109,6 +110,8 @@ class _ConstitutionExplorerPageState extends ConsumerState<ConstitutionExplorerP
 
   @override
   Widget build(BuildContext context) {
+    final isCompact = MediaQuery.sizeOf(context).width < 720;
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(18),
       child: Column(
@@ -119,53 +122,74 @@ class _ConstitutionExplorerPageState extends ConsumerState<ConstitutionExplorerP
             subtitle: 'Structured Iraqi constitution knowledge module',
           ),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _searchController,
-                  onSubmitted: (_) => _loadArticles(),
-                  decoration: const InputDecoration(
-                    hintText: 'ابحث برقم المادة أو كلمات دستورية',
-                    prefixIcon: Icon(Icons.search_rounded),
-                  ),
-                ),
+          if (isCompact) ...[
+            TextField(
+              controller: _searchController,
+              onSubmitted: (_) => _loadArticles(),
+              decoration: const InputDecoration(
+                hintText: 'ابحث برقم المادة أو كلمات دستورية',
+                prefixIcon: Icon(Icons.search_rounded),
               ),
-              const SizedBox(width: 10),
-              ElevatedButton.icon(
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
                 onPressed: _loading ? null : _loadArticles,
                 icon: const Icon(Icons.search_rounded),
                 label: Text(context.tr('Search Articles')),
               ),
-            ],
-          ),
+            ),
+          ] else
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _searchController,
+                    onSubmitted: (_) => _loadArticles(),
+                    decoration: const InputDecoration(
+                      hintText: 'ابحث برقم المادة أو كلمات دستورية',
+                      prefixIcon: Icon(Icons.search_rounded),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                ElevatedButton.icon(
+                  onPressed: _loading ? null : _loadArticles,
+                  icon: const Icon(Icons.search_rounded),
+                  label: Text(context.tr('Search Articles')),
+                ),
+              ],
+            ),
           const SizedBox(height: 12),
           GlassPanel(
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
                 : _error != null
-                    ? Text(_error!)
-                    : _items.isEmpty
-                        ? const Text('لا توجد مواد مطابقة.')
-                        : Column(
-                            children: _items.map((item) {
-                              final id = (item['_id'] ?? '').toString();
-                              final text = (item['text'] ?? '').toString();
-                              return ListTile(
-                                contentPadding: EdgeInsets.zero,
-                                onTap: id.isEmpty ? null : () => _openArticle(id),
-                                leading: const Icon(Icons.gavel_rounded),
-                                title: Text(
-                                  'المادة ${(item['articleNumber'] ?? '-').toString()} - ${(item['title'] ?? '').toString()}',
-                                ),
-                                subtitle: Text(
-                                  text.length > 220 ? '${text.substring(0, 220)}...' : text,
-                                ),
-                                isThreeLine: true,
-                                trailing: const Icon(Icons.open_in_new_rounded),
-                              );
-                            }).toList(),
-                          ),
+                ? Text(_error!)
+                : _items.isEmpty
+                ? const Text('لا توجد مواد مطابقة.')
+                : Column(
+                    children: _items.map((item) {
+                      final id = (item['_id'] ?? '').toString();
+                      final text = (item['text'] ?? '').toString();
+                      return ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        onTap: id.isEmpty ? null : () => _openArticle(id),
+                        leading: const Icon(Icons.gavel_rounded),
+                        title: Text(
+                          'المادة ${(item['articleNumber'] ?? '-').toString()} - ${(item['title'] ?? '').toString()}',
+                        ),
+                        subtitle: Text(
+                          text.length > 220
+                              ? '${text.substring(0, 220)}...'
+                              : text,
+                        ),
+                        isThreeLine: true,
+                        trailing: const Icon(Icons.open_in_new_rounded),
+                      );
+                    }).toList(),
+                  ),
           ),
         ],
       ),

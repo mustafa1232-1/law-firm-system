@@ -371,6 +371,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   Widget build(BuildContext context) {
     final isArabic = _isArabic(context);
     final width = MediaQuery.sizeOf(context).width;
+    final isCompact = width < 1100;
     final crossAxisCount = width >= 1320
         ? 4
         : width >= 980
@@ -622,200 +623,202 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           const SizedBox(height: 14),
           if (_loading)
             const Center(child: CircularProgressIndicator())
-          else
+          else if (isCompact) ...[
+            _leftColumn(context, upcomingHearings, urgentTasks),
+            const SizedBox(height: 12),
+            _rightColumn(context, alerts, caseTypeDistribution),
+          ] else
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
-                  child: Column(
-                    children: [
-                      GlassPanel(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              context.tr('Hearing Timeline'),
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
-                            const SizedBox(height: 10),
-                            if (upcomingHearings.isEmpty)
-                              Text(
-                                _loc(
-                                  context,
-                                  'لا توجد جلسات قادمة.',
-                                  'No upcoming hearings.',
-                                ),
-                              )
-                            else
-                              ...upcomingHearings.map((item) {
-                                final caseTitle =
-                                    ((item['caseId'] as Map?)?['title'] ??
-                                            _loc(context, 'جلسة', 'Hearing'))
-                                        .toString();
-                                return Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 7,
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Container(
-                                        width: 8,
-                                        height: 8,
-                                        decoration: const BoxDecoration(
-                                          color: LexiqColors.imperialBlue,
-                                          shape: BoxShape.circle,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Expanded(child: Text(caseTitle)),
-                                      Text(
-                                        _dateTimeShort(item['hearingDate']),
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.bodySmall,
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              }),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      GlassPanel(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _loc(context, 'المهام العاجلة', 'Urgent Tasks'),
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
-                            const SizedBox(height: 10),
-                            if (urgentTasks.isEmpty)
-                              Text(
-                                _loc(
-                                  context,
-                                  'لا توجد مهام عاجلة حاليًا.',
-                                  'No urgent tasks for now.',
-                                ),
-                              )
-                            else
-                              ...urgentTasks.map((item) {
-                                return Padding(
-                                  padding: const EdgeInsets.only(bottom: 8),
-                                  child: Row(
-                                    children: [
-                                      const Icon(
-                                        Icons.priority_high_rounded,
-                                        size: 18,
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Expanded(
-                                        child: Text(
-                                          '${(item['title'] ?? '-').toString()} - ${_dateOnly(item['dueDate'])}',
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              }),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
+                  child: _leftColumn(context, upcomingHearings, urgentTasks),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Column(
-                    children: [
-                      GlassPanel(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              context.tr('Legal Alerts'),
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
-                            const SizedBox(height: 10),
-                            if (alerts.isEmpty)
-                              Text(
-                                _loc(
-                                  context,
-                                  'لا توجد تنبيهات حاليًا.',
-                                  'No alerts for now.',
-                                ),
-                              )
-                            else
-                              ...alerts.map(
-                                (alert) => Padding(
-                                  padding: const EdgeInsets.only(bottom: 10),
-                                  child: _alertTile(
-                                    context,
-                                    _localizeAlertTitle(
-                                      context,
-                                      (alert['title'] ?? '').toString(),
-                                    ),
-                                    (alert['subtitle'] ?? '').toString(),
-                                    _alertColor(
-                                      (alert['level'] ?? 'info').toString(),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      GlassPanel(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _loc(
-                                context,
-                                'توزيع أنواع القضايا',
-                                'Case Type Distribution',
-                              ),
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
-                            const SizedBox(height: 10),
-                            if (caseTypeDistribution.isEmpty)
-                              Text(
-                                _loc(
-                                  context,
-                                  'لا توجد بيانات كافية.',
-                                  'No sufficient data.',
-                                ),
-                              )
-                            else
-                              ...caseTypeDistribution.map((entry) {
-                                final caseType = _localizeCaseType(
-                                  context,
-                                  (entry['caseType'] ?? 'other').toString(),
-                                );
-                                final count = ((entry['count'] ?? 0) as num)
-                                    .toInt();
-                                return Padding(
-                                  padding: const EdgeInsets.only(bottom: 8),
-                                  child: Row(
-                                    children: [
-                                      Expanded(child: Text(caseType)),
-                                      Text(count.toString()),
-                                    ],
-                                  ),
-                                );
-                              }),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
+                  child: _rightColumn(context, alerts, caseTypeDistribution),
                 ),
               ],
             ),
         ],
       ),
+    );
+  }
+
+  Widget _leftColumn(
+    BuildContext context,
+    List<Map<String, dynamic>> upcomingHearings,
+    List<Map<String, dynamic>> urgentTasks,
+  ) {
+    return Column(
+      children: [
+        GlassPanel(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                context.tr('Hearing Timeline'),
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 10),
+              if (upcomingHearings.isEmpty)
+                Text(
+                  _loc(
+                    context,
+                    'لا توجد جلسات قادمة.',
+                    'No upcoming hearings.',
+                  ),
+                )
+              else
+                ...upcomingHearings.map((item) {
+                  final caseTitle =
+                      ((item['caseId'] as Map?)?['title'] ??
+                              _loc(context, 'جلسة', 'Hearing'))
+                          .toString();
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 7),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(
+                            color: LexiqColors.imperialBlue,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(child: Text(caseTitle)),
+                        Text(
+                          _dateTimeShort(item['hearingDate']),
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        GlassPanel(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _loc(context, 'المهام العاجلة', 'Urgent Tasks'),
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 10),
+              if (urgentTasks.isEmpty)
+                Text(
+                  _loc(
+                    context,
+                    'لا توجد مهام عاجلة حاليًا.',
+                    'No urgent tasks for now.',
+                  ),
+                )
+              else
+                ...urgentTasks.map((item) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.priority_high_rounded, size: 18),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            '${(item['title'] ?? '-').toString()} - ${_dateOnly(item['dueDate'])}',
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _rightColumn(
+    BuildContext context,
+    List<Map<String, dynamic>> alerts,
+    List<Map<String, dynamic>> caseTypeDistribution,
+  ) {
+    return Column(
+      children: [
+        GlassPanel(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                context.tr('Legal Alerts'),
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 10),
+              if (alerts.isEmpty)
+                Text(
+                  _loc(
+                    context,
+                    'لا توجد تنبيهات حاليًا.',
+                    'No alerts for now.',
+                  ),
+                )
+              else
+                ...alerts.map(
+                  (alert) => Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: _alertTile(
+                      context,
+                      _localizeAlertTitle(
+                        context,
+                        (alert['title'] ?? '').toString(),
+                      ),
+                      (alert['subtitle'] ?? '').toString(),
+                      _alertColor((alert['level'] ?? 'info').toString()),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        GlassPanel(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _loc(context, 'توزيع أنواع القضايا', 'Case Type Distribution'),
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 10),
+              if (caseTypeDistribution.isEmpty)
+                Text(
+                  _loc(context, 'لا توجد بيانات كافية.', 'No sufficient data.'),
+                )
+              else
+                ...caseTypeDistribution.map((entry) {
+                  final caseType = _localizeCaseType(
+                    context,
+                    (entry['caseType'] ?? 'other').toString(),
+                  );
+                  final count = ((entry['count'] ?? 0) as num).toInt();
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      children: [
+                        Expanded(child: Text(caseType)),
+                        Text(count.toString()),
+                      ],
+                    ),
+                  );
+                }),
+            ],
+          ),
+        ),
+      ],
     );
   }
 

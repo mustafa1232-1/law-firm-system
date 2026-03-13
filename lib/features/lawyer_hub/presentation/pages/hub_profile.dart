@@ -291,6 +291,7 @@ class _LawyerHubPageState extends ConsumerState<LawyerHubPage> {
         _cases.any((item) => item['_id']?.toString() == _selectedCaseId)
         ? _selectedCaseId
         : null;
+    final isCompact = MediaQuery.sizeOf(context).width < 1100;
 
     final missingDocs =
         (((_selectedCaseDetails?['aiInsights'] as Map?)
@@ -342,50 +343,101 @@ class _LawyerHubPageState extends ConsumerState<LawyerHubPage> {
           ),
           const SizedBox(height: 12),
           GlassPanel(
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.folder_special_rounded,
-                  color: LexiqColors.brassGold,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'القضية الحالية',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    initialValue: selectedCaseValue,
-                    items: _cases
-                        .map(
-                          (item) => DropdownMenuItem<String>(
-                            value: item['_id']?.toString(),
-                            child: Text(
-                              '${(item['caseNumber'] ?? '-').toString()} - ${(item['title'] ?? '-').toString()}',
-                              overflow: TextOverflow.ellipsis,
-                            ),
+            child: isCompact
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.folder_special_rounded,
+                            color: LexiqColors.brassGold,
                           ),
-                        )
-                        .toList(),
-                    onChanged: (value) async {
-                      if (value == null) {
-                        return;
-                      }
-                      setState(() => _selectedCaseId = value);
-                      await _loadCaseDetails(value);
-                    },
+                          const SizedBox(width: 8),
+                          Text(
+                            'القضية الحالية',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      DropdownButtonFormField<String>(
+                        initialValue: selectedCaseValue,
+                        items: _cases
+                            .map(
+                              (item) => DropdownMenuItem<String>(
+                                value: item['_id']?.toString(),
+                                child: Text(
+                                  '${(item['caseNumber'] ?? '-').toString()} - ${(item['title'] ?? '-').toString()}',
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) async {
+                          if (value == null) {
+                            return;
+                          }
+                          setState(() => _selectedCaseId = value);
+                          await _loadCaseDetails(value);
+                        },
+                      ),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton(
+                          onPressed: _selectedCaseId == null
+                              ? null
+                              : () => context.go('/cases/$_selectedCaseId'),
+                          child: const Text('فتح القضية'),
+                        ),
+                      ),
+                    ],
+                  )
+                : Row(
+                    children: [
+                      const Icon(
+                        Icons.folder_special_rounded,
+                        color: LexiqColors.brassGold,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'القضية الحالية',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          initialValue: selectedCaseValue,
+                          items: _cases
+                              .map(
+                                (item) => DropdownMenuItem<String>(
+                                  value: item['_id']?.toString(),
+                                  child: Text(
+                                    '${(item['caseNumber'] ?? '-').toString()} - ${(item['title'] ?? '-').toString()}',
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (value) async {
+                            if (value == null) {
+                              return;
+                            }
+                            setState(() => _selectedCaseId = value);
+                            await _loadCaseDetails(value);
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      OutlinedButton(
+                        onPressed: _selectedCaseId == null
+                            ? null
+                            : () => context.go('/cases/$_selectedCaseId'),
+                        child: const Text('فتح القضية'),
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(width: 8),
-                OutlinedButton(
-                  onPressed: _selectedCaseId == null
-                      ? null
-                      : () => context.go('/cases/$_selectedCaseId'),
-                  child: const Text('فتح القضية'),
-                ),
-              ],
-            ),
           ),
           const SizedBox(height: 12),
           if (_error != null)
@@ -396,200 +448,231 @@ class _LawyerHubPageState extends ConsumerState<LawyerHubPage> {
                 style: const TextStyle(color: LexiqColors.crimsonAlert),
               ),
             ),
-          Row(
+          if (isCompact) ...[
+            _leftHubColumn(context, activeCases, pendingTasks),
+            const SizedBox(height: 12),
+            _rightHubColumn(
+              context,
+              linkedConstitution: linkedConstitution,
+              linkedLaws: linkedLaws,
+              linkedDecisions: linkedDecisions,
+              aiAuthorities: aiAuthorities,
+              missingDocs: missingDocs,
+            ),
+          ] else
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 2,
+                  child: _leftHubColumn(context, activeCases, pendingTasks),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 3,
+                  child: _rightHubColumn(
+                    context,
+                    linkedConstitution: linkedConstitution,
+                    linkedLaws: linkedLaws,
+                    linkedDecisions: linkedDecisions,
+                    aiAuthorities: aiAuthorities,
+                    missingDocs: missingDocs,
+                  ),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _leftHubColumn(
+    BuildContext context,
+    List<Map<String, dynamic>> activeCases,
+    List<Map<String, dynamic>> pendingTasks,
+  ) {
+    return Column(
+      children: [
+        _listPanel(
+          context,
+          title: 'قضاياي النشطة (${activeCases.length})',
+          icon: Icons.balance_rounded,
+          items: activeCases
+              .take(8)
+              .map(
+                (item) =>
+                    '${(item['caseNumber'] ?? '-').toString()} - ${(item['title'] ?? '-').toString()}',
+              )
+              .toList(),
+        ),
+        const SizedBox(height: 12),
+        _listPanel(
+          context,
+          title: 'الجلسات القادمة (${_hearings.length})',
+          icon: Icons.event_available_rounded,
+          items: _hearings.take(8).map((item) {
+            final date = _dateOnly(item['hearingDate']);
+            final caseTitle = ((item['caseId'] as Map?)?['title'] ?? '-')
+                .toString();
+            return '$date - $caseTitle';
+          }).toList(),
+        ),
+        const SizedBox(height: 12),
+        _listPanel(
+          context,
+          title: 'المهام (${pendingTasks.length})',
+          icon: Icons.task_rounded,
+          items: pendingTasks.take(8).map((item) {
+            final due = _dateOnly(item['dueDate']);
+            return '${(item['title'] ?? '-').toString()} (${(item['priority'] ?? '-').toString()}) - $due';
+          }).toList(),
+        ),
+        const SizedBox(height: 12),
+        _listPanel(
+          context,
+          title: 'آخر الأبحاث المحفوظة (${_researchFolders.length})',
+          icon: Icons.folder_open_rounded,
+          items: _researchFolders
+              .take(6)
+              .map((item) => (item['title'] ?? '-').toString())
+              .toList(),
+        ),
+      ],
+    );
+  }
+
+  Widget _rightHubColumn(
+    BuildContext context, {
+    required List<String> linkedConstitution,
+    required List<String> linkedLaws,
+    required List<String> linkedDecisions,
+    required List<Map<String, dynamic>> aiAuthorities,
+    required List<String> missingDocs,
+  }) {
+    return Column(
+      children: [
+        GlassPanel(
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                flex: 2,
-                child: Column(
-                  children: [
-                    _listPanel(
-                      context,
-                      title: 'قضاياي النشطة (${activeCases.length})',
-                      icon: Icons.balance_rounded,
-                      items: activeCases
-                          .take(8)
-                          .map(
-                            (item) =>
-                                '${(item['caseNumber'] ?? '-').toString()} - ${(item['title'] ?? '-').toString()}',
-                          )
-                          .toList(),
-                    ),
-                    const SizedBox(height: 12),
-                    _listPanel(
-                      context,
-                      title: 'الجلسات القادمة (${_hearings.length})',
-                      icon: Icons.event_available_rounded,
-                      items: _hearings.take(8).map((item) {
-                        final date = _dateOnly(item['hearingDate']);
-                        final caseTitle =
-                            ((item['caseId'] as Map?)?['title'] ?? '-')
-                                .toString();
-                        return '$date - $caseTitle';
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 12),
-                    _listPanel(
-                      context,
-                      title: 'المهام (${pendingTasks.length})',
-                      icon: Icons.task_rounded,
-                      items: pendingTasks.take(8).map((item) {
-                        final due = _dateOnly(item['dueDate']);
-                        return '${(item['title'] ?? '-').toString()} (${(item['priority'] ?? '-').toString()}) - $due';
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 12),
-                    _listPanel(
-                      context,
-                      title:
-                          'آخر الأبحاث المحفوظة (${_researchFolders.length})',
-                      icon: Icons.folder_open_rounded,
-                      items: _researchFolders
-                          .take(6)
-                          .map((item) => (item['title'] ?? '-').toString())
-                          .toList(),
-                    ),
-                  ],
-                ),
+              Text(
+                context.tr('Recommended Authorities'),
+                style: Theme.of(context).textTheme.titleLarge,
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                flex: 3,
-                child: Column(
-                  children: [
-                    GlassPanel(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            context.tr('Recommended Authorities'),
-                            style: Theme.of(context).textTheme.titleLarge,
-                          ),
-                          const SizedBox(height: 10),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: [
-                              _chipGroup(
-                                'مواد دستورية مرتبطة',
-                                linkedConstitution,
-                                LexiqColors.imperialBlue,
-                                authorityType: 'constitution',
-                              ),
-                              _chipGroup(
-                                'مواد قانونية مرتبطة',
-                                linkedLaws,
-                                LexiqColors.emeraldJustice,
-                                authorityType: 'law',
-                              ),
-                              _chipGroup(
-                                'قرارات مرتبطة',
-                                linkedDecisions,
-                                LexiqColors.brassGold,
-                                authorityType: 'decision',
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          if (aiAuthorities.isEmpty)
-                            const Text(
-                              'لا توجد توصيات AI بعد. اختر قضية ثم اضغط "تحديث التوصيات".',
-                            )
-                          else
-                            ...aiAuthorities.take(8).map((entry) {
-                              final citation = (entry['citation'] ?? '-')
-                                  .toString();
-                              final sourceType = (entry['sourceType'] ?? '-')
-                                  .toString();
-                              final authorityId = (entry['id'] ?? '')
-                                  .toString()
-                                  .trim();
-                              final canOpen =
-                                  authorityId.isNotEmpty &&
-                                  (sourceType == 'constitution' ||
-                                      sourceType == 'law' ||
-                                      sourceType == 'decision');
-                              return ListTile(
-                                contentPadding: EdgeInsets.zero,
-                                leading: const Icon(Icons.menu_book_rounded),
-                                title: Text(citation),
-                                subtitle: Text('المصدر: $sourceType'),
-                                trailing: canOpen
-                                    ? const Icon(Icons.open_in_new_rounded)
-                                    : null,
-                                onTap: canOpen
-                                    ? () => context.go(
-                                        '/authority/$sourceType/$authorityId',
-                                      )
-                                    : null,
-                              );
-                            }),
-                        ],
-                      ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _chipGroup(
+                    'مواد دستورية مرتبطة',
+                    linkedConstitution,
+                    LexiqColors.imperialBlue,
+                    authorityType: 'constitution',
+                  ),
+                  _chipGroup(
+                    'مواد قانونية مرتبطة',
+                    linkedLaws,
+                    LexiqColors.emeraldJustice,
+                    authorityType: 'law',
+                  ),
+                  _chipGroup(
+                    'قرارات مرتبطة',
+                    linkedDecisions,
+                    LexiqColors.brassGold,
+                    authorityType: 'decision',
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              if (aiAuthorities.isEmpty)
+                const Text(
+                  'لا توجد توصيات AI بعد. اختر قضية ثم اضغط "تحديث التوصيات".',
+                )
+              else
+                ...aiAuthorities.take(8).map((entry) {
+                  final citation = (entry['citation'] ?? '-').toString();
+                  final sourceType = (entry['sourceType'] ?? '-').toString();
+                  final authorityId = (entry['id'] ?? '').toString().trim();
+                  final canOpen =
+                      authorityId.isNotEmpty &&
+                      (sourceType == 'constitution' ||
+                          sourceType == 'law' ||
+                          sourceType == 'decision');
+                  return ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.menu_book_rounded),
+                    title: Text(citation),
+                    subtitle: Text('المصدر: $sourceType'),
+                    trailing: canOpen
+                        ? const Icon(Icons.open_in_new_rounded)
+                        : null,
+                    onTap: canOpen
+                        ? () =>
+                              context.go('/authority/$sourceType/$authorityId')
+                        : null,
+                  );
+                }),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        GlassPanel(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'تنبيهات المستندات الناقصة',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 8),
+              if (missingDocs.isEmpty)
+                const Text('لا توجد تنبيهات مستندات حاليًا.')
+              else
+                ...missingDocs.map(
+                  (doc) => Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.warning_amber_rounded,
+                          color: LexiqColors.brassGold,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(child: Text(doc)),
+                      ],
                     ),
-                    const SizedBox(height: 12),
-                    GlassPanel(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'تنبيهات المستندات الناقصة',
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          const SizedBox(height: 8),
-                          if (missingDocs.isEmpty)
-                            const Text('لا توجد تنبيهات مستندات حاليًا.')
-                          else
-                            ...missingDocs.map(
-                              (doc) => Padding(
-                                padding: const EdgeInsets.only(bottom: 6),
-                                child: Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.warning_amber_rounded,
-                                      color: LexiqColors.brassGold,
-                                      size: 18,
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Expanded(child: Text(doc)),
-                                  ],
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    GlassPanel(
-                      child: Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          OutlinedButton.icon(
-                            onPressed: () => context.go('/cases/new'),
-                            icon: const Icon(Icons.add_rounded),
-                            label: const Text('قضية جديدة'),
-                          ),
-                          OutlinedButton.icon(
-                            onPressed: () => context.go('/research'),
-                            icon: const Icon(Icons.travel_explore_rounded),
-                            label: const Text('فتح البحث القانوني'),
-                          ),
-                          OutlinedButton.icon(
-                            onPressed: () => context.go('/ai-workspace'),
-                            icon: const Icon(Icons.auto_awesome_rounded),
-                            label: const Text('فتح AI Workspace'),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        GlassPanel(
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              OutlinedButton.icon(
+                onPressed: () => context.go('/cases/new'),
+                icon: const Icon(Icons.add_rounded),
+                label: const Text('قضية جديدة'),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => context.go('/research'),
+                icon: const Icon(Icons.travel_explore_rounded),
+                label: const Text('فتح البحث القانوني'),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => context.go('/ai-workspace'),
+                icon: const Icon(Icons.auto_awesome_rounded),
+                label: const Text('فتح AI Workspace'),
               ),
             ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 

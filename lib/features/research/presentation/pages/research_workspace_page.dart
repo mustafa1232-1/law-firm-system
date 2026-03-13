@@ -88,7 +88,7 @@ class _ResearchWorkspacePageState extends ConsumerState<ResearchWorkspacePage> {
       builder: (context) => AlertDialog(
         title: const Text('مجلد بحث جديد'),
         content: SizedBox(
-          width: 500,
+          width: MediaQuery.sizeOf(context).width.clamp(280.0, 500.0),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -242,7 +242,7 @@ class _ResearchWorkspacePageState extends ConsumerState<ResearchWorkspacePage> {
       builder: (context) => AlertDialog(
         title: Text(context.tr('Compare Mode')),
         content: SizedBox(
-          width: 760,
+          width: MediaQuery.sizeOf(context).width.clamp(280.0, 760.0),
           child: _pinned.length < 2
               ? Text(context.tr('Pin at least two authorities to compare.'))
               : ListView.builder(
@@ -349,7 +349,7 @@ class _ResearchWorkspacePageState extends ConsumerState<ResearchWorkspacePage> {
         builder: (context) => AlertDialog(
           title: const Text('محتوى المجلد'),
           content: SizedBox(
-            width: 760,
+            width: MediaQuery.sizeOf(context).width.clamp(280.0, 760.0),
             child: items.isEmpty
                 ? const Text('المجلد فارغ.')
                 : ListView.builder(
@@ -390,6 +390,8 @@ class _ResearchWorkspacePageState extends ConsumerState<ResearchWorkspacePage> {
         _folders.any((folder) => folder['_id']?.toString() == _selectedFolderId)
         ? _selectedFolderId
         : null;
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final isCompact = screenWidth < 1100;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(18),
@@ -421,218 +423,303 @@ class _ResearchWorkspacePageState extends ConsumerState<ResearchWorkspacePage> {
           GlassPanel(
             child: Column(
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      flex: 3,
-                      child: TextField(
-                        controller: _queryController,
-                        onSubmitted: (_) => _search(),
-                        decoration: InputDecoration(
-                          hintText: context.tr(
-                            'Search laws, constitution, and decisions',
-                          ),
-                          prefixIcon: const Icon(Icons.search_rounded),
-                        ),
+                if (isCompact) ...[
+                  TextField(
+                    controller: _queryController,
+                    onSubmitted: (_) => _search(),
+                    decoration: InputDecoration(
+                      hintText: context.tr(
+                        'Search laws, constitution, and decisions',
                       ),
+                      prefixIcon: const Icon(Icons.search_rounded),
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: TextField(
-                        controller: _courtController,
-                        onSubmitted: (_) => _search(),
-                        decoration: const InputDecoration(labelText: 'المحكمة'),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _courtController,
+                    onSubmitted: (_) => _search(),
+                    decoration: const InputDecoration(labelText: 'المحكمة'),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _domainController,
+                    onSubmitted: (_) => _search(),
+                    decoration: const InputDecoration(labelText: 'المجال'),
+                  ),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<String>(
+                    initialValue: _type,
+                    items: const [
+                      DropdownMenuItem(value: 'all', child: Text('الكل')),
+                      DropdownMenuItem(
+                        value: 'constitution',
+                        child: Text('دستور'),
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: TextField(
-                        controller: _domainController,
-                        onSubmitted: (_) => _search(),
-                        decoration: const InputDecoration(labelText: 'المجال'),
+                      DropdownMenuItem(value: 'law', child: Text('قوانين')),
+                      DropdownMenuItem(
+                        value: 'decision',
+                        child: Text('قرارات'),
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    SizedBox(
-                      width: 160,
-                      child: DropdownButtonFormField<String>(
-                        initialValue: _type,
-                        items: const [
-                          DropdownMenuItem(value: 'all', child: Text('الكل')),
-                          DropdownMenuItem(
-                            value: 'constitution',
-                            child: Text('دستور'),
-                          ),
-                          DropdownMenuItem(value: 'law', child: Text('قوانين')),
-                          DropdownMenuItem(
-                            value: 'decision',
-                            child: Text('قرارات'),
-                          ),
-                        ],
-                        onChanged: (value) =>
-                            setState(() => _type = value ?? 'all'),
-                        decoration: const InputDecoration(labelText: 'النوع'),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    ElevatedButton.icon(
+                    ],
+                    onChanged: (value) =>
+                        setState(() => _type = value ?? 'all'),
+                    decoration: const InputDecoration(labelText: 'النوع'),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
                       onPressed: _loading ? null : _search,
                       icon: const Icon(Icons.search_rounded),
                       label: _loading
                           ? const Text('...')
                           : Text(context.tr('Search')),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        initialValue: selectedFolderValue,
-                        items: _folders
-                            .map(
-                              (folder) => DropdownMenuItem<String>(
-                                value: folder['_id']?.toString(),
-                                child: Text(
-                                  (folder['title'] ?? '-').toString(),
-                                ),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (value) =>
-                            setState(() => _selectedFolderId = value),
-                        decoration: const InputDecoration(
-                          labelText: 'مجلد الحفظ',
-                          prefixIcon: Icon(Icons.folder_rounded),
+                  ),
+                ] else
+                  Row(
+                    children: [
+                      Expanded(
+                        flex: 3,
+                        child: TextField(
+                          controller: _queryController,
+                          onSubmitted: (_) => _search(),
+                          decoration: InputDecoration(
+                            hintText: context.tr(
+                              'Search laws, constitution, and decisions',
+                            ),
+                            prefixIcon: const Icon(Icons.search_rounded),
+                          ),
                         ),
                       ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: TextField(
+                          controller: _courtController,
+                          onSubmitted: (_) => _search(),
+                          decoration: const InputDecoration(
+                            labelText: 'المحكمة',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: TextField(
+                          controller: _domainController,
+                          onSubmitted: (_) => _search(),
+                          decoration: const InputDecoration(
+                            labelText: 'المجال',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      SizedBox(
+                        width: 160,
+                        child: DropdownButtonFormField<String>(
+                          initialValue: _type,
+                          items: const [
+                            DropdownMenuItem(value: 'all', child: Text('الكل')),
+                            DropdownMenuItem(
+                              value: 'constitution',
+                              child: Text('دستور'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'law',
+                              child: Text('قوانين'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'decision',
+                              child: Text('قرارات'),
+                            ),
+                          ],
+                          onChanged: (value) =>
+                              setState(() => _type = value ?? 'all'),
+                          decoration: const InputDecoration(labelText: 'النوع'),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      ElevatedButton.icon(
+                        onPressed: _loading ? null : _search,
+                        icon: const Icon(Icons.search_rounded),
+                        label: _loading
+                            ? const Text('...')
+                            : Text(context.tr('Search')),
+                      ),
+                    ],
+                  ),
+                const SizedBox(height: 10),
+                if (isCompact) ...[
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedFolderValue,
+                    items: _folders
+                        .map(
+                          (folder) => DropdownMenuItem<String>(
+                            value: folder['_id']?.toString(),
+                            child: Text((folder['title'] ?? '-').toString()),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) =>
+                        setState(() => _selectedFolderId = value),
+                    decoration: const InputDecoration(
+                      labelText: 'مجلد الحفظ',
+                      prefixIcon: Icon(Icons.folder_rounded),
                     ),
-                    const SizedBox(width: 10),
-                    OutlinedButton.icon(
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
                       onPressed: _selectedFolderId == null
                           ? null
                           : _previewFolderAuthorities,
                       icon: const Icon(Icons.visibility_rounded),
                       label: const Text('عرض المجلد'),
                     ),
-                  ],
-                ),
+                  ),
+                ] else
+                  Row(
+                    children: [
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          initialValue: selectedFolderValue,
+                          items: _folders
+                              .map(
+                                (folder) => DropdownMenuItem<String>(
+                                  value: folder['_id']?.toString(),
+                                  child: Text(
+                                    (folder['title'] ?? '-').toString(),
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (value) =>
+                              setState(() => _selectedFolderId = value),
+                          decoration: const InputDecoration(
+                            labelText: 'مجلد الحفظ',
+                            prefixIcon: Icon(Icons.folder_rounded),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      OutlinedButton.icon(
+                        onPressed: _selectedFolderId == null
+                            ? null
+                            : _previewFolderAuthorities,
+                        icon: const Icon(Icons.visibility_rounded),
+                        label: const Text('عرض المجلد'),
+                      ),
+                    ],
+                  ),
               ],
             ),
           ),
           const SizedBox(height: 12),
-          Row(
+          if (isCompact) ...[
+            _resultsPanel(context),
+            const SizedBox(height: 12),
+            _sidePanels(context),
+          ] else
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(flex: 3, child: _resultsPanel(context)),
+                const SizedBox(width: 12),
+                Expanded(flex: 2, child: _sidePanels(context)),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _resultsPanel(BuildContext context) {
+    return GlassPanel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            context.tr('Search Results'),
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          if (_error != null)
+            Text(
+              _error!,
+              style: const TextStyle(color: LexiqColors.crimsonAlert),
+            ),
+          if (_error == null && _results.isEmpty && !_loading)
+            Text(
+              context.tr(
+                'No results yet. Start by typing a legal question or term.',
+              ),
+            )
+          else
+            ..._results.map((item) {
+              final pinned = _isPinned(item);
+              return ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(
+                  Icons.description_rounded,
+                  color: pinned ? Colors.amber : null,
+                ),
+                title: Text((item['title'] ?? '-').toString()),
+                subtitle: Text(
+                  '${(item['snippet'] ?? '').toString()}\n${(item['relevanceReason'] ?? '').toString()}',
+                ),
+                trailing: IconButton(
+                  icon: Icon(pinned ? Icons.push_pin : Icons.push_pin_outlined),
+                  onPressed: () => _togglePin(item),
+                ),
+              );
+            }),
+        ],
+      ),
+    );
+  }
+
+  Widget _sidePanels(BuildContext context) {
+    return Column(
+      children: [
+        GlassPanel(
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                flex: 3,
-                child: GlassPanel(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        context.tr('Search Results'),
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 8),
-                      if (_error != null)
-                        Text(
-                          _error!,
-                          style: const TextStyle(
-                            color: LexiqColors.crimsonAlert,
-                          ),
-                        ),
-                      if (_error == null && _results.isEmpty && !_loading)
-                        Text(
-                          context.tr(
-                            'No results yet. Start by typing a legal question or term.',
-                          ),
-                        )
-                      else
-                        ..._results.map((item) {
-                          final pinned = _isPinned(item);
-                          return ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            leading: Icon(
-                              Icons.description_rounded,
-                              color: pinned ? Colors.amber : null,
-                            ),
-                            title: Text((item['title'] ?? '-').toString()),
-                            subtitle: Text(
-                              '${(item['snippet'] ?? '').toString()}\n${(item['relevanceReason'] ?? '').toString()}',
-                            ),
-                            trailing: IconButton(
-                              icon: Icon(
-                                pinned
-                                    ? Icons.push_pin
-                                    : Icons.push_pin_outlined,
-                              ),
-                              onPressed: () => _togglePin(item),
-                            ),
-                          );
-                        }),
-                    ],
-                  ),
-                ),
+              Text(
+                context.tr('Pinned Citations'),
+                style: Theme.of(context).textTheme.titleMedium,
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                flex: 2,
-                child: Column(
-                  children: [
-                    GlassPanel(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            context.tr('Pinned Citations'),
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          const SizedBox(height: 8),
-                          if (_pinned.isEmpty)
-                            Text(context.tr('No pinned citations yet.'))
-                          else
-                            ..._pinned.map(
-                              (item) => _pin(
-                                context,
-                                (item['title'] ?? '-').toString(),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    GlassPanel(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            context.tr('Compare Mode'),
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            context.tr(
-                              'Split panel for law + decision + notes',
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          OutlinedButton.icon(
-                            onPressed: _openCompareDialog,
-                            icon: const Icon(Icons.compare_arrows_rounded),
-                            label: Text(context.tr('Open Compare')),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+              const SizedBox(height: 8),
+              if (_pinned.isEmpty)
+                Text(context.tr('No pinned citations yet.'))
+              else
+                ..._pinned.map(
+                  (item) => _pin(context, (item['title'] ?? '-').toString()),
                 ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        GlassPanel(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                context.tr('Compare Mode'),
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 8),
+              Text(context.tr('Split panel for law + decision + notes')),
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                onPressed: _openCompareDialog,
+                icon: const Icon(Icons.compare_arrows_rounded),
+                label: Text(context.tr('Open Compare')),
               ),
             ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 

@@ -148,9 +148,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     setState(() => _savingFirm = true);
     try {
       if (_firmNameController.text.trim().isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('اسم الشركة مطلوب.')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('اسم الشركة مطلوب.')));
         return;
       }
 
@@ -221,9 +221,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('تم حفظ إعدادات الشركة بنجاح.'),
-        ),
+        const SnackBar(content: Text('تم حفظ إعدادات الشركة بنجاح.')),
       );
     } catch (error) {
       if (!mounted) {
@@ -282,6 +280,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isCompact = MediaQuery.sizeOf(context).width < 900;
     final locale = ref.watch(localeProvider);
     final hasFirm = _firmId != null && _firmId!.isNotEmpty;
     final roles =
@@ -384,9 +383,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  hasFirm
-                      ? 'بيانات شركة المحاماة'
-                      : 'إنشاء شركة المحاماة',
+                  hasFirm ? 'بيانات شركة المحاماة' : 'إنشاء شركة المحاماة',
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: 8),
@@ -407,10 +404,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   _field(_addressController, 'العنوان'),
                   _field(_phoneController, 'الهاتف'),
                   _field(_emailController, 'البريد'),
-                  _field(
-                    _websiteController,
-                    'الموقع الإلكتروني',
-                  ),
+                  _field(_websiteController, 'الموقع الإلكتروني'),
                   _field(_logoController, 'رابط الشعار'),
                   _field(
                     _yearController,
@@ -422,26 +416,21 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     'عدد الموظفين',
                     keyboardType: TextInputType.number,
                   ),
-                  _field(
-                    _descriptionController,
-                    'وصف الشركة',
-                    maxLines: 3,
-                  ),
+                  _field(_descriptionController, 'وصف الشركة', maxLines: 3),
                   const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _field(
-                          _timezoneController,
-                          'المنطقة الزمنية',
+                  if (isCompact) ...[
+                    _field(_timezoneController, 'المنطقة الزمنية'),
+                    _field(_currencyController, 'العملة'),
+                  ] else
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _field(_timezoneController, 'المنطقة الزمنية'),
                         ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _field(_currencyController, 'العملة'),
-                      ),
-                    ],
-                  ),
+                        const SizedBox(width: 10),
+                        Expanded(child: _field(_currencyController, 'العملة')),
+                      ],
+                    ),
                   const SizedBox(height: 10),
                   DropdownButtonFormField<String>(
                     initialValue: _firmLocale,
@@ -451,9 +440,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     ],
                     onChanged: (value) =>
                         setState(() => _firmLocale = value ?? 'ar-IQ'),
-                    decoration: const InputDecoration(
-                      labelText: 'لغة الشركة',
-                    ),
+                    decoration: const InputDecoration(labelText: 'لغة الشركة'),
                   ),
                 ],
               ],

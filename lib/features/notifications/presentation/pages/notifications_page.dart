@@ -88,7 +88,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         builder: (context, setDialogState) => AlertDialog(
           title: const Text('إضافة إشعار'),
           content: SizedBox(
-            width: 560,
+            width: MediaQuery.sizeOf(context).width.clamp(280.0, 560.0),
             child: SingleChildScrollView(
               child: Column(
                 children: [
@@ -107,7 +107,10 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                     initialValue: level,
                     decoration: const InputDecoration(labelText: 'المستوى'),
                     items: [
-                      DropdownMenuItem(value: 'info', child: Text(context.tr('info'))),
+                      DropdownMenuItem(
+                        value: 'info',
+                        child: Text(context.tr('info')),
+                      ),
                       DropdownMenuItem(
                         value: 'warning',
                         child: Text(context.tr('warning')),
