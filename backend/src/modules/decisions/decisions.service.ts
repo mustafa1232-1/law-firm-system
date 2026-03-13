@@ -204,6 +204,9 @@ export class DecisionsService {
     const [items, total] = await Promise.all([
       this.decisionModel
         .find(filter)
+        .select(
+          'source sourceType courtName courtLevel governorate decisionNumber decisionDate publicationDate caseType legalDomain summary legalArticleReferences constitutionalReferences legalKeywords outcome precedentWeight confidenceScore tags reviewStatus ingestionStatus attachmentStoragePath createdAt updatedAt',
+        )
         .sort({ decisionDate: -1, updatedAt: -1 })
         .skip(skip)
         .limit(limit)

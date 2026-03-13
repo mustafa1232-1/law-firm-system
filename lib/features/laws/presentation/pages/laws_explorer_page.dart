@@ -65,7 +65,7 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
       final dio = ref.read(dioProvider);
       final response = await dio.get(
         '/laws',
-        queryParameters: const {'limit': 100, 'page': 1},
+        queryParameters: const {'limit': 30, 'page': 1},
         options: Options(headers: authHeaders(ref)),
       );
 
@@ -115,7 +115,7 @@ class _LawsExplorerPageState extends ConsumerState<LawsExplorerPage> {
       final dio = ref.read(dioProvider);
       final response = await dio.get(
         '/laws/search',
-        queryParameters: {'q': query, 'limit': 100, 'page': 1},
+        queryParameters: {'q': query, 'limit': 40, 'page': 1},
         options: Options(headers: authHeaders(ref)),
       );
 

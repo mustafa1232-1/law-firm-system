@@ -1,6 +1,7 @@
-﻿import 'package:dio/dio.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/network/api_helpers.dart';
 import '../../../../core/network/dio_client.dart';
@@ -49,7 +50,10 @@ class _ConstitutionArticleReaderPageState
         return;
       }
 
-      setState(() => _article = (response.data as Map).cast<String, dynamic>());
+      setState(() {
+        _article = (response.data as Map).cast<String, dynamic>();
+        _explanation = null;
+      });
     } catch (error) {
       if (!mounted) {
         return;
@@ -72,7 +76,7 @@ class _ConstitutionArticleReaderPageState
     try {
       final dio = ref.read(dioProvider);
       final query = [
-        'اشرح المادة ${(article['articleNumber'] ?? '-').toString()} من الدستور العراقي شرحًا مبسطًا للمحامي.',
+        'اشرح المادة ${(article['articleNumber'] ?? '-').toString()} من الدستور العراقي شرحًا تفصيليًا للمحامي.',
         'نص المادة:',
         (article['text'] ?? '').toString(),
       ].join('\n');
@@ -91,19 +95,135 @@ class _ConstitutionArticleReaderPageState
       if (!mounted) {
         return;
       }
-      setState(() => _explanation = (response.data as Map).cast<String, dynamic>());
+      setState(
+        () => _explanation = (response.data as Map).cast<String, dynamic>(),
+      );
     } catch (error) {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(parseApiError(error))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(parseApiError(error))));
     } finally {
       if (mounted) {
         setState(() => _explaining = false);
       }
     }
+  }
+
+  Widget _buildListSection(BuildContext context, String title, dynamic value) {
+    final items =
+        (value as List?)
+            ?.map((entry) => entry.toString().trim())
+            .where((entry) => entry.isNotEmpty)
+            .toList() ??
+        const <String>[];
+
+    if (items.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 6),
+          ...items.map(
+            (entry) => Padding(
+              padding: const EdgeInsets.only(bottom: 5),
+              child: Text('• $entry'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAuthoritiesSection(BuildContext context, dynamic value) {
+    final authorities =
+        (value as List?)
+            ?.map(
+              (entry) =>
+                  (entry as Map?)?.cast<String, dynamic>() ??
+                  const <String, dynamic>{},
+            )
+            .where((entry) => entry.isNotEmpty)
+            .toList() ??
+        const <Map<String, dynamic>>[];
+
+    if (authorities.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'المرجعيات المقترحة',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          ...authorities.map((item) {
+            final sourceType = (item['sourceType'] ?? '').toString().trim();
+            final citation = (item['citation'] ?? '').toString().trim();
+            final title = (item['title'] ?? '').toString().trim();
+            final id = (item['id'] ?? '').toString().trim();
+            final snippet = (item['snippet'] ?? '').toString().trim();
+            final canOpen =
+                id.isNotEmpty &&
+                (sourceType == 'constitution' ||
+                    sourceType == 'law' ||
+                    sourceType == 'decision');
+
+            return Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(10),
+                color: LexiqColors.obsidianBlack.withValues(alpha: 0.32),
+                border: Border.all(
+                  color: LexiqColors.slateGray.withValues(alpha: 0.2),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (title.isNotEmpty)
+                    Text(title, style: Theme.of(context).textTheme.titleSmall),
+                  if (citation.isNotEmpty) ...[
+                    if (title.isNotEmpty) const SizedBox(height: 4),
+                    Text(citation),
+                  ],
+                  if (snippet.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      snippet,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                  if (canOpen) ...[
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      onPressed: () => context.go('/authority/$sourceType/$id'),
+                      icon: const Icon(Icons.open_in_new_rounded),
+                      label: const Text('فتح المرجع'),
+                    ),
+                  ],
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
   }
 
   @override
@@ -117,137 +237,209 @@ class _ConstitutionArticleReaderPageState
     final paragraphs = apiParagraphs.isNotEmpty
         ? apiParagraphs
         : _extractParagraphs(text);
+    final confidence = (_explanation?['confidence'] as num?)?.toDouble();
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SectionHeader(
-            title:
-                'المادة الدستورية ${(article?['articleNumber'] ?? '-').toString()}',
-            subtitle: 'قارئ دستوري كامل مع شرح مبسط للمحامي',
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: _loading ? null : _loadArticle,
-                  icon: const Icon(Icons.refresh_rounded),
-                  label: const Text('تحديث'),
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton.icon(
-                  onPressed: _explaining ? null : _explainArticle,
-                  icon: _explaining
-                      ? const SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.psychology_alt_rounded),
-                  label: const Text('شرح مبسط'),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          if (_loading)
-            const Center(child: CircularProgressIndicator())
-          else if (_error != null)
-            GlassPanel(
-              child: Text(
-                _error!,
-                style: const TextStyle(color: LexiqColors.crimsonAlert),
-              ),
-            )
-          else if (article == null)
-            const GlassPanel(child: Text('تعذر تحميل المادة الدستورية.'))
-          else ...[
-            GlassPanel(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SectionHeader(
+              title:
+                  'المادة الدستورية ${(article?['articleNumber'] ?? '-').toString()}',
+              subtitle: 'قارئ دستوري كامل مع شرح تفصيلي للمحامي',
+              trailing: Wrap(
+                spacing: 8,
+                runSpacing: 8,
                 children: [
-                  Text(
-                    'المادة ${(article['articleNumber'] ?? '-').toString()}',
-                    style: Theme.of(context).textTheme.headlineSmall,
+                  OutlinedButton.icon(
+                    onPressed: _loading ? null : _loadArticle,
+                    icon: const Icon(Icons.refresh_rounded),
+                    label: const Text('تحديث'),
                   ),
-                  if ((article['title'] ?? '').toString().trim().isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      (article['title'] ?? '').toString(),
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                  ],
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      Chip(label: Text('الباب: ${(article['chapter'] ?? '-').toString()}')),
-                      Chip(label: Text('القسم: ${(article['section'] ?? '-').toString()}')),
-                    ],
+                  ElevatedButton.icon(
+                    onPressed: _explaining || article == null
+                        ? null
+                        : _explainArticle,
+                    icon: _explaining
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.psychology_alt_rounded),
+                    label: const Text('شرح تفصيلي'),
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 12),
-            GlassPanel(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('النص الكامل', style: Theme.of(context).textTheme.titleLarge),
-                  const SizedBox(height: 12),
-                  if (paragraphs.isEmpty)
-                    Text(text)
-                  else
-                    ...paragraphs.asMap().entries.map(
-                      (entry) => Container(
-                        width: double.infinity,
-                        margin: const EdgeInsets.only(bottom: 10),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: LexiqColors.slateGray.withValues(alpha: 0.2),
-                          ),
-                        ),
-                        child: Text(
-                          '${entry.key + 1}. ${entry.value}',
-                          style: Theme.of(context).textTheme.bodyLarge,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            if (_explanation != null)
+            if (_loading)
+              const Center(child: CircularProgressIndicator())
+            else if (_error != null)
+              GlassPanel(
+                child: Text(
+                  _error!,
+                  style: const TextStyle(color: LexiqColors.crimsonAlert),
+                ),
+              )
+            else if (article == null)
+              const GlassPanel(child: Text('تعذر تحميل المادة الدستورية.'))
+            else ...[
               GlassPanel(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'الشرح المبسط (AI)',
-                      style: Theme.of(context).textTheme.titleLarge,
+                      'المادة ${(article['articleNumber'] ?? '-').toString()}',
+                      style: Theme.of(context).textTheme.headlineSmall,
                     ),
-                    const SizedBox(height: 8),
-                    Text((_explanation?['summary'] ?? '').toString()),
-                    const SizedBox(height: 8),
-                    Text((_explanation?['groundedAnswer'] ?? '').toString()),
+                    if ((article['title'] ?? '')
+                        .toString()
+                        .trim()
+                        .isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        (article['title'] ?? '').toString(),
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                    ],
                     const SizedBox(height: 10),
-                    Text(
-                      ((_explanation?['disclaimer'] ??
-                              'هذه المخرجات أولية وتحتاج مراجعة محامٍ بشري.') as String)
-                          .trim(),
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: LexiqColors.brassGold,
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        Chip(
+                          label: Text(
+                            'الباب: ${(article['chapter'] ?? '-').toString()}',
                           ),
+                        ),
+                        Chip(
+                          label: Text(
+                            'القسم: ${(article['section'] ?? '-').toString()}',
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
+              const SizedBox(height: 12),
+              GlassPanel(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'النص الكامل',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 12),
+                    if (paragraphs.isEmpty)
+                      Text(text)
+                    else
+                      ...paragraphs.asMap().entries.map(
+                        (entry) => Container(
+                          width: double.infinity,
+                          margin: const EdgeInsets.only(bottom: 10),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: LexiqColors.slateGray.withValues(
+                                alpha: 0.2,
+                              ),
+                            ),
+                          ),
+                          child: Text(
+                            '${entry.key + 1}. ${entry.value}',
+                            style: Theme.of(context).textTheme.bodyLarge,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              if (_explanation != null)
+                GlassPanel(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'شرح المادة الدستورية',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      if (confidence != null) ...[
+                        const SizedBox(height: 8),
+                        Chip(
+                          label: Text(
+                            'مستوى الثقة ${(confidence * 100).toStringAsFixed(0)}%',
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 8),
+                      if ((_explanation?['summary'] ?? '')
+                          .toString()
+                          .trim()
+                          .isNotEmpty) ...[
+                        Text(
+                          'المعنى المبسط',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 4),
+                        Text((_explanation?['summary'] ?? '').toString()),
+                        const SizedBox(height: 10),
+                      ],
+                      if ((_explanation?['groundedAnswer'] ?? '')
+                          .toString()
+                          .trim()
+                          .isNotEmpty) ...[
+                        Text(
+                          'الشرح المفصل',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          (_explanation?['groundedAnswer'] ?? '').toString(),
+                        ),
+                        const SizedBox(height: 10),
+                      ],
+                      _buildListSection(
+                        context,
+                        'القضايا القانونية المستخرجة',
+                        _explanation?['extractedIssues'],
+                      ),
+                      _buildListSection(
+                        context,
+                        'أسئلة متابعة للمحامي',
+                        _explanation?['proposedQuestions'],
+                      ),
+                      _buildListSection(
+                        context,
+                        'قيود وحدود التحليل',
+                        _explanation?['limitations'],
+                      ),
+                      _buildAuthoritiesSection(
+                        context,
+                        _explanation?['suggestedAuthorities'],
+                      ),
+                      Text(
+                        ((_explanation?['disclaimer'] ??
+                                    'هذه المخرجات أولية وتحتاج مراجعة محامٍ بشري.')
+                                as String)
+                            .trim(),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: LexiqColors.brassGold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -259,7 +451,11 @@ class _ConstitutionArticleReaderPageState
     }
 
     final chunks = cleaned
-        .split(RegExp(r'(?=\b(?:اولاً|ثانياً|ثالثاً|رابعاً|خامساً|سادساً|سابعاً|ثامناً|تاسعاً|عاشراً)\b)'))
+        .split(
+          RegExp(
+            r'(?=\b(?:اولاً|ثانياً|ثالثاً|رابعاً|خامساً|سادساً|سابعاً|ثامناً|تاسعاً|عاشراً)\b)',
+          ),
+        )
         .map((item) => item.trim())
         .where((item) => item.isNotEmpty)
         .toList();

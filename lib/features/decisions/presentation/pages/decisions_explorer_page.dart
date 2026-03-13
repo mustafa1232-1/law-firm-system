@@ -32,6 +32,10 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
 
   List<Map<String, dynamic>> _items = const [];
   List<Map<String, dynamic>> _summaryItems = const [];
+  int _page = 1;
+  int _total = 0;
+
+  static const int _pageSize = 30;
 
   static const _caseTypes = <String>[
     'الكل',
@@ -72,7 +76,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
   }
 
   Future<void> _loadAll() async {
-    await Future.wait([_search(), _loadCaseTypeSummary()]);
+    await Future.wait([_search(page: 1), _loadCaseTypeSummary()]);
   }
 
   Map<String, dynamic> _buildSearchQueryParameters() {
@@ -90,49 +94,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
     };
   }
 
-  Future<List<Map<String, dynamic>>> _loadAllDecisionPages(
-    Dio dio,
-    Map<String, dynamic> baseQueryParameters,
-  ) async {
-    const pageSize = 100;
-    const maxPages = 500;
-
-    final allItems = <Map<String, dynamic>>[];
-    var page = 1;
-    var total = 1;
-
-    while (allItems.length < total && page <= maxPages) {
-      final response = await dio.get(
-        '/decisions/search',
-        queryParameters: {
-          ...baseQueryParameters,
-          'limit': pageSize,
-          'page': page,
-        },
-        options: Options(headers: authHeaders(ref)),
-      );
-
-      final data = (response.data as Map).cast<String, dynamic>();
-      final pageItems = ((data['items'] as List?) ?? const [])
-          .map((entry) => (entry as Map).cast<String, dynamic>())
-          .toList();
-
-      total =
-          (data['total'] as num?)?.toInt() ??
-          (allItems.length + pageItems.length);
-      allItems.addAll(pageItems);
-
-      if (pageItems.isEmpty || pageItems.length < pageSize) {
-        break;
-      }
-
-      page++;
-    }
-
-    return allItems;
-  }
-
-  Future<void> _search() async {
+  Future<void> _search({int? page}) async {
     setState(() {
       _loading = true;
       _error = null;
@@ -140,16 +102,31 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
 
     try {
       final dio = ref.read(dioProvider);
-      final items = await _loadAllDecisionPages(
-        dio,
-        _buildSearchQueryParameters(),
+      final targetPage = page ?? _page;
+      final response = await dio.get(
+        '/decisions/search',
+        queryParameters: {
+          ..._buildSearchQueryParameters(),
+          'limit': _pageSize,
+          'page': targetPage,
+        },
+        options: Options(headers: authHeaders(ref)),
       );
+      final data = (response.data as Map).cast<String, dynamic>();
+      final items = ((data['items'] as List?) ?? const [])
+          .map((entry) => (entry as Map).cast<String, dynamic>())
+          .toList();
+      final total = (data['total'] as num?)?.toInt() ?? items.length;
 
       if (!mounted) {
         return;
       }
 
-      setState(() => _items = items);
+      setState(() {
+        _items = items;
+        _total = total;
+        _page = targetPage;
+      });
     } catch (error) {
       if (!mounted) {
         return;
@@ -210,12 +187,16 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
         '/decisions/sync/sjc-appellate',
         data: {
           'startId': 1,
-          'endId': 25000,
-          'concurrency': 25,
-          'maxDecisions': 10000,
+          'endId': 12000,
+          'concurrency': 20,
+          'maxDecisions': 5000,
           'mode': _selectedCourtLevel == 'all' ? 'all' : 'appellate',
         },
-        options: Options(headers: authHeaders(ref)),
+        options: Options(
+          headers: authHeaders(ref),
+          sendTimeout: const Duration(minutes: 2),
+          receiveTimeout: const Duration(minutes: 15),
+        ),
       );
 
       final payload = (response.data as Map).cast<String, dynamic>();
@@ -235,7 +216,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
         ),
       );
 
-      await _loadAll();
+      await Future.wait([_search(page: 1), _loadCaseTypeSummary()]);
     } catch (error) {
       if (!mounted) {
         return;
@@ -296,9 +277,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
                   const SizedBox(height: 10),
                   TextField(
                     controller: courtNameController,
-                    decoration: const InputDecoration(
-                      labelText: 'اسم المحكمة',
-                    ),
+                    decoration: const InputDecoration(labelText: 'اسم المحكمة'),
                   ),
                   const SizedBox(height: 10),
                   DropdownButtonFormField<String>(
@@ -326,9 +305,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
                   const SizedBox(height: 10),
                   TextField(
                     controller: decisionNumberController,
-                    decoration: const InputDecoration(
-                      labelText: 'رقم القرار',
-                    ),
+                    decoration: const InputDecoration(labelText: 'رقم القرار'),
                   ),
                   const SizedBox(height: 10),
                   TextField(
@@ -348,8 +325,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
                   TextField(
                     controller: legalDomainController,
                     decoration: const InputDecoration(
-                      labelText:
-                          'المجال القانوني (اختياري)',
+                      labelText: 'المجال القانوني (اختياري)',
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -381,11 +357,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
               onPressed: () async {
                 if (pickedFile == null || pickedFile!.bytes == null) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'يرجى اختيار ملف القرار.',
-                      ),
-                    ),
+                    const SnackBar(content: Text('يرجى اختيار ملف القرار.')),
                   );
                   return;
                 }
@@ -465,11 +437,9 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('تمت إضافة القرار بنجاح.'),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('تمت إضافة القرار بنجاح.')));
     }
   }
 
@@ -491,127 +461,318 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
 
       await showDialog<void>(
         context: context,
-        builder: (context) => AlertDialog(
-          title: Text(
-            '${(decision['courtName'] ?? '-').toString()} - ${(decision['decisionNumber'] ?? '-').toString()}',
-          ),
-          content: SizedBox(
-            width: 980,
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      Chip(
-                        label: Text(
-                          'النوع: ${(decision['caseType'] ?? '-').toString()}',
+        builder: (dialogContext) {
+          var explaining = false;
+          String? explainError;
+          Map<String, dynamic>? explanation;
+
+          Future<void> explainDecision(StateSetter setDialogState) async {
+            final summary = (decision['summary'] ?? '').toString().trim();
+            final fullTextRaw = (decision['fullText'] ?? '').toString().trim();
+            final fullText = fullTextRaw.length > 12000
+                ? '${fullTextRaw.substring(0, 12000)}\n[تم اختصار النص الكامل لطوله]'
+                : fullTextRaw;
+
+            final query = [
+              'اشرح القرار القضائي العراقي التالي شرحًا تفصيليًا للمحامي.',
+              'المحكمة: ${(decision['courtName'] ?? '-').toString()}',
+              'رقم القرار: ${(decision['decisionNumber'] ?? '-').toString()}',
+              'نوع القضية: ${(decision['caseType'] ?? '-').toString()}',
+              'المجال القانوني: ${(decision['legalDomain'] ?? '-').toString()}',
+              if (summary.isNotEmpty) 'ملخص القرار:\n$summary',
+              if (fullText.isNotEmpty) 'النص الكامل:\n$fullText',
+              'قدّم: معنى القرار، الأساس القانوني، نقاط القوة والضعف، وكيفية توظيفه بالمرافعة.',
+            ].join('\n\n');
+
+            setDialogState(() {
+              explaining = true;
+              explainError = null;
+            });
+
+            try {
+              final response = await dio.post(
+                '/ai/legal-research',
+                data: {
+                  'query': query,
+                  'searchConstitution': true,
+                  'searchLaws': true,
+                  'searchDecisions': true,
+                },
+                options: Options(headers: authHeaders(ref)),
+              );
+
+              if (!dialogContext.mounted) {
+                return;
+              }
+
+              setDialogState(() {
+                explanation = (response.data as Map).cast<String, dynamic>();
+                explainError = null;
+              });
+            } catch (error) {
+              if (!dialogContext.mounted) {
+                return;
+              }
+              setDialogState(() => explainError = parseApiError(error));
+            } finally {
+              if (dialogContext.mounted) {
+                setDialogState(() => explaining = false);
+              }
+            }
+          }
+
+          return StatefulBuilder(
+            builder: (context, setDialogState) {
+              final confidence = (explanation?['confidence'] as num?)
+                  ?.toDouble();
+
+              return AlertDialog(
+                title: Text(
+                  '${(decision['courtName'] ?? '-').toString()} - ${(decision['decisionNumber'] ?? '-').toString()}',
+                ),
+                content: SizedBox(
+                  width: 980,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            Chip(
+                              label: Text(
+                                'النوع: ${(decision['caseType'] ?? '-').toString()}',
+                              ),
+                            ),
+                            Chip(
+                              label: Text(
+                                'المجال: ${(decision['legalDomain'] ?? '-').toString()}',
+                              ),
+                            ),
+                            Chip(
+                              label: Text(
+                                'المستوى: ${(decision['courtLevel'] ?? '-').toString()}',
+                              ),
+                            ),
+                            Chip(
+                              label: Text(
+                                'التاريخ: ${_dateOnly(decision['decisionDate'])}',
+                              ),
+                            ),
+                            ElevatedButton.icon(
+                              onPressed: explaining
+                                  ? null
+                                  : () => explainDecision(setDialogState),
+                              icon: explaining
+                                  ? const SizedBox(
+                                      width: 14,
+                                      height: 14,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Icon(Icons.psychology_alt_rounded),
+                              label: const Text('شرح القرار'),
+                            ),
+                          ],
                         ),
-                      ),
-                      Chip(
-                        label: Text(
-                          'المجال: ${(decision['legalDomain'] ?? '-').toString()}',
+                        const SizedBox(height: 12),
+                        if ((decision['attachmentUrl'] ?? '')
+                            .toString()
+                            .trim()
+                            .isNotEmpty) ...[
+                          SelectableText(
+                            'رابط ملف القرار: ${(decision['attachmentUrl'] ?? '').toString()}',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                          const SizedBox(height: 12),
+                        ],
+                        Text(
+                          (decision['summary'] ?? '').toString(),
+                          style: Theme.of(context).textTheme.bodyLarge,
                         ),
-                      ),
-                      Chip(
-                        label: Text(
-                          'المستوى: ${(decision['courtLevel'] ?? '-').toString()}',
+                        const SizedBox(height: 12),
+                        if ((decision['fullText'] ?? '')
+                            .toString()
+                            .trim()
+                            .isNotEmpty) ...[
+                          Text(
+                            'النص الكامل',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          const SizedBox(height: 6),
+                          SelectableText(
+                            (decision['fullText'] ?? '').toString(),
+                          ),
+                          const SizedBox(height: 12),
+                        ],
+                        if ((decision['legalArticleReferences'] as List?)
+                                ?.isNotEmpty ??
+                            false) ...[
+                          Text(
+                            'المواد القانونية ذات الصلة',
+                            style: Theme.of(context).textTheme.titleSmall,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            ((decision['legalArticleReferences'] as List?) ??
+                                    const [])
+                                .join('، '),
+                          ),
+                          const SizedBox(height: 10),
+                        ],
+                        if ((decision['constitutionalReferences'] as List?)
+                                ?.isNotEmpty ??
+                            false) ...[
+                          Text(
+                            'المواد الدستورية ذات الصلة',
+                            style: Theme.of(context).textTheme.titleSmall,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            ((decision['constitutionalReferences'] as List?) ??
+                                    const [])
+                                .join('، '),
+                          ),
+                          const SizedBox(height: 12),
+                        ],
+                        if (explainError != null) ...[
+                          Text(
+                            explainError!,
+                            style: const TextStyle(
+                              color: LexiqColors.crimsonAlert,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                        ],
+                        if (explanation != null)
+                          Container(
+                            width: double.infinity,
+                            margin: const EdgeInsets.only(bottom: 12),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              color: LexiqColors.obsidianBlack.withValues(
+                                alpha: 0.32,
+                              ),
+                              border: Border.all(
+                                color: LexiqColors.slateGray.withValues(
+                                  alpha: 0.2,
+                                ),
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'الشرح التفصيلي للقرار',
+                                  style: Theme.of(
+                                    context,
+                                  ).textTheme.titleMedium,
+                                ),
+                                if (confidence != null) ...[
+                                  const SizedBox(height: 8),
+                                  Chip(
+                                    label: Text(
+                                      'مستوى الثقة ${(confidence * 100).toStringAsFixed(0)}%',
+                                    ),
+                                  ),
+                                ],
+                                const SizedBox(height: 8),
+                                if ((explanation?['summary'] ?? '')
+                                    .toString()
+                                    .trim()
+                                    .isNotEmpty) ...[
+                                  Text(
+                                    'المعنى المبسط',
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.titleSmall,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    (explanation?['summary'] ?? '').toString(),
+                                  ),
+                                  const SizedBox(height: 10),
+                                ],
+                                if ((explanation?['groundedAnswer'] ?? '')
+                                    .toString()
+                                    .trim()
+                                    .isNotEmpty) ...[
+                                  Text(
+                                    'التحليل القانوني',
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.titleSmall,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    (explanation?['groundedAnswer'] ?? '')
+                                        .toString(),
+                                  ),
+                                  const SizedBox(height: 10),
+                                ],
+                                _buildExplanationListSection(
+                                  context,
+                                  title: 'القضايا القانونية المستخرجة',
+                                  value: explanation?['extractedIssues'],
+                                ),
+                                _buildExplanationListSection(
+                                  context,
+                                  title: 'أسئلة متابعة للمحامي',
+                                  value: explanation?['proposedQuestions'],
+                                ),
+                                _buildExplanationListSection(
+                                  context,
+                                  title: 'قيود وحدود التحليل',
+                                  value: explanation?['limitations'],
+                                ),
+                                _buildSuggestedAuthoritiesSection(
+                                  context,
+                                  explanation?['suggestedAuthorities'],
+                                ),
+                                Text(
+                                  ((explanation?['disclaimer'] ??
+                                              'هذه المخرجات أولية وتحتاج مراجعة محامٍ بشري.')
+                                          as String)
+                                      .trim(),
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(color: LexiqColors.brassGold),
+                                ),
+                              ],
+                            ),
+                          ),
+                        Text(
+                          'قرارات مشابهة',
+                          style: Theme.of(context).textTheme.titleMedium,
                         ),
-                      ),
-                      Chip(
-                        label: Text(
-                          'التاريخ: ${_dateOnly(decision['decisionDate'])}',
-                        ),
-                      ),
-                    ],
+                        const SizedBox(height: 8),
+                        if (similar.isEmpty)
+                          const Text('لا توجد قرارات مشابهة.')
+                        else
+                          ...similar.map(
+                            (entry) => Padding(
+                              padding: const EdgeInsets.only(bottom: 6),
+                              child: Text(
+                                '- ${(entry['decisionNumber'] ?? '-').toString()} | ${(entry['courtName'] ?? '-').toString()} | ${_dateOnly(entry['decisionDate'])}',
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 12),
-                  if ((decision['attachmentUrl'] ?? '')
-                      .toString()
-                      .trim()
-                      .isNotEmpty) ...[
-                    SelectableText(
-                      'رابط ملف القرار: ${(decision['attachmentUrl'] ?? '').toString()}',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-                  Text(
-                    (decision['summary'] ?? '').toString(),
-                    style: Theme.of(context).textTheme.bodyLarge,
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('إغلاق'),
                   ),
-                  const SizedBox(height: 12),
-                  if ((decision['fullText'] ?? '')
-                      .toString()
-                      .trim()
-                      .isNotEmpty) ...[
-                    Text(
-                      'النص الكامل',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 6),
-                    SelectableText((decision['fullText'] ?? '').toString()),
-                    const SizedBox(height: 12),
-                  ],
-                  if ((decision['legalArticleReferences'] as List?)
-                          ?.isNotEmpty ??
-                      false) ...[
-                    Text(
-                      'المواد القانونية ذات الصلة',
-                      style: Theme.of(context).textTheme.titleSmall,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      ((decision['legalArticleReferences'] as List?) ??
-                              const [])
-                          .join('، '),
-                    ),
-                    const SizedBox(height: 10),
-                  ],
-                  if ((decision['constitutionalReferences'] as List?)
-                          ?.isNotEmpty ??
-                      false) ...[
-                    Text(
-                      'المواد الدستورية ذات الصلة',
-                      style: Theme.of(context).textTheme.titleSmall,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      ((decision['constitutionalReferences'] as List?) ??
-                              const [])
-                          .join('، '),
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-                  Text(
-                    'قرارات مشابهة',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 8),
-                  if (similar.isEmpty)
-                    const Text('لا توجد قرارات مشابهة.')
-                  else
-                    ...similar.map(
-                      (entry) => Padding(
-                        padding: const EdgeInsets.only(bottom: 6),
-                        child: Text(
-                          '- ${(entry['decisionNumber'] ?? '-').toString()} | ${(entry['courtName'] ?? '-').toString()} | ${_dateOnly(entry['decisionDate'])}',
-                        ),
-                      ),
-                    ),
                 ],
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('إغلاق'),
-            ),
-          ],
-        ),
+              );
+            },
+          );
+        },
       );
     } catch (error) {
       if (!mounted) {
@@ -621,6 +782,111 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
         context,
       ).showSnackBar(SnackBar(content: Text(parseApiError(error))));
     }
+  }
+
+  Widget _buildExplanationListSection(
+    BuildContext context, {
+    required String title,
+    required dynamic value,
+  }) {
+    final items =
+        (value as List?)
+            ?.map((entry) => entry.toString().trim())
+            .where((entry) => entry.isNotEmpty)
+            .toList() ??
+        const <String>[];
+
+    if (items.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 5),
+          ...items.map(
+            (entry) => Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text('• $entry'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSuggestedAuthoritiesSection(
+    BuildContext context,
+    dynamic value,
+  ) {
+    final authorities =
+        (value as List?)
+            ?.map(
+              (entry) =>
+                  (entry as Map?)?.cast<String, dynamic>() ??
+                  const <String, dynamic>{},
+            )
+            .where((entry) => entry.isNotEmpty)
+            .toList() ??
+        const <Map<String, dynamic>>[];
+
+    if (authorities.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'المرجعيات المقترحة',
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+          const SizedBox(height: 5),
+          ...authorities.map((item) {
+            final citation = (item['citation'] ?? '').toString().trim();
+            final title = (item['title'] ?? '').toString().trim();
+            final snippet = (item['snippet'] ?? '').toString().trim();
+            final line = citation.isNotEmpty ? citation : title;
+            if (line.isEmpty) {
+              return const SizedBox.shrink();
+            }
+
+            return Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 6),
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(10),
+                color: LexiqColors.obsidianBlack.withValues(alpha: 0.28),
+                border: Border.all(
+                  color: LexiqColors.slateGray.withValues(alpha: 0.18),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('• $line'),
+                  if (snippet.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      snippet,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
   }
 
   Map<String, List<Map<String, dynamic>>> _groupItemsByType(
@@ -644,6 +910,54 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
     return value.toString().split('T').first;
   }
 
+  int get _totalPages =>
+      _total == 0 ? 1 : ((_total + _pageSize - 1) ~/ _pageSize);
+
+  Future<void> _goToPage(int page) async {
+    if (page < 1 || page > _totalPages || page == _page || _loading) {
+      return;
+    }
+    await _search(page: page);
+  }
+
+  Widget _buildPaginationPanel(BuildContext context) {
+    final totalPages = _totalPages;
+    if (totalPages <= 1) {
+      return const SizedBox.shrink();
+    }
+
+    return GlassPanel(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      child: Wrap(
+        alignment: WrapAlignment.spaceBetween,
+        runSpacing: 8,
+        spacing: 10,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          Text('صفحة $_page من $totalPages'),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              OutlinedButton.icon(
+                onPressed: _page > 1 ? () => _goToPage(_page - 1) : null,
+                icon: const Icon(Icons.chevron_right_rounded),
+                label: const Text('السابق'),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                onPressed: _page < totalPages
+                    ? () => _goToPage(_page + 1)
+                    : null,
+                icon: const Icon(Icons.chevron_left_rounded),
+                label: const Text('التالي'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final grouped = _groupItemsByType(_items);
@@ -659,8 +973,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
           children: [
             SectionHeader(
               title: 'مستكشف القرارات القضائية',
-              subtitle:
-                  'بحث القرارات وتصنيفها وربطها بالقضايا والمرجعيات',
+              subtitle: 'بحث القرارات وتصنيفها وربطها بالقضايا والمرجعيات',
               trailing: OutlinedButton.icon(
                 onPressed: _loading ? null : _loadAll,
                 icon: const Icon(Icons.refresh_rounded),
@@ -671,6 +984,10 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
             _buildFiltersPanel(context),
             const SizedBox(height: 12),
             _buildSummaryPanel(context),
+            if (_totalPages > 1) ...[
+              const SizedBox(height: 12),
+              _buildPaginationPanel(context),
+            ],
             const SizedBox(height: 12),
             if (_loading)
               const GlassPanel(
@@ -688,30 +1005,36 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
               )
             else if (_items.isEmpty)
               const GlassPanel(
-                child: Text(
-                  'لا توجد قرارات مطابقة للفلاتر الحالية.',
-                ),
+                child: Text('لا توجد قرارات مطابقة للفلاتر الحالية.'),
               )
             else
-              GlassPanel(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'القرارات حسب نوع القضية',
-                      style: Theme.of(context).textTheme.titleLarge,
+              Column(
+                children: [
+                  GlassPanel(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'القرارات حسب نوع القضية',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        const SizedBox(height: 10),
+                        ...sortedGroups.map(
+                          (group) => _DecisionGroupPanel(
+                            caseType: group.key,
+                            items: group.value,
+                            onOpen: _openDecision,
+                            dateOnly: _dateOnly,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 10),
-                    ...sortedGroups.map(
-                      (group) => _DecisionGroupPanel(
-                        caseType: group.key,
-                        items: group.value,
-                        onOpen: _openDecision,
-                        dateOnly: _dateOnly,
-                      ),
-                    ),
+                  ),
+                  if (_totalPages > 1) ...[
+                    const SizedBox(height: 12),
+                    _buildPaginationPanel(context),
                   ],
-                ),
+                ],
               ),
           ],
         ),
@@ -728,7 +1051,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
         child: TextField(
           controller: _queryController,
           onSubmitted: (_) async {
-            await _search();
+            await _search(page: 1);
             await _loadCaseTypeSummary();
           },
           decoration: const InputDecoration(
@@ -742,7 +1065,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
         child: TextField(
           controller: _courtController,
           onSubmitted: (_) async {
-            await _search();
+            await _search(page: 1);
             await _loadCaseTypeSummary();
           },
           decoration: const InputDecoration(
@@ -756,7 +1079,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
         child: TextField(
           controller: _domainController,
           onSubmitted: (_) async {
-            await _search();
+            await _search(page: 1);
             await _loadCaseTypeSummary();
           },
           decoration: const InputDecoration(
@@ -771,7 +1094,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
           controller: _yearController,
           keyboardType: TextInputType.number,
           onSubmitted: (_) async {
-            await _search();
+            await _search(page: 1);
             await _loadCaseTypeSummary();
           },
           decoration: const InputDecoration(
@@ -804,9 +1127,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
         width: isCompact ? double.infinity : 220,
         child: DropdownButtonFormField<String>(
           initialValue: _selectedCourtLevel,
-          decoration: const InputDecoration(
-            labelText: 'مستوى المحكمة',
-          ),
+          decoration: const InputDecoration(labelText: 'مستوى المحكمة'),
           items: _courtLevels
               .map(
                 (entry) => DropdownMenuItem<String>(
@@ -844,7 +1165,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
                 onPressed: _loading
                     ? null
                     : () async {
-                        await _search();
+                        await _search(page: 1);
                         await _loadCaseTypeSummary();
                       },
                 icon: const Icon(Icons.search_rounded),
@@ -881,9 +1202,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : const Icon(Icons.cloud_sync_rounded),
-                label: const Text(
-                  'جلب القرارات الاستئنافية من المصدر العام',
-                ),
+                label: const Text('جلب القرارات الاستئنافية من المصدر العام'),
               ),
             ],
           ),
@@ -893,7 +1212,7 @@ class _DecisionsExplorerPageState extends ConsumerState<DecisionsExplorerPage> {
   }
 
   Widget _buildSummaryPanel(BuildContext context) {
-    final total = _items.length;
+    final total = _total;
 
     return Wrap(
       spacing: 10,
