@@ -42,19 +42,21 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
     final identifier = _identifierController.text.trim();
     if (identifier.isEmpty) {
       _showError(
-        _usePhone ? 'يرجى إدخال رقم الهاتف.' : 'يرجى إدخال البريد الإلكتروني.',
+        _usePhone
+            ? context.tr('Please enter phone number.')
+            : context.tr('Please enter email.'),
       );
       return;
     }
 
     if (!_usePhone &&
         (!identifier.contains('@') || !identifier.contains('.'))) {
-      _showError('يرجى إدخال بريد إلكتروني صحيح.');
+      _showError(context.tr('Invalid email format'));
       return;
     }
 
     if (_usePhone && identifier.replaceAll(RegExp(r'[^0-9+]'), '').length < 7) {
-      _showError('يرجى إدخال رقم هاتف صحيح.');
+      _showError(context.tr('Invalid phone number'));
       return;
     }
 
@@ -91,7 +93,7 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
           content: Text(
             _requestMessage?.isNotEmpty == true
                 ? _requestMessage!
-                : 'تم إرسال طلب إعادة التعيين بنجاح.',
+                : context.tr('Password reset request sent successfully.'),
           ),
         ),
       );
@@ -107,24 +109,24 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
   Future<void> _confirmReset() async {
     final challengeId = _challengeId;
     if (challengeId == null || challengeId.isEmpty) {
-      _showError('اطلب رمز إعادة التعيين أولاً.');
+      _showError(context.tr('Request a reset code first.'));
       return;
     }
 
     final code = _codeController.text.trim();
     if (code.isEmpty) {
-      _showError('أدخل رمز إعادة التعيين.');
+      _showError(context.tr('Enter reset code.'));
       return;
     }
 
     final password = _passwordController.text;
     if (password.length < 8) {
-      _showError('كلمة المرور يجب أن تكون 8 أحرف على الأقل.');
+      _showError(context.tr('Password must be at least 8 characters'));
       return;
     }
 
     if (password != _confirmPasswordController.text) {
-      _showError('كلمتا المرور غير متطابقتين.');
+      _showError(context.tr('Passwords do not match'));
       return;
     }
 
@@ -144,7 +146,7 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تمت إعادة تعيين كلمة المرور بنجاح.')),
+        SnackBar(content: Text(context.tr('Password reset completed.'))),
       );
       context.go('/auth/login');
     } on DioException catch (error) {
@@ -189,8 +191,12 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
                   const SizedBox(height: 8),
                   Text(
                     _usePhone
-                        ? 'أدخل رقم هاتفك لإصدار رمز إعادة التعيين.'
-                        : 'أدخل بريدك الإلكتروني لإصدار رمز إعادة التعيين.',
+                        ? context.tr(
+                            'Enter your phone to receive a reset code.',
+                          )
+                        : context.tr(
+                            'Enter your email to receive a reset code.',
+                          ),
                   ),
                   const SizedBox(height: 12),
                   Wrap(
@@ -199,12 +205,12 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
                     children: [
                       ChoiceChip(
                         selected: !_usePhone,
-                        label: const Text('استخدام الإيميل'),
+                        label: Text(context.tr('Use Email')),
                         onSelected: (_) => setState(() => _usePhone = false),
                       ),
                       ChoiceChip(
                         selected: _usePhone,
-                        label: const Text('استخدام الهاتف'),
+                        label: Text(context.tr('Use Phone')),
                         onSelected: (_) => setState(() => _usePhone = true),
                       ),
                     ],
@@ -216,7 +222,9 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
                         ? TextInputType.phone
                         : TextInputType.emailAddress,
                     decoration: InputDecoration(
-                      labelText: _usePhone ? 'رقم الهاتف' : 'البريد الإلكتروني',
+                      labelText: _usePhone
+                          ? context.tr('Phone number')
+                          : context.tr('Email'),
                     ),
                   ),
                   const SizedBox(height: 14),
@@ -231,7 +239,7 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : const Icon(Icons.send_rounded),
-                      label: const Text('إرسال رمز إعادة التعيين'),
+                      label: Text(context.tr('Send reset code')),
                     ),
                   ),
                   if (_requestMessage != null &&
@@ -253,7 +261,7 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
                         border: Border.all(color: Colors.white24),
                       ),
                       child: Text(
-                        'رمز إعادة التعيين: $_debugResetCode',
+                        '${context.tr('Reset code')}: $_debugResetCode',
                         style: const TextStyle(fontWeight: FontWeight.w700),
                       ),
                     ),
@@ -264,24 +272,24 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
                     const SizedBox(height: 16),
                     TextField(
                       controller: _codeController,
-                      decoration: const InputDecoration(
-                        labelText: 'رمز إعادة التعيين',
+                      decoration: InputDecoration(
+                        labelText: context.tr('Reset code'),
                       ),
                     ),
                     const SizedBox(height: 10),
                     TextField(
                       controller: _passwordController,
                       obscureText: true,
-                      decoration: const InputDecoration(
-                        labelText: 'كلمة المرور الجديدة',
+                      decoration: InputDecoration(
+                        labelText: context.tr('New password'),
                       ),
                     ),
                     const SizedBox(height: 10),
                     TextField(
                       controller: _confirmPasswordController,
                       obscureText: true,
-                      decoration: const InputDecoration(
-                        labelText: 'تأكيد كلمة المرور الجديدة',
+                      decoration: InputDecoration(
+                        labelText: context.tr('Confirm new password'),
                       ),
                     ),
                     const SizedBox(height: 14),
@@ -298,7 +306,7 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
                                 ),
                               )
                             : const Icon(Icons.lock_reset_rounded),
-                        label: const Text('تأكيد إعادة التعيين'),
+                        label: Text(context.tr('Confirm reset')),
                       ),
                     ),
                   ],

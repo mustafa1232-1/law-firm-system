@@ -17,6 +17,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   final _formKey = GlobalKey<FormState>();
   final _identifierController = TextEditingController();
   final _passwordController = TextEditingController();
+  bool _usePhone = false;
 
   @override
   void dispose() {
@@ -77,20 +78,47 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     ),
                     const SizedBox(height: 6),
                     Text(context.tr('Access your LexIQ Iraq legal workspace.')),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        ChoiceChip(
+                          selected: !_usePhone,
+                          onSelected: (_) => setState(() => _usePhone = false),
+                          label: Text(context.tr('Use Email')),
+                        ),
+                        ChoiceChip(
+                          selected: _usePhone,
+                          onSelected: (_) => setState(() => _usePhone = true),
+                          label: Text(context.tr('Use Phone')),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
                     TextFormField(
                       controller: _identifierController,
-                      keyboardType: TextInputType.emailAddress,
-                      decoration: const InputDecoration(
-                        labelText: 'البريد الإلكتروني أو رقم الهاتف',
+                      keyboardType: _usePhone
+                          ? TextInputType.phone
+                          : TextInputType.emailAddress,
+                      decoration: InputDecoration(
+                        labelText: _usePhone
+                            ? context.tr('Phone number')
+                            : context.tr('Email'),
                       ),
                       validator: (value) {
                         final text = (value ?? '').trim();
                         if (text.isEmpty) {
-                          return 'الحقل مطلوب';
+                          return context.tr('Field is required');
                         }
-                        if (text.contains('@') && !text.contains('.')) {
-                          return 'البريد الإلكتروني غير صالح';
+                        if (!_usePhone &&
+                            (!text.contains('@') || !text.contains('.'))) {
+                          return context.tr('Invalid email format');
+                        }
+                        if (_usePhone &&
+                            text.replaceAll(RegExp(r'[^0-9+]'), '').length <
+                                7) {
+                          return context.tr('Invalid phone number');
                         }
                         return null;
                       },
@@ -104,7 +132,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       ),
                       validator: (value) {
                         if ((value ?? '').isEmpty) {
-                          return 'Password is required';
+                          return context.tr('Password is required');
                         }
                         return null;
                       },

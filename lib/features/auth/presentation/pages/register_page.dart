@@ -22,6 +22,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
   final _firmNameController = TextEditingController();
   final _firmCategoryController = TextEditingController();
   final _firmEmployeeCountController = TextEditingController(text: '1');
+
   bool _isCompanyRegistration = false;
   bool _usePhone = false;
 
@@ -116,13 +117,15 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                           setState(() => _isCompanyRegistration = value),
                       title: Text(
                         _isCompanyRegistration
-                            ? 'تسجيل شركة محاماة'
-                            : 'تسجيل مستخدم فردي',
+                            ? context.tr('Register law firm')
+                            : context.tr('Register individual user'),
                       ),
                       subtitle: Text(
                         _isCompanyRegistration
-                            ? 'إنشاء شركة مع حساب مدير وبيانات القوة العاملة'
-                            : 'إنشاء حساب مستخدم مستقل',
+                            ? context.tr(
+                                'Create firm account with admin profile and workforce data',
+                              )
+                            : context.tr('Create standalone user account'),
                       ),
                       contentPadding: EdgeInsets.zero,
                     ),
@@ -134,12 +137,12 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                         ChoiceChip(
                           selected: !_usePhone,
                           onSelected: (_) => setState(() => _usePhone = false),
-                          label: const Text('استخدام الإيميل'),
+                          label: Text(context.tr('Use Email')),
                         ),
                         ChoiceChip(
                           selected: _usePhone,
                           onSelected: (_) => setState(() => _usePhone = true),
-                          label: const Text('استخدام رقم الهاتف'),
+                          label: Text(context.tr('Use Phone')),
                         ),
                       ],
                     ),
@@ -151,7 +154,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                       ),
                       validator: (value) {
                         if ((value ?? '').trim().isEmpty) {
-                          return 'الاسم الكامل مطلوب';
+                          return context.tr('Full name is required');
                         }
                         return null;
                       },
@@ -164,15 +167,15 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                           : TextInputType.emailAddress,
                       decoration: InputDecoration(
                         labelText: _usePhone
-                            ? 'رقم الهاتف'
+                            ? context.tr('Phone number')
                             : context.tr('Email'),
                       ),
                       validator: (value) {
                         final text = (value ?? '').trim();
                         if (text.isEmpty) {
                           return _usePhone
-                              ? 'رقم الهاتف مطلوب'
-                              : 'البريد الإلكتروني مطلوب';
+                              ? context.tr('Phone number is required')
+                              : context.tr('Email is required');
                         }
                         if (_usePhone) {
                           final digits = text.replaceAll(
@@ -180,12 +183,12 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                             '',
                           );
                           if (digits.length < 7) {
-                            return 'رقم الهاتف غير صالح';
+                            return context.tr('Invalid phone number');
                           }
                           return null;
                         }
                         if (!text.contains('@') || !text.contains('.')) {
-                          return 'البريد الإلكتروني غير صالح';
+                          return context.tr('Invalid email format');
                         }
                         return null;
                       },
@@ -200,7 +203,9 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                       validator: (value) {
                         final text = value ?? '';
                         if (text.length < 8) {
-                          return 'كلمة المرور يجب أن تكون 8 أحرف على الأقل';
+                          return context.tr(
+                            'Password must be at least 8 characters',
+                          );
                         }
                         return null;
                       },
@@ -214,7 +219,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                       ),
                       validator: (value) {
                         if (value != _passwordController.text) {
-                          return 'كلمتا المرور غير متطابقتين';
+                          return context.tr('Passwords do not match');
                         }
                         return null;
                       },
@@ -224,15 +229,15 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: _firmNameController,
-                        decoration: const InputDecoration(
-                          labelText: 'اسم الشركة',
+                        decoration: InputDecoration(
+                          labelText: context.tr('Firm name'),
                         ),
                         validator: (value) {
                           if (!_isCompanyRegistration) {
                             return null;
                           }
                           if ((value ?? '').trim().isEmpty) {
-                            return 'اسم الشركة مطلوب';
+                            return context.tr('Firm name is required');
                           }
                           return null;
                         },
@@ -240,16 +245,16 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: _firmCategoryController,
-                        decoration: const InputDecoration(
-                          labelText: 'فئة الشركة',
+                        decoration: InputDecoration(
+                          labelText: context.tr('Firm category'),
                         ),
                       ),
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: _firmEmployeeCountController,
                         keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'عدد الموظفين',
+                        decoration: InputDecoration(
+                          labelText: context.tr('Employee count'),
                         ),
                         validator: (value) {
                           if (!_isCompanyRegistration) {
@@ -257,7 +262,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                           }
                           final count = int.tryParse((value ?? '').trim());
                           if (count == null || count <= 0) {
-                            return 'أدخل عدد موظفين صحيح';
+                            return context.tr('Enter valid employee count');
                           }
                           return null;
                         },

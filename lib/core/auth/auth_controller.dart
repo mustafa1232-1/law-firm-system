@@ -86,10 +86,11 @@ class AuthController extends StateNotifier<AuthState> {
       if (trimmedIdentifier.isEmpty) {
         state = state.copyWith(
           isSubmitting: false,
-          errorMessage: 'أدخل البريد الإلكتروني أو رقم الهاتف.',
+          errorMessage: 'Please enter email or phone.',
         );
         return false;
       }
+
       final response = await dio.post(
         '/auth/login',
         data: {'identifier': trimmedIdentifier, 'password': password},
@@ -115,7 +116,7 @@ class AuthController extends StateNotifier<AuthState> {
     } catch (_) {
       state = state.copyWith(
         isSubmitting: false,
-        errorMessage: 'حدث خطأ غير متوقع أثناء تسجيل الدخول.',
+        errorMessage: 'Unexpected error while signing in.',
       );
       return false;
     }
@@ -135,7 +136,7 @@ class AuthController extends StateNotifier<AuthState> {
           (trimmedPhone == null || trimmedPhone.isEmpty)) {
         state = state.copyWith(
           isSubmitting: false,
-          errorMessage: 'أدخل البريد الإلكتروني أو رقم الهاتف.',
+          errorMessage: 'Please enter email or phone.',
         );
         return false;
       }
@@ -173,7 +174,7 @@ class AuthController extends StateNotifier<AuthState> {
     } catch (_) {
       state = state.copyWith(
         isSubmitting: false,
-        errorMessage: 'تعذر إنشاء الحساب الآن.',
+        errorMessage: 'Unable to create account right now.',
       );
       return false;
     }
@@ -196,7 +197,7 @@ class AuthController extends StateNotifier<AuthState> {
           (trimmedPhone == null || trimmedPhone.isEmpty)) {
         state = state.copyWith(
           isSubmitting: false,
-          errorMessage: 'أدخل البريد الإلكتروني أو رقم الهاتف.',
+          errorMessage: 'Please enter email or phone.',
         );
         return false;
       }
@@ -207,7 +208,7 @@ class AuthController extends StateNotifier<AuthState> {
         data: {
           'name': firmName.trim(),
           'category': firmCategory.trim().isEmpty
-              ? 'أخرى'
+              ? 'Other'
               : firmCategory.trim(),
           'employeeCount': employeeCount <= 0 ? 1 : employeeCount,
           'adminFullName': fullName.trim(),
@@ -231,7 +232,7 @@ class AuthController extends StateNotifier<AuthState> {
       state = state.copyWith(
         isSubmitting: false,
         errorMessage:
-            'تم إنشاء الشركة لكن فشل تسجيل الدخول التلقائي. حاول تسجيل الدخول يدويًا.',
+            'Company created, but auto sign-in failed. Please sign in manually.',
       );
       return false;
     } on DioException catch (error) {
@@ -243,7 +244,7 @@ class AuthController extends StateNotifier<AuthState> {
     } catch (_) {
       state = state.copyWith(
         isSubmitting: false,
-        errorMessage: 'تعذر إنشاء حساب الشركة الآن.',
+        errorMessage: 'Unable to create company account right now.',
       );
       return false;
     }
@@ -414,8 +415,8 @@ String _extractApiError(DioException error) {
   if (error.type == DioExceptionType.connectionError ||
       error.type == DioExceptionType.connectionTimeout ||
       error.type == DioExceptionType.receiveTimeout) {
-    return 'تعذر الاتصال بالخادم. تأكد من رابط API وتشغيل الباك اند.';
+    return 'Unable to reach the server. Check API URL and backend status.';
   }
 
-  return 'فشل تنفيذ الطلب. يرجى المحاولة مجددًا.';
+  return 'Request failed. Please try again.';
 }
