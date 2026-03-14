@@ -155,6 +155,25 @@ export class UsersService {
     return this.sanitize(updated);
   }
 
+  async updatePassword(id: string, newPassword: string, actorId?: string) {
+    const user = await this.userModel.findById(id);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    user.passwordHash = await bcrypt.hash(newPassword, 10);
+    await user.save();
+
+    await this.auditService.record({
+      action: 'user.password.update',
+      entity: 'users',
+      entityId: id,
+      actorId,
+    });
+
+    return this.sanitize(user.toObject());
+  }
+
   async remove(id: string, actorId?: string) {
     const deleted = await this.userModel.findByIdAndDelete(id).lean();
     if (!deleted) {

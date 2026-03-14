@@ -9,6 +9,10 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './jwt.strategy';
 import { RefreshToken, RefreshTokenSchema } from './schemas/refresh-token.schema';
+import {
+  PasswordResetChallenge,
+  PasswordResetChallengeSchema,
+} from './schemas/password-reset-challenge.schema';
 
 @Module({
   imports: [
@@ -28,6 +32,10 @@ import { RefreshToken, RefreshTokenSchema } from './schemas/refresh-token.schema
     }),
     MongooseModule.forFeature([
       { name: RefreshToken.name, schema: RefreshTokenSchema },
+      {
+        name: PasswordResetChallenge.name,
+        schema: PasswordResetChallengeSchema,
+      },
     ]),
   ],
   controllers: [AuthController],

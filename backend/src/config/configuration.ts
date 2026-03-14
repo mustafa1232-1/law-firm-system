@@ -17,6 +17,15 @@ export default () => ({
     accessTtl: process.env.JWT_ACCESS_TTL ?? '15m',
     refreshTtl: process.env.JWT_REFRESH_TTL ?? '30d',
   },
+  auth: {
+    passwordResetCodeTtlMinutes: Number(
+      process.env.PASSWORD_RESET_CODE_TTL_MINUTES ?? 15,
+    ),
+    passwordResetExposeCode:
+      (process.env.PASSWORD_RESET_EXPOSE_CODE ??
+        (process.env.NODE_ENV === 'production' ? 'false' : 'true')) ===
+      'true',
+  },
   redis: {
     url: process.env.REDIS_URL ?? '',
   },

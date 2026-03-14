@@ -9,12 +9,18 @@ import { JwtService } from '@nestjs/jwt';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import * as bcrypt from 'bcryptjs';
-import { createHash } from 'crypto';
+import { createHash, randomInt } from 'crypto';
 import { AuditService } from '../audit/audit.service';
 import { UsersService } from '../users/users.service';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
 import { RegisterDto } from './dto/register.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import {
+  PasswordResetChallenge,
+  PasswordResetChallengeDocument,
+} from './schemas/password-reset-challenge.schema';
 import { RefreshToken, RefreshTokenDocument } from './schemas/refresh-token.schema';
 import { JwtUserPayload } from './jwt-user-payload.interface';
 
@@ -27,6 +33,8 @@ export class AuthService {
     private readonly auditService: AuditService,
     @InjectModel(RefreshToken.name)
     private readonly refreshTokenModel: Model<RefreshTokenDocument>,
+    @InjectModel(PasswordResetChallenge.name)
+    private readonly passwordResetChallengeModel: Model<PasswordResetChallengeDocument>,
   ) {}
 
   async register(dto: RegisterDto, ipAddress?: string) {
@@ -110,6 +118,150 @@ export class AuthService {
       metadata.ipAddress,
       metadata.userAgent,
     );
+  }
+
+  async forgotPassword(
+    dto: ForgotPasswordDto,
+    metadata: { ipAddress?: string; userAgent?: string },
+  ) {
+    const identifier = (dto.identifier ?? dto.email ?? dto.phone ?? '').trim();
+    if (!identifier) {
+      throw new BadRequestException('Email or phone is required');
+    }
+
+    const user = await this.usersService.findByIdentifier(identifier);
+    const genericMessage =
+      'If the account exists, a reset code has been generated.';
+
+    if (!user || !user.isActive) {
+      return {
+        success: true,
+        message: genericMessage,
+      };
+    }
+
+    const identifierType: 'email' | 'phone' = identifier.includes('@')
+      ? 'email'
+      : 'phone';
+    const identifierValue = this.normalizeIdentifierValue(
+      identifier,
+      identifierType,
+    );
+
+    const now = new Date();
+    await this.passwordResetChallengeModel.updateMany(
+      {
+        userId: user._id,
+        usedAt: null,
+        expiresAt: { $gt: now },
+      },
+      { $set: { usedAt: now } },
+    );
+
+    const code = this.generateResetCode();
+    const ttlMinutes = Math.max(
+      5,
+      Number(this.configService.get<number>('auth.passwordResetCodeTtlMinutes') ?? 15),
+    );
+    const expiresAt = new Date(now.getTime() + ttlMinutes * 60 * 1000);
+
+    const challenge = await this.passwordResetChallengeModel.create({
+      userId: user._id,
+      identifierType,
+      identifierValue,
+      codeHash: this.hashToken(code),
+      expiresAt,
+      attempts: 0,
+      maxAttempts: 5,
+      ipAddress: metadata.ipAddress,
+      userAgent: metadata.userAgent,
+    });
+
+    await this.auditService.record({
+      action: 'auth.password-reset.request',
+      entity: 'users',
+      entityId: user._id?.toString(),
+      ipAddress: metadata.ipAddress,
+      payload: {
+        identifierType,
+      },
+    });
+
+    const response: Record<string, unknown> = {
+      success: true,
+      message: genericMessage,
+      challengeId: challenge._id.toString(),
+      expiresAt: challenge.expiresAt,
+      delivery: identifierType,
+    };
+
+    const exposeCode = this.configService.get<boolean>('auth.passwordResetExposeCode');
+    if (exposeCode) {
+      response.resetCode = code;
+    }
+
+    return response;
+  }
+
+  async resetPassword(
+    dto: ResetPasswordDto,
+    metadata: { ipAddress?: string; userAgent?: string },
+  ) {
+    const challenge = await this.passwordResetChallengeModel.findById(
+      dto.challengeId,
+    );
+
+    if (!challenge) {
+      throw new UnauthorizedException('Invalid or expired reset code');
+    }
+
+    const now = new Date();
+    if (challenge.usedAt || challenge.expiresAt.getTime() <= now.getTime()) {
+      throw new UnauthorizedException('Invalid or expired reset code');
+    }
+
+    if (challenge.attempts >= challenge.maxAttempts) {
+      challenge.usedAt = now;
+      await challenge.save();
+      throw new UnauthorizedException('Invalid or expired reset code');
+    }
+
+    const providedHash = this.hashToken(dto.code.trim());
+    if (providedHash !== challenge.codeHash) {
+      challenge.attempts += 1;
+      if (challenge.attempts >= challenge.maxAttempts) {
+        challenge.usedAt = new Date();
+      }
+      await challenge.save();
+      throw new UnauthorizedException('Invalid or expired reset code');
+    }
+
+    await this.usersService.updatePassword(challenge.userId.toString(), dto.newPassword);
+    challenge.usedAt = new Date();
+    await challenge.save();
+
+    await this.refreshTokenModel.updateMany(
+      {
+        userId: challenge.userId,
+        revoked: false,
+      },
+      { $set: { revoked: true } },
+    );
+
+    await this.auditService.record({
+      action: 'auth.password-reset.confirm',
+      entity: 'users',
+      entityId: challenge.userId.toString(),
+      ipAddress: metadata.ipAddress,
+      payload: {
+        identifierType: challenge.identifierType,
+      },
+    });
+
+    return {
+      success: true,
+      message: 'Password reset completed successfully',
+    };
   }
 
   async me(user: JwtUserPayload) {
@@ -219,5 +371,25 @@ export class AuthService {
 
   private hashToken(token: string): string {
     return createHash('sha256').update(token).digest('hex');
+  }
+
+  private generateResetCode(): string {
+    return randomInt(100000, 999999).toString();
+  }
+
+  private normalizeIdentifierValue(
+    identifier: string,
+    type: 'email' | 'phone',
+  ): string {
+    if (type === 'email') {
+      return identifier.toLowerCase().trim();
+    }
+
+    return identifier
+      .trim()
+      .replace(/\s+/g, '')
+      .replace(/-/g, '')
+      .replace(/\(/g, '')
+      .replace(/\)/g, '');
   }
 }
