@@ -75,13 +75,24 @@ class AuthController extends StateNotifier<AuthState> {
     }
   }
 
-  Future<bool> login({required String email, required String password}) async {
+  Future<bool> login({
+    required String identifier,
+    required String password,
+  }) async {
     state = state.copyWith(isSubmitting: true, clearError: true);
     try {
       final dio = _ref.read(dioProvider);
+      final trimmedIdentifier = identifier.trim();
+      if (trimmedIdentifier.isEmpty) {
+        state = state.copyWith(
+          isSubmitting: false,
+          errorMessage: 'أدخل البريد الإلكتروني أو رقم الهاتف.',
+        );
+        return false;
+      }
       final response = await dio.post(
         '/auth/login',
-        data: {'email': email.trim(), 'password': password},
+        data: {'identifier': trimmedIdentifier, 'password': password},
       );
 
       final session = AuthSession.fromJson(
@@ -112,17 +123,32 @@ class AuthController extends StateNotifier<AuthState> {
 
   Future<bool> register({
     required String fullName,
-    required String email,
+    String? email,
+    String? phone,
     required String password,
   }) async {
     state = state.copyWith(isSubmitting: true, clearError: true);
     try {
+      final trimmedEmail = email?.trim();
+      final trimmedPhone = phone?.trim();
+      if ((trimmedEmail == null || trimmedEmail.isEmpty) &&
+          (trimmedPhone == null || trimmedPhone.isEmpty)) {
+        state = state.copyWith(
+          isSubmitting: false,
+          errorMessage: 'أدخل البريد الإلكتروني أو رقم الهاتف.',
+        );
+        return false;
+      }
+
       final dio = _ref.read(dioProvider);
       final response = await dio.post(
         '/auth/register',
         data: {
           'fullName': fullName.trim(),
-          'email': email.trim(),
+          if (trimmedEmail != null && trimmedEmail.isNotEmpty)
+            'email': trimmedEmail,
+          if (trimmedPhone != null && trimmedPhone.isNotEmpty)
+            'phone': trimmedPhone,
           'password': password,
         },
       );
@@ -155,7 +181,8 @@ class AuthController extends StateNotifier<AuthState> {
 
   Future<bool> registerCompany({
     required String fullName,
-    required String email,
+    String? email,
+    String? phone,
     required String password,
     required String firmName,
     required String firmCategory,
@@ -163,6 +190,17 @@ class AuthController extends StateNotifier<AuthState> {
   }) async {
     state = state.copyWith(isSubmitting: true, clearError: true);
     try {
+      final trimmedEmail = email?.trim();
+      final trimmedPhone = phone?.trim();
+      if ((trimmedEmail == null || trimmedEmail.isEmpty) &&
+          (trimmedPhone == null || trimmedPhone.isEmpty)) {
+        state = state.copyWith(
+          isSubmitting: false,
+          errorMessage: 'أدخل البريد الإلكتروني أو رقم الهاتف.',
+        );
+        return false;
+      }
+
       final dio = _ref.read(dioProvider);
       await dio.post(
         '/firms/register-company',
@@ -173,12 +211,19 @@ class AuthController extends StateNotifier<AuthState> {
               : firmCategory.trim(),
           'employeeCount': employeeCount <= 0 ? 1 : employeeCount,
           'adminFullName': fullName.trim(),
-          'adminEmail': email.trim(),
+          if (trimmedEmail != null && trimmedEmail.isNotEmpty)
+            'adminEmail': trimmedEmail,
+          if (trimmedPhone != null && trimmedPhone.isNotEmpty)
+            'adminPhone': trimmedPhone,
           'adminPassword': password,
         },
       );
 
-      final loginSuccess = await login(email: email, password: password);
+      final loginIdentifier = (trimmedEmail ?? trimmedPhone ?? '').trim();
+      final loginSuccess = await login(
+        identifier: loginIdentifier,
+        password: password,
+      );
       if (loginSuccess) {
         return true;
       }

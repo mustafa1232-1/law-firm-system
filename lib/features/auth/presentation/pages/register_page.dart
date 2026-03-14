@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -16,18 +16,19 @@ class RegisterPage extends ConsumerStatefulWidget {
 class _RegisterPageState extends ConsumerState<RegisterPage> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
-  final _emailController = TextEditingController();
+  final _contactController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _firmNameController = TextEditingController();
   final _firmCategoryController = TextEditingController();
   final _firmEmployeeCountController = TextEditingController(text: '1');
   bool _isCompanyRegistration = false;
+  bool _usePhone = false;
 
   @override
   void dispose() {
     _nameController.dispose();
-    _emailController.dispose();
+    _contactController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     _firmNameController.dispose();
@@ -41,20 +42,31 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
       return;
     }
 
+    final contact = _contactController.text.trim();
+    final email = _usePhone ? null : contact;
+    final phone = _usePhone ? contact : null;
+
     bool success = false;
     if (_isCompanyRegistration) {
-      success = await ref.read(authControllerProvider.notifier).registerCompany(
+      success = await ref
+          .read(authControllerProvider.notifier)
+          .registerCompany(
             fullName: _nameController.text,
-            email: _emailController.text,
+            email: email,
+            phone: phone,
             password: _passwordController.text,
             firmName: _firmNameController.text,
             firmCategory: _firmCategoryController.text,
-            employeeCount: int.tryParse(_firmEmployeeCountController.text.trim()) ?? 1,
+            employeeCount:
+                int.tryParse(_firmEmployeeCountController.text.trim()) ?? 1,
           );
     } else {
-      success = await ref.read(authControllerProvider.notifier).register(
+      success = await ref
+          .read(authControllerProvider.notifier)
+          .register(
             fullName: _nameController.text,
-            email: _emailController.text,
+            email: email,
+            phone: phone,
             password: _passwordController.text,
           );
     }
@@ -70,7 +82,9 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
 
     final error = ref.read(authControllerProvider).errorMessage;
     if (error != null && error.isNotEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error)));
     }
   }
 
@@ -98,7 +112,8 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                     const SizedBox(height: 10),
                     SwitchListTile.adaptive(
                       value: _isCompanyRegistration,
-                      onChanged: (value) => setState(() => _isCompanyRegistration = value),
+                      onChanged: (value) =>
+                          setState(() => _isCompanyRegistration = value),
                       title: Text(
                         _isCompanyRegistration
                             ? 'تسجيل شركة محاماة'
@@ -112,9 +127,28 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                       contentPadding: EdgeInsets.zero,
                     ),
                     const SizedBox(height: 14),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        ChoiceChip(
+                          selected: !_usePhone,
+                          onSelected: (_) => setState(() => _usePhone = false),
+                          label: const Text('استخدام الإيميل'),
+                        ),
+                        ChoiceChip(
+                          selected: _usePhone,
+                          onSelected: (_) => setState(() => _usePhone = true),
+                          label: const Text('استخدام رقم الهاتف'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
                     TextFormField(
                       controller: _nameController,
-                      decoration: InputDecoration(labelText: context.tr('Full name')),
+                      decoration: InputDecoration(
+                        labelText: context.tr('Full name'),
+                      ),
                       validator: (value) {
                         if ((value ?? '').trim().isEmpty) {
                           return 'الاسم الكامل مطلوب';
@@ -124,15 +158,33 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
-                      controller: _emailController,
-                      keyboardType: TextInputType.emailAddress,
-                      decoration: InputDecoration(labelText: context.tr('Email')),
+                      controller: _contactController,
+                      keyboardType: _usePhone
+                          ? TextInputType.phone
+                          : TextInputType.emailAddress,
+                      decoration: InputDecoration(
+                        labelText: _usePhone
+                            ? 'رقم الهاتف'
+                            : context.tr('Email'),
+                      ),
                       validator: (value) {
                         final text = (value ?? '').trim();
                         if (text.isEmpty) {
-                          return 'البريد الإلكتروني مطلوب';
+                          return _usePhone
+                              ? 'رقم الهاتف مطلوب'
+                              : 'البريد الإلكتروني مطلوب';
                         }
-                        if (!text.contains('@')) {
+                        if (_usePhone) {
+                          final digits = text.replaceAll(
+                            RegExp(r'[^0-9+]'),
+                            '',
+                          );
+                          if (digits.length < 7) {
+                            return 'رقم الهاتف غير صالح';
+                          }
+                          return null;
+                        }
+                        if (!text.contains('@') || !text.contains('.')) {
                           return 'البريد الإلكتروني غير صالح';
                         }
                         return null;
@@ -142,7 +194,9 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                     TextFormField(
                       controller: _passwordController,
                       obscureText: true,
-                      decoration: InputDecoration(labelText: context.tr('Password')),
+                      decoration: InputDecoration(
+                        labelText: context.tr('Password'),
+                      ),
                       validator: (value) {
                         final text = value ?? '';
                         if (text.length < 8) {
@@ -155,7 +209,9 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                     TextFormField(
                       controller: _confirmPasswordController,
                       obscureText: true,
-                      decoration: InputDecoration(labelText: context.tr('Confirm password')),
+                      decoration: InputDecoration(
+                        labelText: context.tr('Confirm password'),
+                      ),
                       validator: (value) {
                         if (value != _passwordController.text) {
                           return 'كلمتا المرور غير متطابقتين';
@@ -168,7 +224,9 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: _firmNameController,
-                        decoration: const InputDecoration(labelText: 'اسم الشركة'),
+                        decoration: const InputDecoration(
+                          labelText: 'اسم الشركة',
+                        ),
                         validator: (value) {
                           if (!_isCompanyRegistration) {
                             return null;
@@ -182,13 +240,17 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: _firmCategoryController,
-                        decoration: const InputDecoration(labelText: 'فئة الشركة'),
+                        decoration: const InputDecoration(
+                          labelText: 'فئة الشركة',
+                        ),
                       ),
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: _firmEmployeeCountController,
                         keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(labelText: 'عدد الموظفين'),
+                        decoration: const InputDecoration(
+                          labelText: 'عدد الموظفين',
+                        ),
                         validator: (value) {
                           if (!_isCompanyRegistration) {
                             return null;
@@ -210,14 +272,18 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                             ? const SizedBox(
                                 width: 20,
                                 height: 20,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
                               )
                             : Text(context.tr('Create Account')),
                       ),
                     ),
                     TextButton(
                       onPressed: () => context.go('/auth/login'),
-                      child: Text(context.tr('Already have an account? Sign in')),
+                      child: Text(
+                        context.tr('Already have an account? Sign in'),
+                      ),
                     ),
                   ],
                 ),

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -98,9 +99,24 @@ export class FirmsService {
   }
 
   async registerCompany(dto: RegisterCompanyDto) {
-    const existingUser = await this.usersService.findByEmail(dto.adminEmail);
-    if (existingUser) {
-      throw new ConflictException('Admin email already used');
+    const adminEmail = dto.adminEmail?.trim();
+    const adminPhone = dto.adminPhone?.trim();
+    if (!adminEmail && !adminPhone) {
+      throw new BadRequestException('Admin email or phone is required');
+    }
+
+    if (adminEmail) {
+      const existingByEmail = await this.usersService.findByEmail(adminEmail);
+      if (existingByEmail) {
+        throw new ConflictException('Admin email already used');
+      }
+    }
+
+    if (adminPhone) {
+      const existingByPhone = await this.usersService.findByPhone(adminPhone);
+      if (existingByPhone) {
+        throw new ConflictException('Admin phone already used');
+      }
     }
 
     const firm = await this.firmModel.create({
@@ -124,8 +140,8 @@ export class FirmsService {
 
     const adminUser = await this.usersService.create({
       fullName: dto.adminFullName,
-      email: dto.adminEmail,
-      phone: dto.adminPhone,
+      email: adminEmail,
+      phone: adminPhone,
       password: dto.adminPassword,
       firmId: firm._id.toString(),
       roles: [SystemRole.FIRM_ADMIN],
@@ -137,7 +153,8 @@ export class FirmsService {
       entityId: firm.id,
       payload: {
         firmName: dto.name,
-        adminEmail: dto.adminEmail,
+        adminEmail: adminEmail ?? null,
+        adminPhone: adminPhone ?? null,
       },
     });
 

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Injectable,
   UnauthorizedException,
   ConflictException,
@@ -29,35 +30,52 @@ export class AuthService {
   ) {}
 
   async register(dto: RegisterDto, ipAddress?: string) {
-    const existing = await this.usersService.findByEmail(dto.email);
-    if (existing) {
-      throw new ConflictException('Email already used');
+    const email = dto.email?.trim();
+    const phone = dto.phone?.trim();
+    if (!email && !phone) {
+      throw new BadRequestException('Either email or phone is required');
     }
 
-    await this.usersService.create(
+    if (email) {
+      const existingEmail = await this.usersService.findByEmail(email);
+      if (existingEmail) {
+        throw new ConflictException('Email already used');
+      }
+    }
+
+    if (phone) {
+      const existingPhone = await this.usersService.findByPhone(phone);
+      if (existingPhone) {
+        throw new ConflictException('Phone already used');
+      }
+    }
+
+    const user = await this.usersService.create(
       {
         ...dto,
+        email,
+        phone,
         password: dto.password,
       },
       undefined,
     );
-    const user = await this.usersService.findByEmail(dto.email);
-    if (!user) {
-      throw new UnauthorizedException('Unable to complete registration');
-    }
 
     await this.auditService.record({
       action: 'auth.register',
       entity: 'users',
       entityId: user._id?.toString(),
       ipAddress,
-      payload: { email: dto.email },
+      payload: {
+        email: user.email ?? null,
+        phone: user.phone ?? null,
+      },
     });
 
     return this.createTokens(
       {
         _id: user._id,
-        email: user.email,
+        email: (user.email ?? '').toString(),
+        phone: user.phone?.toString(),
         roles: user.roles ?? [],
         firmId: user.firmId?.toString(),
       },
@@ -66,7 +84,12 @@ export class AuthService {
   }
 
   async login(dto: LoginDto, metadata: { ipAddress?: string; userAgent?: string }) {
-    const user = await this.usersService.findByEmail(dto.email);
+    const identifier = (dto.identifier ?? dto.email ?? dto.phone ?? '').trim();
+    if (!identifier) {
+      throw new BadRequestException('Email or phone is required');
+    }
+
+    const user = await this.usersService.findByIdentifier(identifier);
     if (!user || !user.isActive) {
       throw new UnauthorizedException('Invalid credentials');
     }
@@ -79,7 +102,8 @@ export class AuthService {
     return this.createTokens(
       {
         _id: user._id,
-        email: user.email,
+        email: (user.email ?? '').toString(),
+        phone: user.phone?.toString(),
         roles: user.roles ?? [],
         firmId: user.firmId?.toString(),
       },
@@ -114,7 +138,8 @@ export class AuthService {
     return this.createTokens(
       {
         _id: (user as any)._id,
-        email: (user as any).email,
+        email: ((user as any).email ?? '').toString(),
+        phone: (user as any).phone?.toString(),
         roles: (user as any).roles ?? [],
         firmId: (user as any).firmId?.toString(),
       },
@@ -133,13 +158,20 @@ export class AuthService {
   }
 
   private async createTokens(
-    user: { _id: any; email: string; roles: string[]; firmId?: string | null },
+    user: {
+      _id: any;
+      email: string;
+      phone?: string;
+      roles: string[];
+      firmId?: string | null;
+    },
     ipAddress?: string,
     userAgent?: string,
   ) {
     const payload: JwtUserPayload = {
       sub: user._id.toString(),
       email: user.email,
+      phone: user.phone,
       roles: user.roles,
       firmId: user.firmId,
     };

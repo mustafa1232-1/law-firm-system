@@ -6,9 +6,15 @@ export class RegisterDto {
   @IsString()
   fullName: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional({ example: 'mustafa@1.net' })
+  @IsOptional()
   @IsEmail()
-  email: string;
+  email?: string;
+
+  @ApiPropertyOptional({ example: '+9647700000000' })
+  @IsOptional()
+  @IsString()
+  phone?: string;
 
   @ApiProperty()
   @IsString()

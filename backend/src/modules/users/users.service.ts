@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import * as bcrypt from 'bcryptjs';
@@ -16,9 +21,33 @@ export class UsersService {
   ) {}
 
   async create(dto: CreateUserDto, actorId?: string) {
+    const email = this.normalizeEmail(dto.email);
+    const phone = this.normalizePhone(dto.phone);
+    if (!email && !phone) {
+      throw new BadRequestException(
+        'Either email or phone must be provided',
+      );
+    }
+
+    if (email) {
+      const existingEmail = await this.findByEmail(email);
+      if (existingEmail) {
+        throw new ConflictException('Email already used');
+      }
+    }
+
+    if (phone) {
+      const existingPhone = await this.findByPhone(phone);
+      if (existingPhone) {
+        throw new ConflictException('Phone already used');
+      }
+    }
+
     const passwordHash = await bcrypt.hash(dto.password, 10);
     const created = await this.userModel.create({
       ...dto,
+      email,
+      phone,
       firmId: dto.firmId ? new Types.ObjectId(dto.firmId) : undefined,
       passwordHash,
     });
@@ -28,7 +57,10 @@ export class UsersService {
       entity: 'users',
       entityId: created.id,
       actorId,
-      payload: { email: created.email },
+      payload: {
+        email: created.email,
+        phone: created.phone,
+      },
     });
 
     return this.sanitize(created.toObject());
@@ -59,8 +91,33 @@ export class UsersService {
     return this.sanitize(user);
   }
 
-  async findByEmail(email: string) {
-    return this.userModel.findOne({ email: email.toLowerCase() });
+  async findByEmail(email?: string | null) {
+    const normalized = this.normalizeEmail(email);
+    if (!normalized) {
+      return null;
+    }
+    return this.userModel.findOne({ email: normalized });
+  }
+
+  async findByPhone(phone?: string | null) {
+    const normalized = this.normalizePhone(phone);
+    if (!normalized) {
+      return null;
+    }
+    return this.userModel.findOne({ phone: normalized });
+  }
+
+  async findByIdentifier(identifier: string) {
+    const normalized = identifier.trim();
+    if (!normalized) {
+      return null;
+    }
+
+    if (normalized.includes('@')) {
+      return this.findByEmail(normalized);
+    }
+
+    return this.findByPhone(normalized);
   }
 
   async update(id: string, dto: UpdateUserDto, actorId?: string) {
@@ -71,6 +128,12 @@ export class UsersService {
     }
     if (dto.firmId) {
       payload.firmId = new Types.ObjectId(dto.firmId);
+    }
+    if (dto.email !== undefined) {
+      payload.email = this.normalizeEmail(dto.email);
+    }
+    if (dto.phone !== undefined) {
+      payload.phone = this.normalizePhone(dto.phone);
     }
 
     const updated = await this.userModel
@@ -109,5 +172,25 @@ export class UsersService {
   private sanitize(user: any) {
     const { passwordHash, ...rest } = user;
     return rest;
+  }
+
+  private normalizeEmail(value?: string | null): string | undefined {
+    const normalized = (value ?? '').trim().toLowerCase();
+    return normalized.length === 0 ? undefined : normalized;
+  }
+
+  private normalizePhone(value?: string | null): string | undefined {
+    const raw = (value ?? '').trim();
+    if (!raw) {
+      return undefined;
+    }
+
+    const normalized = raw
+      .replace(/\s+/g, '')
+      .replace(/-/g, '')
+      .replace(/\(/g, '')
+      .replace(/\)/g, '');
+
+    return normalized.length === 0 ? undefined : normalized;
   }
 }

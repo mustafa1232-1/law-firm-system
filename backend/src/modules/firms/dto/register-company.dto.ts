@@ -7,9 +7,10 @@ export class RegisterCompanyDto extends CreateFirmDto {
   @IsString()
   adminFullName: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsEmail()
-  adminEmail: string;
+  adminEmail?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

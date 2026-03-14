@@ -2,12 +2,14 @@ class AuthUser {
   const AuthUser({
     required this.id,
     required this.email,
+    this.phone,
     required this.roles,
     this.firmId,
   });
 
   final String id;
   final String email;
+  final String? phone;
   final List<String> roles;
   final String? firmId;
 
@@ -15,7 +17,10 @@ class AuthUser {
     return AuthUser(
       id: (json['sub'] ?? json['id'] ?? '').toString(),
       email: (json['email'] ?? '').toString(),
-      roles: ((json['roles'] as List?) ?? const []).map((e) => e.toString()).toList(),
+      phone: json['phone']?.toString(),
+      roles: ((json['roles'] as List?) ?? const [])
+          .map((e) => e.toString())
+          .toList(),
       firmId: json['firmId']?.toString(),
     );
   }
@@ -24,6 +29,7 @@ class AuthUser {
     return {
       'sub': id,
       'email': email,
+      'phone': phone,
       'roles': roles,
       'firmId': firmId,
     };
@@ -45,7 +51,9 @@ class AuthSession {
     return AuthSession(
       accessToken: (json['accessToken'] ?? '').toString(),
       refreshToken: (json['refreshToken'] ?? '').toString(),
-      user: AuthUser.fromJson((json['user'] as Map?)?.cast<String, dynamic>() ?? const {}),
+      user: AuthUser.fromJson(
+        (json['user'] as Map?)?.cast<String, dynamic>() ?? const {},
+      ),
     );
   }
 

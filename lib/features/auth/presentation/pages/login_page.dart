@@ -15,12 +15,12 @@ class LoginPage extends ConsumerStatefulWidget {
 
 class _LoginPageState extends ConsumerState<LoginPage> {
   final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController();
+  final _identifierController = TextEditingController();
   final _passwordController = TextEditingController();
 
   @override
   void dispose() {
-    _emailController.dispose();
+    _identifierController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
@@ -30,8 +30,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       return;
     }
 
-    final success = await ref.read(authControllerProvider.notifier).login(
-          email: _emailController.text,
+    final success = await ref
+        .read(authControllerProvider.notifier)
+        .login(
+          identifier: _identifierController.text,
           password: _passwordController.text,
         );
 
@@ -46,7 +48,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
     final error = ref.read(authControllerProvider).errorMessage;
     if (error != null && error.isNotEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error)));
     }
   }
 
@@ -67,21 +71,26 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(context.tr('Sign In'), style: Theme.of(context).textTheme.headlineSmall),
+                    Text(
+                      context.tr('Sign In'),
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
                     const SizedBox(height: 6),
                     Text(context.tr('Access your LexIQ Iraq legal workspace.')),
                     const SizedBox(height: 16),
                     TextFormField(
-                      controller: _emailController,
+                      controller: _identifierController,
                       keyboardType: TextInputType.emailAddress,
-                      decoration: InputDecoration(labelText: context.tr('Email')),
+                      decoration: const InputDecoration(
+                        labelText: 'البريد الإلكتروني أو رقم الهاتف',
+                      ),
                       validator: (value) {
                         final text = (value ?? '').trim();
                         if (text.isEmpty) {
-                          return 'Email is required';
+                          return 'الحقل مطلوب';
                         }
-                        if (!text.contains('@')) {
-                          return 'Invalid email';
+                        if (text.contains('@') && !text.contains('.')) {
+                          return 'البريد الإلكتروني غير صالح';
                         }
                         return null;
                       },
@@ -90,7 +99,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     TextFormField(
                       controller: _passwordController,
                       obscureText: true,
-                      decoration: InputDecoration(labelText: context.tr('Password')),
+                      decoration: InputDecoration(
+                        labelText: context.tr('Password'),
+                      ),
                       validator: (value) {
                         if ((value ?? '').isEmpty) {
                           return 'Password is required';
@@ -108,7 +119,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                             ? const SizedBox(
                                 width: 20,
                                 height: 20,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
                               )
                             : Text(context.tr('Sign In')),
                       ),
@@ -120,7 +133,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                           child: Align(
                             alignment: Alignment.centerRight,
                             child: TextButton(
-                              onPressed: () => context.go('/auth/forgot-password'),
+                              onPressed: () =>
+                                  context.go('/auth/forgot-password'),
                               child: Text(context.tr('Forgot password?')),
                             ),
                           ),
